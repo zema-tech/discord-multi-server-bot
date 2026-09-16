@@ -3,6 +3,18 @@ const { Events, MessageFlags, PermissionFlagsBits } = require('discord.js');
 module.exports = {
   name: Events.InteractionCreate,
   async execute(interaction, client) {
+    // --- Ticket: select, modali e bottoni ---
+    try {
+      const ticketHandler = require('../handlers/ticketHandler');
+      if (await ticketHandler.handle(interaction)) return;
+    } catch (e) {
+      console.error('ticketHandler:', e);
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: '❌ Errore nel sistema ticket.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      }
+      return;
+    }
+
     // --- Bottoni (nuke) ---
     if (interaction.isButton()) {
       const [action, arg] = interaction.customId.split(':');

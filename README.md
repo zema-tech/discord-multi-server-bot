@@ -1,6 +1,6 @@
 # Discord Multi-Server Bot 🤖
 
-Bot Discord avanzato per **più server** contemporaneamente — moderazione, economia, livelli XP, automod, welcome, giveaway e tanto altro. **37 slash command**, zero dipendenze extra oltre `discord.js`.
+Bot Discord avanzato per **più server** contemporaneamente — moderazione, economia, livelli XP, automod, welcome, giveaway, ticket professionali e tanto altro. **38 slash command**, zero dipendenze extra oltre `discord.js`.
 
 ## 🚀 Funzionalità
 
@@ -31,6 +31,12 @@ Bot Discord avanzato per **più server** contemporaneamente — moderazione, eco
 - `/suggest` — suggerimenti con voto ✅/❌
 - `/remind` — promemoria in DM (`10m`, `2h`, `1d`)
 - `/setup` — configura welcome, goodbye, log, suggerimenti, automod per-server
+
+### 🎫 Ticket (1 comando, 9 sotto-comandi)
+- `/ticket setup` — configura panel, categoria, log, ruoli staff, max per utente
+- `/ticket panel` — ripubblica il pannello con menu di selezione (Supporto, Bug, Appeal, Partnership)
+- Canali privati con permessi automatici, pulsante **Prendi in carico** (claim), **Chiudi** con motivo + **transcript .txt** (log + DM al proprietario), **Riapri**, **Elimina**
+- `/ticket aggiungi|rimuovi|claim|chiudi|riapri|transcript|stats`
 
 ### ⚙️ Sistema
 - **Automoderazione**: anti-spam (5 msg/5s), anti-link, anti-invite, bad words, anti-mention, anti-caps — lo staff è esente
@@ -77,7 +83,7 @@ Per test veloci su un solo server aggiungi `GUILD_ID` nel `.env` prima del deplo
 
 ## 🌐 Multi-Server
 
-Ogni server ha dati indipendenti: economia, livelli, warn, config welcome/log/automod.
+Ogni server ha dati indipendenti: economia, livelli, warn, ticket, config welcome/log/automod.
 
 ## 🛠️ Tecnologie
 

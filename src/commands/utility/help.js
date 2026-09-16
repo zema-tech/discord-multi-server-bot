@@ -14,7 +14,7 @@ module.exports = {
     }
     const titles = {
       moderation: '🛡️ Moderazione', fun: '🎮 Divertimento', economy: '💰 Economia',
-      utility: '🔧 Utility', levels: '⭐ Livelli', altri: '📌 Altri',
+      utility: '🔧 Utility', levels: '⭐ Livelli', tickets: '🎫 Ticket', altri: '📌 Altri',
     };
     const embed = new EmbedBuilder()
       .setColor(0x5865f2)
