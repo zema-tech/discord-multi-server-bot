@@ -10,13 +10,15 @@ module.exports = {
   async execute(interaction) {
     const data = getUser(interaction.guild.id, interaction.user.id);
     const now = Date.now();
-    if (now - data.lastDaily < COOLDOWN) {
+    const lastDaily = Number(data.lastDaily) || 0;
+    if (now - lastDaily < COOLDOWN) {
       return interaction.reply({
-        content: `⏳ Prossimo daily <t:${Math.floor((data.lastDaily + COOLDOWN) / 1000)}:R>`,
+        content: `⏳ Prossimo daily <t:${Math.floor((lastDaily + COOLDOWN) / 1000)}:R>`,
         flags: MessageFlags.Ephemeral,
       });
     }
-    const streak = (data.dailyStreak || 0) + 1;
+    // Streak solo se l'ultimo daily è di ieri: se saltato (>48h), riparte da 1
+    const streak = now - lastDaily <= 2 * COOLDOWN ? (Number(data.dailyStreak) || 0) + 1 : 1;
     const bonus = Math.min((streak - 1) * 50, 500);
     const reward = DAILY_AMOUNT + bonus;
     updateUser(interaction.guild.id, interaction.user.id, {

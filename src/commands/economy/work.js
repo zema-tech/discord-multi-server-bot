@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const { getUser, updateUser } = require('../../database/economy');
 
 const jobs = [
@@ -21,11 +21,11 @@ module.exports = {
     const userData = getUser(interaction.guild.id, interaction.user.id);
     const now = Date.now();
 
-    if (now - userData.lastWork < COOLDOWN) {
-      const remaining = userData.lastWork + COOLDOWN;
+    if (now - (Number(userData.lastWork) || 0) < COOLDOWN) {
+      const remaining = (Number(userData.lastWork) || 0) + COOLDOWN;
       return interaction.reply({
         content: `⏳ Puoi lavorare di nuovo <t:${Math.floor(remaining / 1000)}:R>`,
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
 

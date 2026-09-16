@@ -106,7 +106,7 @@ async function createTicket(interaction, typeKey) {
   }
 
   const category = await guild.channels.fetch(config.categoryId).catch(() => null);
-  if (!category) {
+  if (!category || category.type !== ChannelType.GuildCategory) {
     return interaction.reply({ content: '❌ Categoria ticket non trovata. Riesegui `/ticket setup`.', flags: MessageFlags.Ephemeral });
   }
 
@@ -122,7 +122,8 @@ async function createTicket(interaction, typeKey) {
       allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks],
     },
   ];
-  for (const roleId of config.supportRoleIds || []) {
+  const supportRoleIds = (config.supportRoleIds || []).filter((id) => guild.roles.cache.has(id));
+  for (const roleId of supportRoleIds) {
     overwrites.push({
       id: roleId,
       allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageMessages],
@@ -156,7 +157,7 @@ async function createTicket(interaction, typeKey) {
     closeReason: null,
   });
 
-  const supportPing = (config.supportRoleIds || []).map((id) => `<@&${id}>`).join(' ');
+  const supportPing = supportRoleIds.map((id) => `<@&${id}>`).join(' ');
   const welcome = new EmbedBuilder()
     .setColor(0x57f287)
     .setTitle(`${TICKET_TYPES[typeKey].emoji} Ticket #${number} — ${TICKET_TYPES[typeKey].label}`)
@@ -220,7 +221,7 @@ async function doClose(channel, guild, ticket, closedBy, reason) {
       { name: 'Durata', value: `${duration} min`, inline: true }
     )
     .setTimestamp();
-  await channel.send({ embeds: [closedEmbed], components: ticketButtons(true) });
+  await channel.send({ embeds: [closedEmbed], components: ticketButtons(true) }).catch(() => {});
 
   // Log + DM al proprietario
   const logEmbed = new EmbedBuilder()
@@ -244,6 +245,10 @@ async function doClose(channel, guild, ticket, closedBy, reason) {
 // ---------- Handler interazioni ----------
 
 async function requireTicket(interaction) {
+  if (!interaction.guild) {
+    await interaction.reply({ content: '❌ Usa questo comando dentro un server.', flags: MessageFlags.Ephemeral }).catch(() => {});
+    return null;
+  }
   const ticket = getTicket(interaction.guild.id, interaction.channelId);
   if (!ticket) {
     await interaction.reply({ content: '❌ Questo comando funziona solo dentro un canale ticket.', flags: MessageFlags.Ephemeral });
@@ -332,14 +337,26 @@ async function handle(interaction) {
   }
 
   if (id === 'ticket_cancel_close') {
-    await interaction.update({ content: '✅ Chiusura annullata.', components: [] });
+    try {
+      await interaction.update({ content: '✅ Chiusura annullata.', components: [] });
+    } catch {
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: '✅ Chiusura annullata.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      }
+    }
     return true;
   }
 
   if (id === 'ticket_confirm_close') {
     const ticket = getTicket(guild.id, interaction.channelId);
     if (!ticket || ticket.status !== 'open') {
-      await interaction.update({ content: '❌ Ticket non valido o già chiuso.', components: [] });
+      try {
+        await interaction.update({ content: '❌ Ticket non valido o già chiuso.', components: [] });
+      } catch {
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({ content: '❌ Ticket non valido o già chiuso.', flags: MessageFlags.Ephemeral }).catch(() => {});
+        }
+      }
       return true;
     }
     const modal = new ModalBuilder().setCustomId('ticket_close_modal').setTitle('Chiudi ticket');
@@ -348,7 +365,13 @@ async function handle(interaction) {
         new TextInputBuilder().setCustomId('reason').setLabel('Motivo della chiusura').setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(500)
       )
     );
-    await interaction.showModal(modal);
+    try {
+      await interaction.showModal(modal);
+    } catch {
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: '❌ Impossibile aprire il modulo di chiusura. Riprova.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      }
+    }
     return true;
   }
 
@@ -386,7 +409,7 @@ async function handle(interaction) {
       return true;
     }
     await interaction.reply('🗑️ Canale in eliminazione tra 5 secondi…');
-    setTimeout(() => interaction.channel.delete(`Ticket #${ticket.number} eliminato da ${interaction.user.tag}`).catch(() => {}), 5000).unref?.();
+    setTimeout(() => interaction.channel?.delete(`Ticket #${ticket.number} eliminato da ${interaction.user.tag}`).catch(() => {}), 5000).unref?.();
     return true;
   }
 

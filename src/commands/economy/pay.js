@@ -15,8 +15,9 @@ module.exports = {
     if (target.id === interaction.user.id) return interaction.reply({ content: '❌ Non puoi pagare te stesso.', flags: MessageFlags.Ephemeral });
 
     const sender = getUser(interaction.guild.id, interaction.user.id);
-    if (sender.balance < amount)
-      return interaction.reply({ content: `❌ Saldo insufficiente (hai **${sender.balance}** 🪙).`, flags: MessageFlags.Ephemeral });
+    // Saldo corrotto (NaN): blocca invece di regalare soldi dal nulla
+    if (!Number.isFinite(sender.balance) || sender.balance < amount)
+      return interaction.reply({ content: `❌ Saldo insufficiente (hai **${Number.isFinite(sender.balance) ? sender.balance : 0}** 🪙).`, flags: MessageFlags.Ephemeral });
 
     addBalance(interaction.guild.id, interaction.user.id, -amount);
     addBalance(interaction.guild.id, target.id, amount);

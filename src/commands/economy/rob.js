@@ -16,17 +16,18 @@ module.exports = {
 
     const gid = interaction.guild.id;
     const thief = getUser(gid, interaction.user.id);
-    if (Date.now() - (thief.lastRob || 0) < COOLDOWN)
-      return interaction.reply({ content: `⏳ Potrai rubare di nuovo <t:${Math.floor(((thief.lastRob || 0) + COOLDOWN) / 1000)}:R>`, flags: MessageFlags.Ephemeral });
+    if (Date.now() - (Number(thief.lastRob) || 0) < COOLDOWN)
+      return interaction.reply({ content: `⏳ Potrai rubare di nuovo <t:${Math.floor(((Number(thief.lastRob) || 0) + COOLDOWN) / 1000)}:R>`, flags: MessageFlags.Ephemeral });
 
     const victim = getUser(gid, target.id);
-    if ((victim.balance || 0) < 100)
+    if (!Number.isFinite(victim.balance) || (victim.balance || 0) < 100)
       return interaction.reply({ content: '❌ La vittima è troppo povera (min 100 🪙 nel portafoglio).', flags: MessageFlags.Ephemeral });
 
     require('../../database/economy').updateUser(gid, interaction.user.id, { lastRob: Date.now() });
     const success = Math.random() < 0.45;
     if (!success) {
-      const fine = Math.min(150, thief.balance);
+      // Multa mai negativa/NaN: con saldo corrotto vale 0, mai un accredito
+      const fine = Math.max(0, Math.min(150, Number.isFinite(thief.balance) ? thief.balance : 0));
       addBalance(gid, interaction.user.id, -fine);
       return interaction.reply(`🚨 Colto in flagrante! Hai pagato **${fine}** 🪙 di multa.`);
     }

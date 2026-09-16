@@ -36,6 +36,6 @@ module.exports = {
       return interaction.reply({ content: ok ? `✅ Warn \`${id}\` rimosso.` : `❌ Warn \`${id}\` non trovato.`, flags: MessageFlags.Ephemeral });
     }
     clearWarnings(interaction.guild.id, user.id);
-    return interaction.reply({ content: `🧹 Tutti i warn di ${user.tag} sono stati rimossi.` });
+    return interaction.reply({ content: `🧹 Tutti i warn di ${user.tag} sono stati rimossi.`, flags: MessageFlags.Ephemeral });
   },
 };

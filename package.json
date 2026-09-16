@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/index.js",
     "deploy": "node deploy-commands.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "test": "node scripts/smoke-test.js"
   },
   "keywords": [
     "discord",

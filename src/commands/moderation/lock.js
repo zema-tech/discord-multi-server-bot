@@ -10,6 +10,9 @@ module.exports = {
   cooldown: 3,
   async execute(interaction) {
     const sub = interaction.options.getSubcommand();
+    if (!interaction.channel?.isTextBased?.() || typeof interaction.channel.permissionOverwrites?.edit !== 'function') {
+      return interaction.reply({ content: '❌ Usa questo comando in un canale testuale del server.', flags: MessageFlags.Ephemeral });
+    }
     const everyone = interaction.guild.roles.everyone;
     try {
       if (sub === 'on') {
@@ -20,7 +23,11 @@ module.exports = {
         await interaction.reply('🔓 Canale **sbloccato**.');
       }
     } catch {
-      await interaction.reply({ content: '❌ Errore permessi.', flags: MessageFlags.Ephemeral });
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({ content: '❌ Errore permessi.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      } else {
+        await interaction.reply({ content: '❌ Errore permessi.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      }
     }
   },
 };

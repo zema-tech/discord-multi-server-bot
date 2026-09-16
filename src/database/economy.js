@@ -2,36 +2,61 @@ const { load, save, dbFile } = require('./jsonDb');
 
 const FILE = dbFile('economy');
 
+const DEFAULTS = { balance: 0, bank: 0, lastDaily: 0, lastWork: 0, lastSlots: 0, lastRob: 0 };
+
+// Numero finito >= 0, altrimenti fallback. Evita NaN/stringhe/infiniti nei saldi.
+function num(v, fallback = 0) {
+  return Number.isFinite(v) && v >= 0 ? v : fallback;
+}
+
+function sanitize(entry = {}) {
+  return {
+    ...entry,
+    balance: num(entry.balance),
+    bank: num(entry.bank),
+    lastDaily: num(entry.lastDaily),
+    lastWork: num(entry.lastWork),
+    lastSlots: num(entry.lastSlots),
+    lastRob: num(entry.lastRob),
+  };
+}
+
+// Lettura pura: NON crea/salva record (evita righe fantasma da balance/leaderboard/pay).
 function getUser(guildId, userId) {
   const db = load(FILE);
-  if (!db[guildId]) db[guildId] = {};
-  if (!db[guildId][userId]) {
-    db[guildId][userId] = { balance: 0, bank: 0, lastDaily: 0, lastWork: 0, lastSlots: 0, lastRob: 0 };
-    save(FILE, db);
-  }
-  return db[guildId][userId];
+  const entry = db[guildId]?.[userId];
+  if (!entry) return { ...DEFAULTS };
+  return sanitize(entry);
 }
 
 function updateUser(guildId, userId, data) {
   const db = load(FILE);
   if (!db[guildId]) db[guildId] = {};
-  db[guildId][userId] = { ...getUser(guildId, userId), ...data };
+  const current = db[guildId][userId] ? sanitize(db[guildId][userId]) : { ...DEFAULTS };
+  db[guildId][userId] = sanitize({ ...current, ...data });
   save(FILE, db);
   return db[guildId][userId];
 }
 
 function addBalance(guildId, userId, amount) {
-  const u = getUser(guildId, userId);
-  return updateUser(guildId, userId, { balance: Math.max(0, u.balance + amount) });
+  if (!Number.isFinite(amount)) amount = 0;
+  const db = load(FILE);
+  if (!db[guildId]) db[guildId] = {};
+  const current = db[guildId][userId] ? sanitize(db[guildId][userId]) : { ...DEFAULTS };
+  // Math.max(0, ...) da solo non basta: con NaN restituirebbe NaN. sanitize() lo impedisce.
+  current.balance = Math.max(0, current.balance + amount);
+  db[guildId][userId] = current;
+  save(FILE, db);
+  return current;
 }
 
 function getLeaderboard(guildId, limit = 10) {
   const db = load(FILE);
   if (!db[guildId]) return [];
   return Object.entries(db[guildId])
-    .map(([id, data]) => ({ id, balance: (data.balance || 0) + (data.bank || 0) }))
+    .map(([id, data]) => ({ id, balance: num(data.balance) + num(data.bank) }))
     .sort((a, b) => b.balance - a.balance)
-    .slice(0, limit);
+    .slice(0, Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 10);
 }
 
 module.exports = { getUser, updateUser, addBalance, getLeaderboard };

@@ -10,13 +10,17 @@ module.exports = {
   async execute(interaction) {
     const user = interaction.options.getUser('utente') || interaction.user;
     const d = getLevel(interaction.guild.id, user.id);
-    const need = xpForLevel(d.level);
-    const bar = '▓'.repeat(Math.round((d.xp / need) * 12)).padEnd(12, '░');
+    // Sanitizza: record corrotti (livello negativo) mandavano in crash String.repeat
+    const level = Number.isFinite(d.level) ? Math.max(0, Math.floor(d.level)) : 0;
+    const need = Math.max(1, xpForLevel(level));
+    const xp = Number.isFinite(d.xp) ? Math.min(Math.max(0, d.xp), need) : 0;
+    const msgCount = Number.isFinite(d.messageCount) ? Math.max(0, Math.floor(d.messageCount)) : 0;
+    const bar = '▓'.repeat(Math.round((xp / need) * 12)).padEnd(12, '░');
     const embed = new EmbedBuilder()
       .setColor(0x5865f2)
       .setTitle(`⭐ Rank di ${user.username}`)
       .setThumbnail(user.displayAvatarURL())
-      .setDescription(`**Livello ${d.level}**\n\`${bar}\` ${d.xp}/${need} XP\n💬 Messaggi: **${d.messageCount}**`)
+      .setDescription(`**Livello ${level}**\n\`${bar}\` ${xp}/${need} XP\n💬 Messaggi: **${msgCount}**`)
       .setTimestamp();
     await interaction.reply({ embeds: [embed] });
   },

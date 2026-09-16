@@ -38,6 +38,9 @@ module.exports = {
     .addSubcommand((s) => s.setName('stats').setDescription('Statistiche dei ticket del server')),
   cooldown: 3,
   async execute(interaction) {
+    if (!interaction.guild) {
+      return interaction.reply({ content: '❌ Usa questo comando dentro un server.', flags: MessageFlags.Ephemeral });
+    }
     const sub = interaction.options.getSubcommand();
     const config = getConfig(interaction.guild.id);
 
@@ -67,9 +70,10 @@ module.exports = {
       } catch {
         return interaction.reply({ content: '❌ Non riesco a scrivere nel canale panel. Verifica i permessi.', flags: MessageFlags.Ephemeral });
       }
-      return interaction.reply(
-        `✅ **Ticket configurati!**\n📌 Panel: ${panelCh}\n📁 Categoria: **${category.name}**\n🛠️ Staff: ${role}${role2 ? ` + ${role2}` : ''}\n📝 Log: ${logCh || '—'}\n👤 Max per utente: **${max}**`
-      );
+      return interaction.reply({
+        content: `✅ **Ticket configurati!**\n📌 Panel: ${panelCh}\n📁 Categoria: **${category.name}**\n🛠️ Staff: ${role}${role2 ? ` + ${role2}` : ''}\n📝 Log: ${logCh || '—'}\n👤 Max per utente: **${max}**`,
+        flags: MessageFlags.Ephemeral,
+      });
     }
 
     // ---- PANEL ----
@@ -77,8 +81,8 @@ module.exports = {
       if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
         return interaction.reply({ content: '❌ Ti serve il permesso **Gestisci Server**.', flags: MessageFlags.Ephemeral });
       }
-      const ch = interaction.guild.channels.cache.get(config.panelChannelId);
-      if (!ch) return interaction.reply({ content: '❌ Canale panel non configurato. Usa `/ticket setup`.', flags: MessageFlags.Ephemeral });
+      const ch = interaction.guild.channels.cache.get(config.panelChannelId) ?? await interaction.guild.channels.fetch(config.panelChannelId).catch(() => null);
+      if (!ch?.isTextBased?.()) return interaction.reply({ content: '❌ Canale panel non configurato. Usa `/ticket setup`.', flags: MessageFlags.Ephemeral });
       await sendPanel(ch);
       return interaction.reply({ content: `✅ Pannello ripubblicato in ${ch}.`, flags: MessageFlags.Ephemeral });
     }

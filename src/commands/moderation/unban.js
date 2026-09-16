@@ -11,6 +11,9 @@ module.exports = {
   cooldown: 5,
   async execute(interaction) {
     const id = interaction.options.getString('userid');
+    if (!/^\d{17,20}$/.test(id)) {
+      return interaction.reply({ content: '❌ ID non valido: deve essere un ID utente numerico.', flags: MessageFlags.Ephemeral });
+    }
     const reason = interaction.options.getString('motivo') || 'Nessun motivo';
     try {
       await interaction.guild.bans.remove(id, `${reason} | Mod: ${interaction.user.tag}`);

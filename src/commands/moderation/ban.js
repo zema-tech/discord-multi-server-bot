@@ -16,7 +16,7 @@ module.exports = {
     const user = interaction.options.getUser('utente');
     const reason = interaction.options.getString('motivo') || 'Nessun motivo specificato';
     const days = interaction.options.getInteger('giorni') ?? 0;
-    const member = interaction.guild.members.cache.get(user.id);
+    const member = interaction.guild.members.cache.get(user.id) ?? await interaction.guild.members.fetch(user.id).catch(() => null);
 
     if (user.id === interaction.user.id)
       return interaction.reply({ content: '❌ Non puoi bannare te stesso!', flags: MessageFlags.Ephemeral });
@@ -44,7 +44,11 @@ module.exports = {
       await sendLog(interaction.guild, { embeds: [embed] });
     } catch (e) {
       console.error(e);
-      await interaction.reply({ content: '❌ Errore durante il ban.', flags: MessageFlags.Ephemeral });
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({ content: '❌ Errore durante il ban.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      } else {
+        await interaction.reply({ content: '❌ Errore durante il ban.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      }
     }
   },
 };

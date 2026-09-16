@@ -11,7 +11,7 @@ function addWarn(guildId, userId, { modId, reason }) {
   const db = load(FILE);
   if (!db[guildId]) db[guildId] = {};
   if (!db[guildId][userId]) db[guildId][userId] = [];
-  const warn = { id: Date.now().toString(36), modId, reason, at: Date.now() };
+  const warn = { id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`, modId, reason, at: Date.now() };
   db[guildId][userId].push(warn);
   save(FILE, db);
   return warn;

@@ -26,6 +26,11 @@ module.exports = {
     if (cfg.levelupEnabled) {
       const key = `${message.guild.id}:${message.author.id}`;
       if (!xpCooldown.has(key) || Date.now() - xpCooldown.get(key) > 60000) {
+        // Evita crescita illimitata della mappa in memoria
+        if (xpCooldown.size > 5000) {
+          const cutoff = Date.now() - 60000;
+          for (const [k, t] of xpCooldown) if (t < cutoff) xpCooldown.delete(k);
+        }
         xpCooldown.set(key, Date.now());
         const gained = 10 + Math.floor(Math.random() * 11); // 10-20 XP
         const res = addXp(message.guild.id, message.author.id, gained);
@@ -40,7 +45,8 @@ module.exports = {
 
     // ---------- Automoderazione ----------
     if (!cfg.automod.enabled) return;
-    if (message.member?.permissions.has('ManageMessages')) return; // lo staff è esente
+    // member null (permessi sconosciuti) = esente: mai punire quando non si può verificare lo staff
+    if (!message.member || message.member.permissions.has('ManageMessages')) return; // lo staff è esente
     const { automod } = cfg;
     const content = message.content || '';
 
@@ -48,16 +54,20 @@ module.exports = {
     if (automod.antiInvite && INVITE_RE.test(content)) violations.push('invito Discord');
     else if (automod.antiLink && LINK_RE.test(content)) violations.push('link esterno');
 
-    const bad = automod.badWords.find((w) => content.toLowerCase().includes(w.toLowerCase()));
+    const badWords = Array.isArray(automod.badWords) ? automod.badWords : [];
+    const bad = badWords.find((w) => typeof w === 'string' && w && content.toLowerCase().includes(w.toLowerCase()));
     if (bad) violations.push('parola vietata');
 
     const mentions = message.mentions.users.size + message.mentions.roles.size;
-    if (mentions > automod.maxMentions) violations.push('troppi mention');
+    const maxMentions = Number.isFinite(automod.maxMentions) ? automod.maxMentions : 5;
+    if (mentions > maxMentions) violations.push('troppi mention');
 
-    if (hasCaps(content, automod.maxCapsPercent)) violations.push('caps eccessivo');
+    const maxCaps = Number.isFinite(automod.maxCapsPercent) ? automod.maxCapsPercent : 80;
+    if (hasCaps(content, maxCaps)) violations.push('caps eccessivo');
 
     // Anti-spam: 5+ messaggi in 5 secondi
     if (automod.antiSpam) {
+      if (!client.spamMap) client.spamMap = new Map();
       const gKey = message.guild.id;
       if (!client.spamMap.has(gKey)) client.spamMap.set(gKey, new Map());
       const map = client.spamMap.get(gKey);

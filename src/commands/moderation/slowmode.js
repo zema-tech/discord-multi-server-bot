@@ -11,11 +11,18 @@ module.exports = {
   async execute(interaction) {
     const secs = interaction.options.getInteger('secondi');
     const ch = interaction.options.getChannel('canale') || interaction.channel;
+    if (!ch?.isTextBased?.() || typeof ch.setRateLimitPerUser !== 'function') {
+      return interaction.reply({ content: '❌ Lo slowmode funziona solo nei canali testuali.', flags: MessageFlags.Ephemeral });
+    }
     try {
       await ch.setRateLimitPerUser(secs, `Slowmode ${secs}s | Mod: ${interaction.user.tag}`);
       await interaction.reply(`🐢 Slowmode di ${ch} impostato a **${secs}s**.`);
     } catch {
-      await interaction.reply({ content: '❌ Errore: verifica i miei permessi.', flags: MessageFlags.Ephemeral });
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({ content: '❌ Errore: verifica i miei permessi.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      } else {
+        await interaction.reply({ content: '❌ Errore: verifica i miei permessi.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      }
     }
   },
 };

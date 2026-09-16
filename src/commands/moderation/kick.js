@@ -36,7 +36,11 @@ module.exports = {
       await sendLog(interaction.guild, { embeds: [embed] });
     } catch (e) {
       console.error(e);
-      await interaction.reply({ content: '❌ Errore durante il kick.', flags: MessageFlags.Ephemeral });
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({ content: '❌ Errore durante il kick.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      } else {
+        await interaction.reply({ content: '❌ Errore durante il kick.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      }
     }
   },
 };

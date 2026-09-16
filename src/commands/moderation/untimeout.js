@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } = require('discord.js');
-const { sendLog } = require('../../utils/helpers');
+const { sendLog, hierarchyAllows } = require('../../utils/helpers');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -14,6 +14,8 @@ module.exports = {
     const reason = interaction.options.getString('motivo') || 'Timeout rimosso';
     const member = await interaction.guild.members.fetch(user.id).catch(() => null);
     if (!member) return interaction.reply({ content: '❌ Utente non nel server.', flags: MessageFlags.Ephemeral });
+    if (!hierarchyAllows(interaction, member))
+      return interaction.reply({ content: '❌ Ruolo uguale/superiore al tuo.', flags: MessageFlags.Ephemeral });
     try {
       await member.timeout(null, `${reason} | Mod: ${interaction.user.tag}`);
       const embed = new EmbedBuilder().setColor(0x57f287).setTitle('✅ Timeout rimosso').setDescription(`${user.tag} può di nuovo parlare.`).setTimestamp();
@@ -21,7 +23,11 @@ module.exports = {
       await sendLog(interaction.guild, { embeds: [embed] });
     } catch (e) {
       console.error(e);
-      await interaction.reply({ content: '❌ Errore.', flags: MessageFlags.Ephemeral });
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({ content: '❌ Errore.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      } else {
+        await interaction.reply({ content: '❌ Errore.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      }
     }
   },
 };

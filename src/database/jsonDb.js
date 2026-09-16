@@ -13,6 +13,10 @@ function load(file) {
   try {
     return JSON.parse(fs.readFileSync(file, 'utf8') || '{}');
   } catch {
+    // File corrotto: conservalo per il recupero invece di perderlo al prossimo save().
+    try {
+      fs.copyFileSync(file, `${file}.corrupt-${Date.now()}`);
+    } catch {}
     return {};
   }
 }

@@ -15,7 +15,7 @@ module.exports = {
     const reason = interaction.options.getString('motivo');
     if (user.bot) return interaction.reply({ content: '❌ Non puoi avvisare un bot.', flags: MessageFlags.Ephemeral });
 
-    const member = interaction.guild.members.cache.get(user.id);
+    const member = interaction.guild.members.cache.get(user.id) ?? await interaction.guild.members.fetch(user.id).catch(() => null);
     if (member && !hierarchyAllows(interaction, member))
       return interaction.reply({ content: '❌ Ruolo uguale/superiore al tuo.', flags: MessageFlags.Ephemeral });
 
@@ -39,8 +39,8 @@ module.exports = {
         { name: 'Moderatore', value: interaction.user.tag, inline: true },
         { name: 'ID warn', value: `\`${warn.id}\``, inline: true }
       )
-      .setDescription(extra || null)
       .setTimestamp();
+    if (extra) embed.setDescription(extra);
     await interaction.reply({ embeds: [embed] });
     await sendLog(interaction.guild, { embeds: [embed] });
   },

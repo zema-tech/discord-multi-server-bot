@@ -13,9 +13,9 @@ module.exports = {
   async execute(interaction) {
     const bet = interaction.options.getInteger('puntata');
     const data = getUser(interaction.guild.id, interaction.user.id);
-    if (data.balance < bet)
-      return interaction.reply({ content: `❌ Saldo insufficiente (hai **${data.balance}** 🪙).`, flags: MessageFlags.Ephemeral });
-    if (Date.now() - (data.lastSlots || 0) < COOLDOWN)
+    if (!Number.isFinite(data.balance) || data.balance < bet)
+      return interaction.reply({ content: `❌ Saldo insufficiente (hai **${Number.isFinite(data.balance) ? data.balance : 0}** 🪙).`, flags: MessageFlags.Ephemeral });
+    if (Date.now() - (Number(data.lastSlots) || 0) < COOLDOWN)
       return interaction.reply({ content: '⏳ Aspetta qualche secondo tra uno spin e l\'altro.', flags: MessageFlags.Ephemeral });
 
     const roll = () => SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];

@@ -17,23 +17,55 @@ module.exports = {
 
     // --- Bottoni (nuke) ---
     if (interaction.isButton()) {
-      const [action, arg] = interaction.customId.split(':');
+      if (!interaction.guild) {
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({ content: '❌ Usa questo bottone dentro un server.', flags: MessageFlags.Ephemeral }).catch(() => {});
+        }
+        return;
+      }
+      const [action, arg] = (interaction.customId || '').split(':');
       if (action === 'nuke_cancel') {
-        return interaction.update({ content: '✅ Nuke annullato.', components: [] });
+        try {
+          return await interaction.update({ content: '✅ Nuke annullato.', components: [] });
+        } catch {
+          if (!interaction.replied && !interaction.deferred) {
+            return interaction.reply({ content: '✅ Nuke annullato.', flags: MessageFlags.Ephemeral }).catch(() => {});
+          }
+          return;
+        }
       }
       if (action === 'nuke_confirm') {
         if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
-          return interaction.reply({ content: '❌ Ti serve il permesso Gestisci Canali.', flags: MessageFlags.Ephemeral });
+          if (interaction.replied || interaction.deferred) {
+            return interaction.followUp({ content: '❌ Ti serve il permesso Gestisci Canali.', flags: MessageFlags.Ephemeral }).catch(() => {});
+          }
+          return interaction.reply({ content: '❌ Ti serve il permesso Gestisci Canali.', flags: MessageFlags.Ephemeral }).catch(() => {});
         }
         const channel = await interaction.guild.channels.fetch(arg).catch(() => null);
-        if (!channel) return interaction.update({ content: '❌ Canale non trovato.', components: [] });
+        if (!channel?.isTextBased?.() || typeof channel.clone !== 'function') {
+          try {
+            return await interaction.update({ content: '❌ Canale non valido: usa il nuke solo in canali testuali.', components: [] });
+          } catch {
+            if (!interaction.replied && !interaction.deferred) {
+              return interaction.reply({ content: '❌ Canale non valido.', flags: MessageFlags.Ephemeral }).catch(() => {});
+            }
+            return;
+          }
+        }
         try {
           const clone = await channel.clone({ reason: `Nuke | Mod: ${interaction.user.tag}` });
           await channel.delete(`Nuke | Mod: ${interaction.user.tag}`);
           await clone.send(`💥 Canale rigenerato da ${interaction.user}.`);
         } catch (e) {
           console.error(e);
-          return interaction.update({ content: '❌ Errore durante il nuke.', components: [] });
+          try {
+            return await interaction.update({ content: '❌ Errore durante il nuke.', components: [] });
+          } catch {
+            if (!interaction.replied && !interaction.deferred) {
+              return interaction.reply({ content: '❌ Errore durante il nuke.', flags: MessageFlags.Ephemeral }).catch(() => {});
+            }
+            return;
+          }
         }
         return;
       }

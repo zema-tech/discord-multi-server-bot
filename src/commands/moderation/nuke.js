@@ -7,7 +7,9 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
   cooldown: 10,
   async execute(interaction) {
-    const row = new ActionRowBuilder().addComponents(
+    if (!interaction.channel?.isTextBased?.() || typeof interaction.channel.clone !== 'function') {
+      return interaction.reply({ content: '❌ Usa questo comando in un canale testuale del server.', flags: MessageFlags.Ephemeral });
+    }    const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId(`nuke_confirm:${interaction.channelId}`).setLabel('CONFERMA NUKE').setStyle(ButtonStyle.Danger),
       new ButtonBuilder().setCustomId('nuke_cancel').setLabel('Annulla').setStyle(ButtonStyle.Secondary)
     );

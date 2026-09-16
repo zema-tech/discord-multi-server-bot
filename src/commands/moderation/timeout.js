@@ -42,7 +42,11 @@ module.exports = {
       await sendLog(interaction.guild, { embeds: [embed] });
     } catch (e) {
       console.error(e);
-      await interaction.reply({ content: '❌ Errore timeout.', flags: MessageFlags.Ephemeral });
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({ content: '❌ Errore timeout.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      } else {
+        await interaction.reply({ content: '❌ Errore timeout.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      }
     }
   },
 };
