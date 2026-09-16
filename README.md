@@ -1,129 +1,91 @@
 # Discord Multi-Server Bot 🤖
 
-Bot Discord avanzato progettato per funzionare su **più server** contemporaneamente, con tantissime funzioni pronte all'uso.
+Bot Discord avanzato per **più server** contemporaneamente — moderazione, economia, livelli XP, automod, welcome, giveaway e tanto altro. **37 slash command**, zero dipendenze extra oltre `discord.js`.
 
-## 🚀 Funzionalità principali
+## 🚀 Funzionalità
 
-### Moderazione
-- `/ban` - Banna un utente
-- `/kick` - Espelli un utente
-- `/timeout` - Metti in timeout
-- `/warn` - Avvisa un utente
-- `/warnings` - Vedi gli avvisi
-- `/clear` - Cancella messaggi
-- Auto-moderazione (anti-spam, anti-link, bad words)
+### 🛡️ Moderazione (10)
+- `/ban` `/kick` `/unban` — ban con pulizia messaggi, kick, unban per ID
+- `/timeout` `/untimeout` — mute temporaneo (`30s`, `10m`, `2h`, `1d`)
+- `/warn` `/warnings` — warn con escalation automatica (3 warn → timeout 10m), lista/rimozione/pulizia
+- `/clear` — cancella 1-100 messaggi, opzionale filtro per utente
+- `/slowmode` `/lock` `/nuke` — slowmode, blocco canale, rigenerazione canale (con conferma)
 
-### Divertimento
-- `/meme` - Genera un meme casuale
-- `/8ball` - La palla magica 8
-- `/joke` - Racconta una barzelletta
-- `/coinflip` - Lancia una moneta
-- `/rps` - Carta, forbice, sasso
+### 🎮 Divertimento (6)
+- `/meme` `/joke` `/8ball` `/coinflip` `/rps` `/dice`
 
-### Economia (semplice)
-- `/balance` - Vedi il tuo saldo
-- `/daily` - Ritira la ricompensa giornaliera
-- `/work` - Lavora per guadagnare
-- `/pay` - Invia soldi ad altri utenti
-- `/leaderboard` - Classifica dei più ricchi
+### 💰 Economia (8)
+- `/balance` `/daily` (con streak) `/work` `/pay` `/leaderboard`
+- `/bank` — deposita/preleva (al sicuro dai furti)
+- `/slots` — slot machine con moltiplicatori
+- `/rob` — ruba dal portafoglio altrui (45% successo, multa se fallisci)
 
-### Utility
-- `/userinfo` - Info su un utente
-- `/serverinfo` - Info sul server
-- `/ping` - Latenza del bot
-- `/avatar` - Mostra l'avatar
-- `/help` - Lista comandi
+### ⭐ Livelli (2)
+- XP automatico dai messaggi (10-20 XP/min), level-up in chat
+- `/rank` `/top`
 
-### Sistema
-- Benvenuto automatico personalizzabile per server
-- Log di moderazione
-- Configurazione per-server (prefissi, canali, ruoli)
-- Slash commands globali + guild
+### 🔧 Utility (11)
+- `/ping` `/userinfo` `/serverinfo` `/avatar` `/help` (auto-generato, 37 comandi)
+- `/poll` — sondaggi con reazioni automatiche
+- `/giveaway` — estrazione vincitori con 🎉
+- `/suggest` — suggerimenti con voto ✅/❌
+- `/remind` — promemoria in DM (`10m`, `2h`, `1d`)
+- `/setup` — configura welcome, goodbye, log, suggerimenti, automod per-server
+
+### ⚙️ Sistema
+- **Automoderazione**: anti-spam (5 msg/5s), anti-link, anti-invite, bad words, anti-mention, anti-caps — lo staff è esente
+- **Welcome/Goodbye** personalizzabili con `{user}` `{username}` `{server}` `{count}`
+- **Log moderazione** su canale dedicato
+- **Configurazione per-server** (`/setup mostra`) + storage JSON locale
 
 ## 📦 Requisiti
 
 - Node.js 18+
-- Token del bot Discord
-- Intents abilitati: Guilds, GuildMessages, MessageContent, GuildMembers, GuildModeration
+- Intents: Guilds, GuildMessages, MessageContent, GuildMembers, GuildModeration (+ Reactions, VoiceStates, Invites già nel codice)
+- Permessi consigliati: Administrator (o almeno Ban/Kick/Timeout/Manage Messages/Channels)
 
 ## 🔧 Installazione
 
-1. Clona il repository:
 ```bash
 git clone https://github.com/zema-tech/discord-multi-server-bot.git
 cd discord-multi-server-bot
-```
-
-2. Installa le dipendenze:
-```bash
 npm install
-```
-
-3. Copia il file di esempio e configura:
-```bash
-cp .env.example .env
-```
-
-4. Modifica `.env` con il tuo token:
-```
-DISCORD_TOKEN=il_tuo_token_qui
-CLIENT_ID=il_tuo_client_id
-```
-
-5. Registra i comandi slash:
-```bash
+cp .env.example .env   # poi inserisci DISCORD_TOKEN e CLIENT_ID
 node deploy-commands.js
-```
-
-6. Avvia il bot:
-```bash
 npm start
 ```
 
-## 📁 Struttura del progetto
+Per test veloci su un solo server aggiungi `GUILD_ID` nel `.env` prima del deploy.
+
+## 📁 Struttura
 
 ```
 ├── src/
-│   ├── index.js          # Entry point
-│   ├── client.js         # Client Discord
-│   ├── commands/         # Comandi slash
-│   │   ├── moderation/
-│   │   ├── fun/
-│   │   ├── economy/
-│   │   └── utility/
-│   ├── events/           # Event handlers
-│   ├── utils/            # Utility functions
-│   └── database/         # Sistema di storage (JSON/SQLite)
+│   ├── index.js
+│   ├── commands/
+│   │   ├── moderation/  # 10 comandi
+│   │   ├── fun/         # 6 comandi
+│   │   ├── economy/     # 8 comandi
+│   │   ├── levels/      # 2 comandi
+│   │   └── utility/     # 11 comandi
+│   ├── events/          # ready, interactionCreate, messageCreate, guildMemberAdd/Remove
+│   ├── utils/           # helpers (embed, log, gerarchia ruoli)
+│   └── database/        # JSON: economy, levels, warnings, guildConfig
 ├── deploy-commands.js
-├── package.json
-├── .env.example
-└── README.md
+└── package.json
 ```
-
-## 🔑 Come ottenere il Token
-
-1. Vai su [Discord Developer Portal](https://discord.com/developers/applications)
-2. Crea una nuova applicazione
-3. Vai su **Bot** → Reset Token / Copy
-4. Abilita gli intents necessari (Privileged Gateway Intents)
-5. Invita il bot con i permessi necessari (Administrator consigliato per iniziare)
 
 ## 🌐 Multi-Server
 
-Il bot è progettato per funzionare su **tanti server** contemporaneamente. Ogni server può avere:
-- Configurazioni separate (canale benvenuto, log, ruoli)
-- Dati economia indipendenti
-- Impostazioni auto-mod personalizzate
+Ogni server ha dati indipendenti: economia, livelli, warn, config welcome/log/automod.
 
 ## 🛠️ Tecnologie
 
-- **discord.js** v14
-- **Node.js**
-- Storage locale (facile da migrare a MongoDB/PostgreSQL)
+- **discord.js** v14 · **Node.js** · Storage JSON (migrabile a MongoDB/PostgreSQL)
 
 ## 📝 Licenza
 
-MIT License - Fai quello che vuoi!
+MIT — fai quello che vuoi!
 
 ---
 

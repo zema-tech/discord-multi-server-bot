@@ -1,38 +1,34 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const { getUser, updateUser } = require('../../database/economy');
 
-const DAILY_AMOUNT = 200;
-const COOLDOWN = 24 * 60 * 60 * 1000; // 24 ore
+const DAILY_AMOUNT = 500;
+const COOLDOWN = 24 * 3600 * 1000;
 
 module.exports = {
-  data: new SlashCommandBuilder()
-    .setName('daily')
-    .setDescription('Ritira la tua ricompensa giornaliera'),
+  data: new SlashCommandBuilder().setName('daily').setDescription('Ritira la ricompensa giornaliera (500 🪙)'),
   cooldown: 5,
   async execute(interaction) {
-    const userData = getUser(interaction.guild.id, interaction.user.id);
+    const data = getUser(interaction.guild.id, interaction.user.id);
     const now = Date.now();
-
-    if (now - userData.lastDaily < COOLDOWN) {
-      const remaining = userData.lastDaily + COOLDOWN;
+    if (now - data.lastDaily < COOLDOWN) {
       return interaction.reply({
-        content: `⏳ Puoi ritirare di nuovo <t:${Math.floor(remaining / 1000)}:R>`,
-        ephemeral: true,
+        content: `⏳ Prossimo daily <t:${Math.floor((data.lastDaily + COOLDOWN) / 1000)}:R>`,
+        flags: MessageFlags.Ephemeral,
       });
     }
-
-    const newBalance = userData.balance + DAILY_AMOUNT;
+    const streak = (data.dailyStreak || 0) + 1;
+    const bonus = Math.min((streak - 1) * 50, 500);
+    const reward = DAILY_AMOUNT + bonus;
     updateUser(interaction.guild.id, interaction.user.id, {
-      balance: newBalance,
+      balance: data.balance + reward,
       lastDaily: now,
+      dailyStreak: streak,
     });
-
     const embed = new EmbedBuilder()
-      .setColor(0x57F287)
-      .setTitle('🎁 Ricompensa Giornaliera')
-      .setDescription(`Hai ricevuto **${DAILY_AMOUNT}** monete!\nNuovo saldo: **${newBalance.toLocaleString('it-IT')}**`)
+      .setColor(0x57f287)
+      .setTitle('🎁 Ricompensa giornaliera!')
+      .setDescription(`Hai ricevuto **${reward}** 🪙!\n🔥 Streak: **${streak}** giorni (+${bonus} bonus)`)
       .setTimestamp();
-
     await interaction.reply({ embeds: [embed] });
   },
 };

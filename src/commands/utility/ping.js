@@ -1,19 +1,11 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 
 module.exports = {
-  data: new SlashCommandBuilder()
-    .setName('ping')
-    .setDescription('Mostra la latenza del bot'),
-  cooldown: 5,
+  data: new SlashCommandBuilder().setName('ping').setDescription('Mostra la latenza del bot'),
+  cooldown: 3,
   async execute(interaction) {
-    const sent = await interaction.reply({ content: 'Pinging...', fetchReply: true });
-    const latency = sent.createdTimestamp - interaction.createdTimestamp;
-    const apiLatency = Math.round(interaction.client.ws.ping);
-
-    await interaction.editReply(
-      `🏓 **Pong!**\n` +
-      `• Latenza messaggio: **${latency}ms**\n` +
-      `• Latenza API: **${apiLatency}ms**`
-    );
+    const sent = await interaction.reply({ content: '🏓 Pong!', withResponse: true });
+    const rtt = sent.resource.message.createdTimestamp - interaction.createdTimestamp;
+    await interaction.editReply(`🏓 Pong!\n📡 Latenza: **${rtt}ms** | WebSocket: **${interaction.client.ws.ping}ms**`);
   },
 };

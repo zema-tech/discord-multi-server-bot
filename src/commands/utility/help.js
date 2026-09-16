@@ -1,36 +1,29 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('help')
     .setDescription('Mostra la lista di tutti i comandi disponibili'),
   cooldown: 5,
-  async execute(interaction) {
+  async execute(interaction, client) {
+    const byFolder = {};
+    for (const [, cmd] of client.commands) {
+      const file = cmd.category || 'altri';
+      if (!byFolder[file]) byFolder[file] = [];
+      byFolder[file].push(`\`/${cmd.data.name}\``);
+    }
+    const titles = {
+      moderation: '🛡️ Moderazione', fun: '🎮 Divertimento', economy: '💰 Economia',
+      utility: '🔧 Utility', levels: '⭐ Livelli', altri: '📌 Altri',
+    };
     const embed = new EmbedBuilder()
-      .setColor(0x5865F2)
-      .setTitle('📚 Lista Comandi')
-      .setDescription('Ecco tutti i comandi disponibili del bot:')
-      .addFields(
-        {
-          name: '🛡️ Moderazione',
-          value: '`/ban` `/kick` `/timeout` `/warn` `/warnings` `/clear`',
-        },
-        {
-          name: '🎮 Divertimento',
-          value: '`/meme` `/8ball` `/joke` `/coinflip` `/rps`',
-        },
-        {
-          name: '💰 Economia',
-          value: '`/balance` `/daily` `/work` `/pay` `/leaderboard`',
-        },
-        {
-          name: '🔧 Utility',
-          value: '`/ping` `/userinfo` `/serverinfo` `/avatar` `/help`',
-        }
-      )
-      .setFooter({ text: 'Bot multi-server • Usa /comando per più dettagli' })
-      .setTimestamp();
-
+      .setColor(0x5865f2)
+      .setTitle(`📚 Comandi — ${interaction.client.user.username}`)
+      .setDescription(`**${client.commands.size} comandi** su ${interaction.client.guilds.cache.size} server`);
+    for (const [cat, list] of Object.entries(byFolder)) {
+      embed.addFields({ name: titles[cat] || cat, value: list.sort().join(' ') });
+    }
+    embed.setFooter({ text: 'Usa /setup per configurare welcome, log e automod' }).setTimestamp();
     await interaction.reply({ embeds: [embed] });
   },
 };

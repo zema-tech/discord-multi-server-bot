@@ -1,25 +1,14 @@
-const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } = require('discord.js');
+const { sendLog, hierarchyAllows } = require('../../utils/helpers');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('ban')
     .setDescription('Banna un utente dal server')
-    .addUserOption(option =>
-      option.setName('utente')
-        .setDescription('L\'utente da bannare')
-        .setRequired(true)
-    )
-    .addStringOption(option =>
-      option.setName('motivo')
-        .setDescription('Motivo del ban')
-        .setRequired(false)
-    )
-    .addIntegerOption(option =>
-      option.setName('giorni')
-        .setDescription('Giorni di messaggi da eliminare (0-7)')
-        .setMinValue(0)
-        .setMaxValue(7)
-        .setRequired(false)
+    .addUserOption((o) => o.setName('utente').setDescription("L'utente da bannare").setRequired(true))
+    .addStringOption((o) => o.setName('motivo').setDescription('Motivo del ban').setRequired(false))
+    .addIntegerOption((o) =>
+      o.setName('giorni').setDescription('Giorni di messaggi da eliminare (0-7)').setMinValue(0).setMaxValue(7).setRequired(false)
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
   cooldown: 5,
@@ -27,43 +16,35 @@ module.exports = {
     const user = interaction.options.getUser('utente');
     const reason = interaction.options.getString('motivo') || 'Nessun motivo specificato';
     const days = interaction.options.getInteger('giorni') ?? 0;
-
     const member = interaction.guild.members.cache.get(user.id);
 
-    if (user.id === interaction.user.id) {
-      return interaction.reply({ content: 'Non puoi bannare te stesso!', ephemeral: true });
-    }
-
-    if (user.id === interaction.client.user.id) {
-      return interaction.reply({ content: 'Non puoi bannare me!', ephemeral: true });
-    }
-
+    if (user.id === interaction.user.id)
+      return interaction.reply({ content: '❌ Non puoi bannare te stesso!', flags: MessageFlags.Ephemeral });
+    if (user.id === interaction.client.user.id)
+      return interaction.reply({ content: '❌ Non puoi bannare me!', flags: MessageFlags.Ephemeral });
     if (member) {
-      if (!member.bannable) {
-        return interaction.reply({ content: 'Non ho i permessi per bannare questo utente.', ephemeral: true });
-      }
-      if (interaction.member.roles.highest.position <= member.roles.highest.position && interaction.guild.ownerId !== interaction.user.id) {
-        return interaction.reply({ content: 'Non puoi bannare qualcuno con un ruolo uguale o superiore al tuo.', ephemeral: true });
-      }
+      if (!member.bannable)
+        return interaction.reply({ content: '❌ Non ho i permessi per bannare questo utente.', flags: MessageFlags.Ephemeral });
+      if (!hierarchyAllows(interaction, member))
+        return interaction.reply({ content: '❌ Ruolo uguale/superiore al tuo.', flags: MessageFlags.Ephemeral });
     }
 
     try {
-      await interaction.guild.members.ban(user, { reason, deleteMessageSeconds: days * 24 * 60 * 60 });
-
+      await interaction.guild.members.ban(user, { reason: `${reason} | Mod: ${interaction.user.tag}`, deleteMessageSeconds: days * 86400 });
       const embed = new EmbedBuilder()
-        .setColor(0xED4245)
-        .setTitle('🚫 Utente Bannato')
+        .setColor(0xed4245)
+        .setTitle('🚫 Utente bannato')
         .addFields(
           { name: 'Utente', value: `${user.tag} (${user.id})`, inline: true },
           { name: 'Moderatore', value: `${interaction.user.tag}`, inline: true },
           { name: 'Motivo', value: reason }
         )
         .setTimestamp();
-
       await interaction.reply({ embeds: [embed] });
-    } catch (error) {
-      console.error(error);
-      await interaction.reply({ content: 'Si è verificato un errore durante il ban.', ephemeral: true });
+      await sendLog(interaction.guild, { embeds: [embed] });
+    } catch (e) {
+      console.error(e);
+      await interaction.reply({ content: '❌ Errore durante il ban.', flags: MessageFlags.Ephemeral });
     }
   },
 };

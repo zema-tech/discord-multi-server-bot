@@ -1,5 +1,6 @@
 node_modules/
 .env
 *.log
-src/database/economy.json
+src/database/*.json
+!src/database/.gitkeep
 .DS_Store

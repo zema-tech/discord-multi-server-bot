@@ -1,59 +1,42 @@
-const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } = require('discord.js');
+const { sendLog, hierarchyAllows } = require('../../utils/helpers');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('kick')
     .setDescription('Espelli un utente dal server')
-    .addUserOption(option =>
-      option.setName('utente')
-        .setDescription('L\'utente da espellere')
-        .setRequired(true)
-    )
-    .addStringOption(option =>
-      option.setName('motivo')
-        .setDescription('Motivo del kick')
-        .setRequired(false)
-    )
+    .addUserOption((o) => o.setName('utente').setDescription("L'utente da espellere").setRequired(true))
+    .addStringOption((o) => o.setName('motivo').setDescription('Motivo').setRequired(false))
     .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers),
   cooldown: 5,
   async execute(interaction) {
     const user = interaction.options.getUser('utente');
     const reason = interaction.options.getString('motivo') || 'Nessun motivo specificato';
-    const member = interaction.guild.members.cache.get(user.id);
-
-    if (!member) {
-      return interaction.reply({ content: 'Questo utente non è nel server.', ephemeral: true });
-    }
-
-    if (user.id === interaction.user.id) {
-      return interaction.reply({ content: 'Non puoi kickare te stesso!', ephemeral: true });
-    }
-
-    if (!member.kickable) {
-      return interaction.reply({ content: 'Non ho i permessi per kickare questo utente.', ephemeral: true });
-    }
-
-    if (interaction.member.roles.highest.position <= member.roles.highest.position && interaction.guild.ownerId !== interaction.user.id) {
-      return interaction.reply({ content: 'Non puoi kickare qualcuno con un ruolo uguale o superiore al tuo.', ephemeral: true });
-    }
+    const member = await interaction.guild.members.fetch(user.id).catch(() => null);
+    if (!member) return interaction.reply({ content: '❌ Utente non trovato nel server.', flags: MessageFlags.Ephemeral });
+    if (user.id === interaction.user.id)
+      return interaction.reply({ content: '❌ Non puoi espellere te stesso!', flags: MessageFlags.Ephemeral });
+    if (!member.kickable)
+      return interaction.reply({ content: '❌ Non ho i permessi per espellere questo utente.', flags: MessageFlags.Ephemeral });
+    if (!hierarchyAllows(interaction, member))
+      return interaction.reply({ content: '❌ Ruolo uguale/superiore al tuo.', flags: MessageFlags.Ephemeral });
 
     try {
-      await member.kick(reason);
-
+      await member.kick(`${reason} | Mod: ${interaction.user.tag}`);
       const embed = new EmbedBuilder()
-        .setColor(0xFEE75C)
-        .setTitle('👢 Utente Espulso')
+        .setColor(0xfee75c)
+        .setTitle('👢 Utente espulso')
         .addFields(
           { name: 'Utente', value: `${user.tag} (${user.id})`, inline: true },
-          { name: 'Moderatore', value: `${interaction.user.tag}`, inline: true },
+          { name: 'Moderatore', value: interaction.user.tag, inline: true },
           { name: 'Motivo', value: reason }
         )
         .setTimestamp();
-
       await interaction.reply({ embeds: [embed] });
-    } catch (error) {
-      console.error(error);
-      await interaction.reply({ content: 'Si è verificato un errore durante il kick.', ephemeral: true });
+      await sendLog(interaction.guild, { embeds: [embed] });
+    } catch (e) {
+      console.error(e);
+      await interaction.reply({ content: '❌ Errore durante il kick.', flags: MessageFlags.Ephemeral });
     }
   },
 };
