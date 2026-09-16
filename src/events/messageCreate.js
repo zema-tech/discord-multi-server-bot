@@ -22,6 +22,11 @@ module.exports = {
     if (!message.guild || message.author.bot) return;
     const cfg = getGuild(message.guild.id);
 
+    // PEAK: attività ticket (throttle 60s dentro touchActivity, mai crashare il flusso).
+    try {
+      require('../database/tickets').touchActivity(message.guild.id, message.channelId);
+    } catch {}
+
     // ---------- XP / leveling ----------
     if (cfg.levelupEnabled) {
       const key = `${message.guild.id}:${message.author.id}`;
@@ -39,6 +44,21 @@ module.exports = {
           const targetId = cfg.levelupChannelId || message.channelId;
           const ch = message.guild.channels.cache.get(targetId);
           if (ch?.isTextBased()) ch.send(text).catch(() => {});
+          // PEAK: assegna ruoli premio con level <= nuovo livello (per ruolo, mai crashare il flusso XP).
+          try {
+            const { rewardsUpTo } = require('../database/levelRewards');
+            const member = message.member;
+            if (member) {
+              for (const r of rewardsUpTo(message.guild.id, res.level)) {
+                try {
+                  if (member.roles.cache.has(r.roleId)) continue;
+                  const role = message.guild.roles.cache.get(r.roleId);
+                  if (!role || !role.editable) continue;
+                  await member.roles.add(role).catch(() => {});
+                } catch {}
+              }
+            }
+          } catch {}
         }
       }
     }

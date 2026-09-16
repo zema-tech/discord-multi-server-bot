@@ -9,6 +9,11 @@
  *  (c) testa i moduli database con chiavi `qatest` e poi PULISCE le chiavi
  *      di test dai JSON (ripristina i file come prima).
  *  (d) esce 0 se tutto ok, 1 con elenco errori altrimenti.
+ *  (c2) NUOVI moduli DB attesi (reactionRoles, autoresponder, invites,
+ *      tempvoice, stanze, levelRewards, analytics) + jobs/ticketAutoclose
+ *      require-safe: roundtrip con chiavi `qatest_*` + cleanup verificato.
+ *      Se un modulo non esiste ancora: WARNING (skip), non errore (lavori in corso).
+ *      Regola duplicati-evento invariata (la gestisce il revisore).
  *  (e) extra QA: customId letterali duplicati, nomi evento duplicati.
  *
  * Uso: node scripts/smoke-test.js
@@ -145,12 +150,25 @@ for (const file of eventFiles) {
   if (mod.name) {
     if (seenEvents.has(mod.name)) {
       // Pattern multi-listener voluto: index.js registra UN listener per file
-      // via client.on(), quindi più file sullo stesso evento guildMemberAdd
-      // (antiRaid.js = rilevazione raid, autorole.js = assegnazione ruoli,
-      // guildMemberAdd.js = messaggio welcome) fanno cose DIVERSE ed è ok.
-      // Solo guildMemberAdd è ammesso in multi-listener -> WARNING, altri ERROR.
+      // via client.on(), quindi più file sullo stesso evento fanno cose DIVERSE
+      // ed è ok. Allowlist revisionata dal revisore finale:
+      // - guildMemberAdd: welcome (guildMemberAdd.js), ruoli (autorole.js),
+      //   raid (antiRaid.js), joins analytics (analyticsMembers.js),
+      //   inviti (inviteTracker.js, + remove lazy-attach).
+      // - messageCreate: XP/automod/ticket-touch (messageCreate.js),
+      //   autoresponder (autoResponder.js, solo lettura + reply),
+      //   conteggio analytics (analyticsMessages.js, solo bump).
+      // - voiceStateUpdate: vocali temporanee (tempVoice.js, create/cleanup),
+      //   XP vocale (voiceXp.js, join-time/exit XP).
+      // Corpi verificati disgiunti dal revisore. Altri duplicati restano ERRORI.
       const prev = rel(seenEvents.get(mod.name));
-      if (mod.name === 'guildMemberAdd' || mod.name === require('discord.js').Events.GuildMemberAdd) {
+      const { Events: Ev } = require('discord.js');
+      const allowedMulti = new Set([
+        'guildMemberAdd', Ev.GuildMemberAdd,
+        'messageCreate', Ev.MessageCreate,
+        'voiceStateUpdate', Ev.VoiceStateUpdate,
+      ]);
+      if (allowedMulti.has(mod.name)) {
         warn(`Evento multi-listener "${mod.name}" (pattern voluto): ${prev} <-> ${r}`);
       } else {
         fail(`Evento duplicato "${mod.name}": ${prev} <-> ${r} (due listener sullo stesso evento!)`);
@@ -332,6 +350,181 @@ try {
     if (!stats || stats.total < 1) fail('tickets: getStats(qatest) atteso total>=1');
   } catch (e) {
     fail(`tickets (qatest): ${e.message.split('\n')[0]}`);
+  }
+
+  // ---- NUOVI moduli DB attesi (lavori in corso di altri agenti) ----
+  // Se un modulo non esiste ancora al momento del test: WARNING (skip), non errore.
+  // Se esiste: require + roundtrip con chiavi qatest_* (cleanup via scrubTestKeys/finally).
+  // Regola duplicati-evento NON toccata (la gestisce il revisore).
+  const QROLE = 'qatest_role';
+  function skipMissing(label, relPath) {
+    warn(`${label}: modulo non ancora presente (${relPath}) — skip (lavori in corso)`);
+  }
+
+  // reactionRoles
+  try {
+    const fp = path.join(DB_DIR, 'reactionRoles.js');
+    if (!fs.existsSync(fp)) {
+      skipMissing('reactionRoles', 'src/database/reactionRoles.js');
+    } else {
+      delete require.cache[require.resolve(fp)];
+      const rr = require(fp);
+      const p0 = rr.getPanel(QGUILD);
+      if (!p0 || !Array.isArray(p0.options)) fail('reactionRoles: getPanel(qatest) senza defaults attesi');
+      rr.setPanel(QGUILD, { title: 'qatest panel' });
+      if (rr.getPanel(QGUILD).title !== 'qatest panel') fail('reactionRoles: setPanel/getPanel roundtrip fallito (qatest)');
+      const added = rr.addOption(QGUILD, { roleId: QROLE, label: 'qatest', emoji: '⭐' });
+      if (!added || !added.added) fail('reactionRoles: addOption(qatest) atteso added=true');
+      if (!rr.getPanel(QGUILD).options.some((o) => o.roleId === QROLE)) fail('reactionRoles: getPanel non contiene qatest_role');
+      const rem = rr.removeOption(QGUILD, QROLE);
+      if (!rem || !rem.removed) fail('reactionRoles: removeOption(qatest) atteso removed=true');
+    }
+  } catch (e) {
+    fail(`reactionRoles (qatest): ${e.message.split('\n')[0]}`);
+  }
+
+  // autoresponder
+  try {
+    const fp = path.join(DB_DIR, 'autoresponder.js');
+    if (!fs.existsSync(fp)) {
+      skipMissing('autoresponder', 'src/database/autoresponder.js');
+    } else {
+      delete require.cache[require.resolve(fp)];
+      const ar = require(fp);
+      if (ar.listTriggers(QGUILD).length !== 0) fail('autoresponder: listTriggers nuovo server atteso []');
+      const res = ar.addTrigger(QGUILD, { match: 'qatest ping', response: 'qatest pong' });
+      if (!res || !res.ok || !res.trigger || !res.trigger.id) fail('autoresponder: addTrigger(qatest) non ritorna {ok,trigger.id}');
+      if (ar.listTriggers(QGUILD).length !== 1) fail('autoresponder: dopo addTrigger atteso 1 trigger');
+      if (res && res.ok && ar.removeTrigger(QGUILD, res.trigger.id) !== true) fail('autoresponder: removeTrigger(id valido) atteso true');
+      ar.clearTriggers(QGUILD);
+      if (ar.listTriggers(QGUILD).length !== 0) fail('autoresponder: dopo clearTriggers atteso []');
+    }
+  } catch (e) {
+    fail(`autoresponder (qatest): ${e.message.split('\n')[0]}`);
+  }
+
+  // invites
+  try {
+    const fp = path.join(DB_DIR, 'invites.js');
+    if (!fs.existsSync(fp)) {
+      skipMissing('invites', 'src/database/invites.js');
+    } else {
+      delete require.cache[require.resolve(fp)];
+      const inv = require(fp);
+      const up = inv.upsertInvite(QGUILD, 'qatest_code', { uses: 3, inviterId: QUSER });
+      if (!up || up.uses !== 3) fail('invites: upsertInvite(qatest) atteso uses=3');
+      if (!inv.getCache(QGUILD)['qatest_code']) fail('invites: getCache non contiene qatest_code');
+      inv.recordJoin(QGUILD, QUSER, QUSER);
+      const st = inv.getStats(QGUILD, QUSER);
+      if (!st || st.joins < 1) fail('invites: getStats(qatest) atteso joins>=1');
+      if (inv.getInviter(QGUILD, QUSER) !== QUSER) fail('invites: getInviter(qatest) atteso qatest_user');
+      inv.recordLeave(QGUILD, QUSER);
+      if (inv.removeInvite(QGUILD, 'qatest_code') !== true) fail('invites: removeInvite(qatest) atteso true');
+      if (!inv.getLeaderboard(QGUILD, 5).some((e) => e.userId === QUSER)) fail('invites: getLeaderboard non contiene qatest_user');
+    }
+  } catch (e) {
+    fail(`invites (qatest): ${e.message.split('\n')[0]}`);
+  }
+
+  // tempvoice
+  try {
+    const fp = path.join(DB_DIR, 'tempvoice.js');
+    if (!fs.existsSync(fp)) {
+      skipMissing('tempvoice', 'src/database/tempvoice.js');
+    } else {
+      delete require.cache[require.resolve(fp)];
+      const tv = require(fp);
+      if (!tv.getConfig(QGUILD) || tv.getConfig(QGUILD).lobbyChannelId !== null) fail('tempvoice: getConfig(qatest) senza defaults attesi');
+      tv.setConfig(QGUILD, { lobbyChannelId: QCHAN });
+      if (tv.getConfig(QGUILD).lobbyChannelId !== QCHAN) fail('tempvoice: setConfig/getConfig roundtrip fallito (qatest)');
+      tv.saveTemp(QGUILD, QCHAN, { ownerId: QUSER });
+      if (!tv.getTemp(QGUILD, QCHAN) || tv.getTemp(QGUILD, QCHAN).ownerId !== QUSER) fail('tempvoice: getTemp(qatest) non ritorna owner qatest_user');
+      if (!tv.isTemp(QGUILD, QCHAN)) fail('tempvoice: isTemp(qatest) atteso true');
+      if (tv.removeTemp(QGUILD, QCHAN) !== true) fail('tempvoice: removeTemp(qatest) atteso true');
+    }
+  } catch (e) {
+    fail(`tempvoice (qatest): ${e.message.split('\n')[0]}`);
+  }
+
+  // stanze
+  try {
+    const fp = path.join(DB_DIR, 'stanze.js');
+    if (!fs.existsSync(fp)) {
+      skipMissing('stanze', 'src/database/stanze.js');
+    } else {
+      delete require.cache[require.resolve(fp)];
+      const sz = require(fp);
+      sz.saveRoom(QGUILD, QCHAN, { ownerId: QUSER, type: 'qatest' });
+      const room = sz.getRoom(QGUILD, QCHAN);
+      if (!room || room.ownerId !== QUSER) fail('stanze: getRoom(qatest) non ritorna owner qatest_user');
+      if (!sz.getUserRooms(QGUILD, QUSER).some((r) => r.channelId === QCHAN)) fail('stanze: getUserRooms non contiene qatest_channel');
+      if (sz.removeRoom(QGUILD, QCHAN) !== true) fail('stanze: removeRoom(qatest) atteso true');
+    }
+  } catch (e) {
+    fail(`stanze (qatest): ${e.message.split('\n')[0]}`);
+  }
+
+  // levelRewards
+  try {
+    const fp = path.join(DB_DIR, 'levelRewards.js');
+    if (!fs.existsSync(fp)) {
+      skipMissing('levelRewards', 'src/database/levelRewards.js');
+    } else {
+      delete require.cache[require.resolve(fp)];
+      const lr = require(fp);
+      if (!Array.isArray(lr.listRewards(QGUILD)) || lr.listRewards(QGUILD).length !== 0) fail('levelRewards: listRewards nuovo server atteso []');
+      lr.setReward(QGUILD, 5, QROLE);
+      if (lr.getReward(QGUILD, 5) !== QROLE) fail('levelRewards: getReward(5) atteso qatest_role');
+      if (!lr.rewardsUpTo(QGUILD, 5).some((r) => r.level === 5)) fail('levelRewards: rewardsUpTo(5) non contiene livello 5');
+      if (lr.removeReward(QGUILD, 5) !== true) fail('levelRewards: removeReward(5) atteso true');
+    }
+  } catch (e) {
+    fail(`levelRewards (qatest): ${e.message.split('\n')[0]}`);
+  }
+
+  // analytics
+  try {
+    const fp = path.join(DB_DIR, 'analytics.js');
+    if (!fs.existsSync(fp)) {
+      skipMissing('analytics', 'src/database/analytics.js');
+    } else {
+      delete require.cache[require.resolve(fp)];
+      const an = require(fp);
+      if (an.bump(QGUILD, 'nope') !== null) fail('analytics: bump(field non valido) atteso null');
+      const day = an.bump(QGUILD, 'messages');
+      if (!day || day.messages < 1) fail('analytics: bump(messages) atteso messages>=1');
+      if (!an.getDays(QGUILD, 7).some((d) => d.messages >= 1)) fail('analytics: getDays non contiene il bump qatest');
+      if (!an.totals(QGUILD, 7) || an.totals(QGUILD, 7).messages < 1) fail('analytics: totals(qatest) atteso messages>=1');
+    }
+  } catch (e) {
+    fail(`analytics (qatest): ${e.message.split('\n')[0]}`);
+  }
+
+  // jobs/ticketAutoclose — require-safe (NON avvia timer: niente start/checkOnce qui)
+  try {
+    const candidates = ['src/jobs/ticketAutoclose.js', 'src/utils/ticketAutoclose.js', 'src/handlers/ticketAutoclose.js'];
+    const found = candidates.map((c) => path.join(ROOT, c)).find((f) => fs.existsSync(f));
+    if (!found) {
+      skipMissing('ticketAutoclose', 'src/jobs/ticketAutoclose.js (o utils/handlers)');
+    } else {
+      delete require.cache[require.resolve(found)];
+      const ta = require(found);
+      if (!ta || (typeof ta !== 'object' && typeof ta !== 'function')) {
+        fail(`ticketAutoclose: export non valido (${path.relative(ROOT, found)})`);
+      } else {
+        for (const fn of ['checkOnce', 'startTicketAutoclose', 'setAutoClose']) {
+          if (typeof ta[fn] !== 'function') warn(`ticketAutoclose: export "${fn}" mancante (${path.relative(ROOT, found)})`);
+        }
+        if (typeof ta.setAutoClose === 'function') {
+          const { getConfig } = require(path.join(DB_DIR, 'tickets.js'));
+          ta.setAutoClose(QGUILD, 7);
+          if (getConfig(QGUILD).autoCloseDays !== 7) fail('ticketAutoclose: setAutoClose(7) non riflesso in tickets config (qatest)');
+          ta.setAutoClose(QGUILD, 0); // ripristina default (off)
+        }
+      }
+    }
+  } catch (e) {
+    fail(`ticketAutoclose require-safe: ${e.message.split('\n')[0]}`);
   }
 } finally {
   const touched = scrubTestKeys();

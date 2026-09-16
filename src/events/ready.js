@@ -12,5 +12,12 @@ module.exports = {
       client.user.setActivity(`${client.guilds.cache.size} server | /help`, { type: ActivityType.Watching });
     update();
     setInterval(update, 10 * 60 * 1000).unref?.();
+
+    // PEAK: auto-chiusura ticket inattivi ogni 15 minuti (interval con unref dentro il job).
+    try {
+      require('../jobs/ticketAutoclose').startTicketAutoclose(client);
+    } catch (e) {
+      console.error('ticketAutoclose:', e.message);
+    }
   },
 };

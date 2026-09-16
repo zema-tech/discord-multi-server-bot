@@ -15,6 +15,8 @@ const DEFAULT_CONFIG = {
   logChannelId: null,
   supportRoleIds: [],
   maxPerUser: 3,
+  // PEAK: giorni di inattività prima della chiusura automatica (0 = disattivato).
+  autoCloseDays: 0,
 };
 
 function guildData(guildId) {
@@ -33,7 +35,10 @@ function persist(guildId, data) {
 }
 
 function getConfig(guildId) {
-  return guildData(guildId).config;
+  // PEAK: backfill additivo per config create prima di autoCloseDays.
+  const config = guildData(guildId).config;
+  if (config.autoCloseDays === undefined) config.autoCloseDays = 0;
+  return config;
 }
 
 function setConfig(guildId, patch) {
@@ -52,6 +57,8 @@ function nextNumber(guildId) {
 
 function saveTicket(guildId, ticket) {
   const data = guildData(guildId);
+  // PEAK: init additiva lastActivityAt (i ticket preesistenti senza campo usano createdAt come fallback).
+  if (ticket && ticket.lastActivityAt === undefined) ticket.lastActivityAt = Date.now();
   data.tickets[ticket.channelId] = ticket;
   persist(guildId, data);
   return ticket;
@@ -80,6 +87,17 @@ function getStats(guildId) {
   };
 }
 
+// PEAK: aggiorna lastActivityAt di un ticket aperto (throttle 60s per non salvare a ogni messaggio).
+function touchActivity(guildId, channelId, now = Date.now()) {
+  const ticket = getTicket(guildId, channelId);
+  if (!ticket || ticket.status !== 'open') return false;
+  const last = Number.isFinite(ticket.lastActivityAt) ? ticket.lastActivityAt : 0;
+  if (now - last < 60000) return false;
+  ticket.lastActivityAt = now;
+  saveTicket(guildId, ticket);
+  return true;
+}
+
 module.exports = {
   TICKET_TYPES,
   getConfig,
@@ -89,4 +107,5 @@ module.exports = {
   getTicket,
   getUserOpenTickets,
   getStats,
+  touchActivity, // PEAK
 };

@@ -15,6 +15,18 @@ module.exports = {
       return;
     }
 
+    // --- Reaction roles: select rr_select ---
+    try {
+      const reactionRoleHandler = require('../handlers/reactionRoleHandler');
+      if (await reactionRoleHandler.handle(interaction)) return;
+    } catch (e) {
+      console.error('reactionRoleHandler:', e);
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: '❌ Errore nei reaction roles.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      }
+      return;
+    }
+
     // --- Bottoni (nuke) ---
     if (interaction.isButton()) {
       if (!interaction.guild) {
