@@ -6,7 +6,8 @@ const SUGGEST_FILE = dbFile('suggest');
 
 function nextNumber(guildId) {
   const data = load(SUGGEST_FILE);
-  const counters = data && typeof data.counters === 'object' ? data.counters : {};
+  // counters potrebbe essere null/corrotto: typeof null === 'object', accesso lancerebbe TypeError.
+  const counters = data && data.counters && typeof data.counters === 'object' ? data.counters : {};
   const next = (counters[guildId] ?? 0) + 1;
   counters[guildId] = next;
   save(SUGGEST_FILE, { counters });
@@ -33,7 +34,8 @@ module.exports = {
     .addStringOption((o) => o.setName('testo').setDescription('Il tuo suggerimento').setRequired(true)),
   cooldown: 10,
   async execute(interaction) {
-    const text = interaction.options.getString('testo');
+    // Limite descrizione embed 4096 char: l'opzione slash ne ammette fino a 6000.
+    const text = String(interaction.options.getString('testo') || '').slice(0, 4000);
     const num = nextNumber(interaction.guild.id);
     const cfg = getGuild(interaction.guild.id);
     const embed = new EmbedBuilder()

@@ -34,12 +34,13 @@ function formatPanel(guild, panel) {
     : '— (nessuna opzione: usa `/reactionroles aggiungi`)';
   const dest = panel.channelId ? `<#${panel.channelId}>` : '— (non impostato)';
   const msg = panel.messageId ? ` (messaggio \`${panel.messageId}\`)` : '';
+  // Reply max 2000 char: con 25 opzioni il testo sforerebbe e l'invio fallirebbe.
   return (
     `📌 **Reaction Roles**\n` +
     `📢 Canale: ${dest}${msg}\n` +
     `📝 Titolo: **${panel.title}**\n` +
     `Opzioni (${panel.options.length}/${MAX_OPTIONS}):\n${lines}`
-  );
+  ).slice(0, 1900);
 }
 
 module.exports = {

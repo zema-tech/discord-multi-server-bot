@@ -34,7 +34,8 @@ const { getGuild } = require('../database/guildConfig');
 /** Trova l'invito usato: esattamente un candidato con delta > 0, altrimenti null. */
 function findUsedInvite(cached, current) {
   const candidates = [];
-  for (const [code, inv] of current) {
+  const entries = current instanceof Map ? current.entries() : Object.entries(current || {});
+  for (const [code, inv] of entries) {
     const prev = cached[code];
     if (!prev) continue; // codice mai visto: nessuna baseline → non attribuibile
     const delta = (Number(inv.uses) || 0) - (Number(prev.uses) || 0);
@@ -101,8 +102,16 @@ async function handleGuildMemberAdd(member, client) {
     } else if (current && !hasBaseline) {
       // Primo join mai tracciato: inizializza la baseline UNA volta sola.
       // Questo join resta "sconosciuto" (nessun "prima" con cui confrontare).
+      // Normalizza come il ramo sopra (conserva inviterId noti) invece di salvare la Collection grezza.
       try {
-        setCache(guild.id, current);
+        const next = {};
+        for (const [code, inv] of current) {
+          next[code] = {
+            uses: Number(inv.uses) || 0,
+            inviterId: inv.inviter?.id || cached[code]?.inviterId || null,
+          };
+        }
+        setCache(guild.id, next);
       } catch {}
     }
     // Se current è null (bot senza permessi): cache invariata, join sconosciuto.
@@ -110,10 +119,11 @@ async function handleGuildMemberAdd(member, client) {
     recordJoin(guild.id, inviterId, member.id);
 
     const stats = getStats(guild.id, inviterId || member.id);
+    const avatar = member.user?.displayAvatarURL?.();
     const embed = new EmbedBuilder()
       .setColor(inviterId ? 0x57f287 : 0xfee75c)
       .setTitle('📨 Join tracciato')
-      .setDescription(`${member.user} (\`${member.user?.tag || 'sconosciuto'}\`)`)
+      .setDescription(`${member} (\`${member.user?.tag || 'sconosciuto'}\`)`)
       .addFields(
         {
           name: 'Invitato da',
@@ -126,8 +136,8 @@ async function handleGuildMemberAdd(member, client) {
           inline: true,
         }
       )
-      .setThumbnail(member.user.displayAvatarURL())
       .setTimestamp();
+    if (avatar) embed.setThumbnail(avatar);
     if (inviterId) {
       embed.addFields({
         name: `Inviti di <@${inviterId}>`,

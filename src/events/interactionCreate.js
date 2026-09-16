@@ -106,11 +106,11 @@ module.exports = {
         return interaction.reply({
           content: `⏳ Aspetta ancora <t:${expiredTimestamp}:R> prima di riusare \`/${command.data.name}\`.`,
           flags: MessageFlags.Ephemeral,
-        });
+        }).catch(() => {});
       }
     }
     timestamps.set(interaction.user.id, now);
-    setTimeout(() => timestamps.delete(interaction.user.id), cooldownAmount);
+    setTimeout(() => timestamps.delete(interaction.user.id), cooldownAmount).unref?.();
 
     try {
       await command.execute(interaction, client);

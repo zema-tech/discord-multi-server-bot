@@ -17,12 +17,15 @@ module.exports = {
         flags: MessageFlags.Ephemeral,
       });
     }
-    // Streak solo se l'ultimo daily è di ieri: se saltato (>48h), riparte da 1
-    const streak = now - lastDaily <= 2 * COOLDOWN ? (Number(data.dailyStreak) || 0) + 1 : 1;
+    // Streak solo se l'ultimo daily è di ieri: se saltato (>48h), riparte da 1.
+    // Clamp anti-corruzione: dailyStreak non sanito (Infinity/negativo) darebbe streak assurde.
+    const prevStreak = Number.isFinite(data.dailyStreak) ? Math.min(Math.max(0, Math.floor(data.dailyStreak)), 10000) : 0;
+    const streak = now - lastDaily <= 2 * COOLDOWN ? prevStreak + 1 : 1;
     const bonus = Math.min((streak - 1) * 50, 500);
     const reward = DAILY_AMOUNT + bonus;
+    const base = Number.isFinite(data.balance) ? data.balance : 0;
     updateUser(interaction.guild.id, interaction.user.id, {
-      balance: data.balance + reward,
+      balance: base + reward,
       lastDaily: now,
       dailyStreak: streak,
     });

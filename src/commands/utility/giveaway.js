@@ -53,7 +53,8 @@ module.exports = {
   cooldown: 10,
   async execute(interaction) {
     const raw = interaction.options.getString('durata');
-    const prize = interaction.options.getString('premio');
+    // Titolo embed max 256 char: l'opzione slash non ha maxLength, tronco per non far fallire l'invio.
+    const prize = String(interaction.options.getString('premio') || '').slice(0, 200) || 'Premio';
     const winners = interaction.options.getInteger('vincitori') ?? 1;
     const role = interaction.options.getRole('ruolo') ?? null;
     const duration = ms(raw);
@@ -64,7 +65,12 @@ module.exports = {
     const embed = buildEmbed({ prize, winners, endsAt, startedByTag: interaction.user.tag, roleId: role?.id ?? null });
     const msg = await interaction.reply({ embeds: [embed], withResponse: true });
     const message = msg.resource.message;
-    await message.react('🎉');
+    // Senza permesso "Aggiungi reazioni" il giveaway nascerebbe morto: errore chiaro invece di crash.
+    try {
+      await message.react('🎉');
+    } catch {
+      return interaction.followUp({ content: '❌ Non ho il permesso di aggiungere reazioni in questo canale: giveaway annullato.', flags: MessageFlags.Ephemeral });
+    }
 
     // Salva per futuro ripristino dopo restart (vedi NOTA in alto).
     persistGiveaway(message.id, {

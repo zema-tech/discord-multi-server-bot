@@ -15,6 +15,9 @@ function staffRoles(guild) {
   );
 }
 
+// Lock anti-race: una sola creazione alla volta per utente (oltre il cap con doppi comandi ravvicinati).
+const creatingRooms = new Set();
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('stanza')
@@ -47,6 +50,10 @@ module.exports = {
 
     // ---- CREA ----
     if (sub === 'crea') {
+      const lockKey = `${guildId}:${interaction.user.id}`;
+      if (creatingRooms.has(lockKey)) {
+        return interaction.reply({ content: '⏳ Creazione della stanza già in corso, attendi…', flags: MessageFlags.Ephemeral });
+      }
       const mie = getUserRooms(guildId, interaction.user.id);
       if (mie.length >= MAX_PER_USER) {
         return interaction.reply({
@@ -54,38 +61,43 @@ module.exports = {
           flags: MessageFlags.Ephemeral,
         });
       }
-      const tipo = interaction.options.getString('tipo') || 'testuale';
-      const nome = (interaction.options.getString('nome') || `stanza-${interaction.user.username}`)
-        .trim().slice(0, 100) || `stanza-${interaction.user.username}`;
-      const channelType = tipo === 'vocale' ? ChannelType.GuildVoice : ChannelType.GuildText;
-
-      const overwrites = [
-        { id: guildId, deny: [PermissionFlagsBits.ViewChannel] },
-        {
-          id: interaction.user.id,
-          allow: tipo === 'vocale'
-            ? [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak]
-            : [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
-        },
-      ];
-      for (const role of staffRoles(interaction.guild).values()) {
-        overwrites.push({ id: role.id, allow: [PermissionFlagsBits.ViewChannel] });
-      }
-
+      creatingRooms.add(lockKey);
       try {
-        const channel = await interaction.guild.channels.create({
-          name: nome,
-          type: channelType,
-          permissionOverwrites: overwrites,
-          reason: `Stanza privata di ${interaction.user.tag}`,
-        });
-        saveRoom(guildId, channel.id, { ownerId: interaction.user.id, type: tipo });
-        return interaction.reply({
-          content: `✅ Stanza ${tipo === 'vocale' ? 'vocale' : 'testuale'} creata: ${channel} (solo tu e lo staff possono vederla).`,
-          flags: MessageFlags.Ephemeral,
-        });
-      } catch {
-        return interaction.reply({ content: '❌ Non riesco a creare la stanza. Verifica i miei permessi.', flags: MessageFlags.Ephemeral });
+        const tipo = interaction.options.getString('tipo') || 'testuale';
+        const nome = (interaction.options.getString('nome') || `stanza-${interaction.user.username}`)
+          .trim().slice(0, 100) || `stanza-${interaction.user.username}`;
+        const channelType = tipo === 'vocale' ? ChannelType.GuildVoice : ChannelType.GuildText;
+
+        const overwrites = [
+          { id: guildId, deny: [PermissionFlagsBits.ViewChannel] },
+          {
+            id: interaction.user.id,
+            allow: tipo === 'vocale'
+              ? [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak]
+              : [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
+          },
+        ];
+        for (const role of staffRoles(interaction.guild).values()) {
+          overwrites.push({ id: role.id, allow: [PermissionFlagsBits.ViewChannel] });
+        }
+
+        try {
+          const channel = await interaction.guild.channels.create({
+            name: nome,
+            type: channelType,
+            permissionOverwrites: overwrites,
+            reason: `Stanza privata di ${interaction.user.tag}`,
+          });
+          saveRoom(guildId, channel.id, { ownerId: interaction.user.id, type: tipo });
+          return interaction.reply({
+            content: `✅ Stanza ${tipo === 'vocale' ? 'vocale' : 'testuale'} creata: ${channel} (solo tu e lo staff possono vederla).`,
+            flags: MessageFlags.Ephemeral,
+          });
+        } catch {
+          return interaction.reply({ content: '❌ Non riesco a creare la stanza. Verifica i miei permessi.', flags: MessageFlags.Ephemeral });
+        }
+      } finally {
+        creatingRooms.delete(lockKey);
       }
     }
 
@@ -124,7 +136,11 @@ module.exports = {
         await interaction.reply({ content: '🗑️ Stanza in eliminazione…', flags: MessageFlags.Ephemeral });
         await interaction.channel.delete(`Stanza eliminata da ${interaction.user.tag}`);
       } catch {
-        return interaction.reply({ content: '❌ Non riesco a eliminare la stanza.', flags: MessageFlags.Ephemeral });
+        // La prima reply potrebbe essere già partita: mai doppia reply (lancia InteractionAlreadyReplied).
+        if (interaction.replied || interaction.deferred) {
+          return interaction.followUp({ content: '❌ Non riesco a eliminare la stanza.', flags: MessageFlags.Ephemeral }).catch(() => {});
+        }
+        return interaction.reply({ content: '❌ Non riesco a eliminare la stanza.', flags: MessageFlags.Ephemeral }).catch(() => {});
       }
       removeRoom(guildId, interaction.channelId);
     }

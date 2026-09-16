@@ -14,7 +14,11 @@ module.exports = {
       const apply = async (target) => {
         for (const roleId of cfg.roleIds) {
           try {
+            // Salta ID non validi e ruoli non gestibili senza sporcare i log a ogni join
+            if (typeof roleId !== 'string' || !/^\d{17,20}$/.test(roleId)) continue;
             if (target.roles.cache.has(roleId)) continue;
+            const role = target.guild.roles.cache.get(roleId);
+            if (!role || role.managed || role.id === target.guild.id || !role.editable) continue;
             await target.roles.add(roleId);
           } catch (e) {
             console.error(`autorole: impossibile assegnare il ruolo ${roleId} a ${target.user.tag} in ${target.guild.id}: ${e.message}`);

@@ -12,7 +12,8 @@ module.exports = {
   cooldown: 5,
   async execute(interaction) {
     const raw = interaction.options.getString('tempo');
-    const text = interaction.options.getString('testo');
+    // Reply e send hanno limite 2000 char: l'opzione slash ne ammette fino a 6000.
+    const text = String(interaction.options.getString('testo') || '').slice(0, 1500);
     const target = interaction.options.getChannel('canale') ?? null;
     const delay = ms(raw);
     if (!delay || delay < 5000 || delay > 7 * 24 * 3600 * 1000)

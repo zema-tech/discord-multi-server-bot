@@ -10,10 +10,11 @@ module.exports = {
     .addStringOption((o) => o.setName('durata').setDescription('Chiusura automatica: 10m, 1h, 1d (opzionale)').setRequired(false)),
   cooldown: 5,
   async execute(interaction) {
-    const question = interaction.options.getString('domanda');
+    // Titolo embed max 256 char, descrizione max 4096: le opzioni slash non hanno maxLength.
+    const question = String(interaction.options.getString('domanda') || '').slice(0, 200);
     const raw = interaction.options.getString('opzioni');
     const durataRaw = interaction.options.getString('durata');
-    const options = raw ? raw.split('|').map((s) => s.trim()).filter(Boolean).slice(0, 10) : ['Sì', 'No'];
+    const options = raw ? raw.split('|').map((s) => s.trim()).filter(Boolean).slice(0, 10).map((o) => o.slice(0, 100)) : ['Sì', 'No'];
     if (options.length < 2) return interaction.reply({ content: '❌ Servono almeno 2 opzioni.', flags: MessageFlags.Ephemeral });
 
     let autoCloseMs = null;

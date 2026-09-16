@@ -31,7 +31,9 @@ module.exports = {
 
     const job = jobs[Math.floor(Math.random() * jobs.length)];
     const earned = Math.floor(Math.random() * (job.max - job.min + 1)) + job.min;
-    const newBalance = userData.balance + earned;
+    // Base sanificata: con saldo corrotto (NaN) il nuovo saldo diventerebbe NaN.
+    const base = Number.isFinite(userData.balance) ? userData.balance : 0;
+    const newBalance = base + earned;
 
     updateUser(interaction.guild.id, interaction.user.id, {
       balance: newBalance,

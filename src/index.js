@@ -34,7 +34,13 @@ function loadCommands(dir, category = 'altri') {
     if (entry.isDirectory()) {
       loadCommands(full, entry.name);
     } else if (entry.name.endsWith('.js')) {
-      const command = require(full);
+      let command;
+      try {
+        command = require(full);
+      } catch (e) {
+        console.error(`[ERRORE] Comando non caricato ${full}: ${e.message} (gli altri comandi restano attivi)`);
+        continue;
+      }
       if ('data' in command && 'execute' in command) {
         command.category = category;
         if (client.commands.has(command.data.name)) {
@@ -50,10 +56,20 @@ function loadCommands(dir, category = 'altri') {
 loadCommands(path.join(__dirname, 'commands'));
 console.log(`📦 Caricati ${client.commands.size} comandi.`);
 
-// Carica eventi
+// Carica eventi (un file con export non valido non deve spegnere il bot)
 const eventsPath = path.join(__dirname, 'events');
 for (const file of fs.readdirSync(eventsPath).filter((f) => f.endsWith('.js'))) {
-  const event = require(path.join(eventsPath, file));
+  let event;
+  try {
+    event = require(path.join(eventsPath, file));
+  } catch (e) {
+    console.error(`[ERRORE] Evento non caricato ${file}: ${e.message} (gli altri eventi restano attivi)`);
+    continue;
+  }
+  if (!event || typeof event.name !== 'string' || typeof event.execute !== 'function') {
+    console.warn(`[ATTENZIONE] ${file} manca di "name" o "execute": evento saltato.`);
+    continue;
+  }
   if (event.once) {
     client.once(event.name, (...args) => event.execute(...args, client));
   } else {

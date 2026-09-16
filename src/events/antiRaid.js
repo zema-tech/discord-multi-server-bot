@@ -28,6 +28,10 @@ module.exports = {
       if (me && !me.permissions.has(PermissionFlagsBits.ManageGuild)) return;
 
       const now = Date.now();
+      // Evita crescita illimitata della mappa in memoria
+      if (lastWarn.size > 500) {
+        for (const [g, t] of lastWarn) if (now - t > WARN_COOLDOWN_MS) lastWarn.delete(g);
+      }
       if (now - (lastWarn.get(member.guild.id) || 0) < WARN_COOLDOWN_MS) return;
 
       const cfg = getGuild(member.guild.id);

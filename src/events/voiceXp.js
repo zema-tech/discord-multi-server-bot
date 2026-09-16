@@ -18,6 +18,10 @@ function isXpEligible(member, state) {
   return true;
 }
 
+function isMutedState(state) {
+  return Boolean(state.mute || state.deaf || state.selfMute || state.selfDeaf || state.serverMute || state.serverDeaf);
+}
+
 async function grantVoiceRewards(member, newLevel) {
   let rewards = [];
   try {
@@ -50,6 +54,20 @@ module.exports = {
 
       // Cambio canale (spostamento): mantieni il join-time originale.
       if (joinedChannelId && leftChannelId && joinedChannelId !== leftChannelId) return;
+
+      // Stesso canale (toggle mute/deafen): pausa il timer in muto, riprendilo quando torna udibile.
+      // Senza questo, chi resta mutato quasi tutta la sessione prenderebbe XP piena.
+      if (joinedChannelId && leftChannelId && joinedChannelId === leftChannelId) {
+        const member = newState.member || oldState.member;
+        if (!member || member.user.bot) return;
+        const key = trackKey(guildId, userId);
+        if (!isMutedState(oldState) && isMutedState(newState)) {
+          joinTimes.delete(key); // pausa: scarta il tempo accumulato da mutato
+        } else if (isMutedState(oldState) && !isMutedState(newState)) {
+          joinTimes.set(key, Date.now()); // ripresa: riparte da ora
+        }
+        return;
+      }
 
       if (joinedChannelId && !leftChannelId) {
         // Entrata in vocale.

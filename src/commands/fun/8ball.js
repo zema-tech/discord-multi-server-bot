@@ -41,7 +41,8 @@ module.exports = {
       .setColor(0x000000)
       .setTitle('🎱 Palla Magica 8')
       .addFields(
-        { name: 'Domanda', value: domanda },
+        // Limite field Discord 1024 char: domande lunghe crasherebbero l'invio.
+        { name: 'Domanda', value: String(domanda || '').slice(0, 1024) || '(nessuna domanda)' },
         { name: 'Risposta', value: risposta }
       )
       .setFooter({ text: `Richiesto da ${interaction.user.username}` });

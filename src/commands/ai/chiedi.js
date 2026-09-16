@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const { askAI } = require('../../utils/ai');
 
 const SYSTEM_PROMPT = 'Sei un assistente utile del server Discord, rispondi in italiano, conciso (max 1500 caratteri)';
@@ -13,6 +13,11 @@ module.exports = {
   cooldown: 15,
   async execute(interaction) {
     const domanda = interaction.options.getString('domanda', true);
+
+    // Solo spazi: askAI la rifiuterebbe con un generico "AI non disponibile", meglio un errore chiaro.
+    if (!domanda.trim()) {
+      return interaction.reply({ content: '❌ La domanda non può essere vuota.', flags: MessageFlags.Ephemeral });
+    }
 
     await interaction.deferReply();
 

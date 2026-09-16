@@ -7,9 +7,11 @@ module.exports = {
     const g = interaction.guild;
     const embed = new EmbedBuilder()
       .setColor(0x5865f2)
-      .setTitle(`🏰 ${g.name}`)
-      .setThumbnail(g.iconURL({ size: 256 }))
-      .addFields(
+      .setTitle(`🏰 ${g.name}`);
+    // Server senza icona: iconURL() è null e setThumbnail(null) lancia.
+    const icon = g.iconURL({ size: 256 });
+    if (icon) embed.setThumbnail(icon);
+    embed.addFields(
         { name: 'ID', value: g.id, inline: true },
         { name: 'Proprietario', value: `<@${g.ownerId}>`, inline: true },
         { name: 'Membri', value: `${g.memberCount}`, inline: true },

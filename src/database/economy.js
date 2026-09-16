@@ -18,6 +18,8 @@ function sanitize(entry = {}) {
     lastWork: num(entry.lastWork),
     lastSlots: num(entry.lastSlots),
     lastRob: num(entry.lastRob),
+    // Streak daily: intero >= 0 (record corrotti mostrerebbero "Infinity giorni").
+    dailyStreak: Number.isFinite(entry.dailyStreak) ? Math.min(Math.max(0, Math.floor(entry.dailyStreak)), 10000) : 0,
   };
 }
 
@@ -44,7 +46,10 @@ function addBalance(guildId, userId, amount) {
   if (!db[guildId]) db[guildId] = {};
   const current = db[guildId][userId] ? sanitize(db[guildId][userId]) : { ...DEFAULTS };
   // Math.max(0, ...) da solo non basta: con NaN restituirebbe NaN. sanitize() lo impedisce.
-  current.balance = Math.max(0, current.balance + amount);
+  // Clamp anti-overflow: saldi oltre MAX_SAFE_INTEGER diventerebbero Infinity e corromperebbero il JSON.
+  let v = current.balance + amount;
+  if (!Number.isFinite(v)) v = amount > 0 ? Number.MAX_SAFE_INTEGER : 0;
+  current.balance = Math.max(0, Math.min(v, Number.MAX_SAFE_INTEGER));
   db[guildId][userId] = current;
   save(FILE, db);
   return current;

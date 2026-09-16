@@ -147,8 +147,8 @@ module.exports = {
       if (ticket.status !== 'open') return interaction.reply({ content: '❌ Ticket già chiuso.', flags: MessageFlags.Ephemeral });
       const reason = interaction.options.getString('motivo') || 'Chiuso via comando';
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-      await doClose(interaction.channel, interaction.guild, ticket, interaction.user, reason);
-      return interaction.editReply('✅ Ticket chiuso, transcript inviato nei log e al proprietario.');
+      const closed = await doClose(interaction.channel, interaction.guild, ticket, interaction.user, reason);
+      return interaction.editReply(closed ? '✅ Ticket chiuso, transcript inviato nei log e al proprietario.' : '❌ Ticket già chiuso.');
     }
 
     if (sub === 'riapri') {

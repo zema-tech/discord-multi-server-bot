@@ -63,7 +63,9 @@ function setCache(guildId, cache) {
   for (const [code, inv] of entries) {
     if (!code) continue;
     // Supporta sia Invite discord.js ({ uses, inviter }) sia voci già normalizzate.
-    const uses = Number(inv && inv.uses !== undefined ? inv.uses : 0) || 0;
+    // sanitize: Infinity/negativi/NaN dal JSON corrotto diventerebbero conteggi assurdi.
+    const rawUses = inv && inv.uses !== undefined ? inv.uses : 0;
+    const uses = Number.isFinite(Number(rawUses)) ? Math.max(0, Math.floor(Number(rawUses))) : 0;
     const inviterId =
       inv && typeof inv.inviterId !== 'undefined'
         ? inv.inviterId
@@ -82,8 +84,9 @@ function upsertInvite(guildId, code, { uses = 0, inviterId = null } = {}) {
   if (!code) return null;
   const { db, data } = loadGuild(String(guildId));
   const prev = data.cache[String(code)] || {};
+  const n = Number(uses);
   data.cache[String(code)] = {
-    uses: Number(uses) || 0,
+    uses: Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0,
     // Se il nuovo inviterId è null (es. sync parziale), conserva quello noto.
     inviterId: inviterId || prev.inviterId || null,
   };
@@ -105,9 +108,16 @@ function blankStats() {
   return { joins: 0, leaves: 0 };
 }
 
+// Conteggi sempre interi >= 0: Number(Infinity)||0 resta Infinity, i negativi
+// darebbero "validi" negativi in classifica. Vale anche per stringhe numeriche.
+function toCount(v) {
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+}
+
 function getUserStats(data, userId) {
   const s = data.stats[String(userId)] || blankStats();
-  return { joins: Number(s.joins) || 0, leaves: Number(s.leaves) || 0 };
+  return { joins: toCount(s.joins), leaves: toCount(s.leaves) };
 }
 
 /**
@@ -173,8 +183,8 @@ function getLeaderboard(guildId, limit = 10) {
   const n = Math.min(Math.max(Number(limit) || 10, 1), 25);
   return Object.entries(data.stats)
     .map(([userId, s]) => {
-      const joins = Number(s.joins) || 0;
-      const leaves = Number(s.leaves) || 0;
+      const joins = toCount(s.joins);
+      const leaves = toCount(s.leaves);
       return { userId, joins, leaves, valid: joins - leaves };
     })
     .filter((e) => e.joins > 0 || e.leaves > 0)

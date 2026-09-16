@@ -65,6 +65,9 @@ async function sendPanel(channel) {
 
 // ---------- Creazione ticket ----------
 
+// Lock anti-race: una sola creazione alla volta per utente (doppi click sul select).
+const creatingTickets = new Set();
+
 function safeName(name) {
   return name.toLowerCase().replace(/[^a-z0-9-_]/g, '-').replace(/-+/g, '-').slice(0, 20) || 'utente';
 }
@@ -88,6 +91,23 @@ function ticketButtons(closed = false) {
 }
 
 async function createTicket(interaction, typeKey) {
+  const { guild } = interaction;
+  const lockKey = `${guild.id}:${interaction.user.id}`;
+  if (creatingTickets.has(lockKey)) {
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: '⏳ Creazione del ticket già in corso, attendi…', flags: MessageFlags.Ephemeral }).catch(() => {});
+    }
+    return;
+  }
+  creatingTickets.add(lockKey);
+  try {
+    await createTicketInner(interaction, typeKey);
+  } finally {
+    creatingTickets.delete(lockKey);
+  }
+}
+
+async function createTicketInner(interaction, typeKey) {
   const { guild } = interaction;
   const config = getConfig(guild.id);
 
@@ -179,6 +199,15 @@ async function resolveLogChannel(guild) {
 }
 
 async function doClose(channel, guild, ticket, closedBy, reason) {
+  // Guard atomica: il claim dello stato avviene qui in modo sincrono, così una
+  // doppia chiusura concorrente (bottone + comando + autoclose) diventa no-op.
+  if (!ticket || ticket.status !== 'open') return false;
+  ticket.status = 'closed';
+  ticket.closedAt = Date.now();
+  ticket.closeReason = reason || 'Nessun motivo';
+  ticket.closedBy = closedBy.id;
+  saveTicket(guild.id, ticket);
+
   const owner = await guild.members.fetch(ticket.ownerId).catch(() => null);
   const ownerTag = owner ? owner.user.tag : `ID ${ticket.ownerId}`;
 
@@ -188,12 +217,6 @@ async function doClose(channel, guild, ticket, closedBy, reason) {
   } catch (e) {
     console.error('transcript:', e.message);
   }
-
-  ticket.status = 'closed';
-  ticket.closedAt = Date.now();
-  ticket.closeReason = reason || 'Nessun motivo';
-  ticket.closedBy = closedBy.id;
-  saveTicket(guild.id, ticket);
 
   // Blocca il canale e rinominalo
   try {
@@ -240,6 +263,7 @@ async function doClose(channel, guild, ticket, closedBy, reason) {
   if (owner) {
     await owner.send({ content: `🔒 Il tuo ticket **#${ticket.number}** (${typeLabel(ticket.type)}) è stato chiuso da **${closedBy.tag}**. Motivo: ${reason || 'Nessun motivo'}`, files: transcript ? [transcript] : [] }).catch(() => {});
   }
+  return true;
 }
 
 // ---------- Handler interazioni ----------
@@ -263,7 +287,14 @@ async function handle(interaction) {
 
   // --- Select: creazione ticket ---
   if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_create') {
-    await createTicket(interaction, interaction.values[0]);
+    const chosen = interaction.values?.[0];
+    if (!chosen) {
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: '❌ Selezione non valida.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      }
+      return true;
+    }
+    await createTicket(interaction, chosen);
     return true;
   }
 
@@ -282,8 +313,8 @@ async function handle(interaction) {
     }
     const reason = interaction.fields.getTextInputValue('reason');
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    await doClose(interaction.channel, guild, ticket, interaction.user, reason);
-    await interaction.editReply('✅ Ticket chiuso, transcript inviato nei log e al proprietario.');
+    const closed = await doClose(interaction.channel, guild, ticket, interaction.user, reason);
+    await interaction.editReply(closed ? '✅ Ticket chiuso, transcript inviato nei log e al proprietario.' : '❌ Ticket già chiuso.');
     return true;
   }
 

@@ -88,6 +88,18 @@ module.exports = {
     // Anti-spam: 5+ messaggi in 5 secondi
     if (automod.antiSpam) {
       if (!client.spamMap) client.spamMap = new Map();
+      // Evita crescita illimitata: pota guild/utenti senza timestamp recenti
+      if (client.spamMap.size > 200) {
+        const now0 = Date.now();
+        for (const [g, m] of client.spamMap) {
+          for (const [u, arr0] of m) {
+            const fresh0 = arr0.filter((t) => now0 - t < 5000);
+            if (!fresh0.length) m.delete(u);
+            else if (fresh0.length !== arr0.length) m.set(u, fresh0);
+          }
+          if (m.size === 0) client.spamMap.delete(g);
+        }
+      }
       const gKey = message.guild.id;
       if (!client.spamMap.has(gKey)) client.spamMap.set(gKey, new Map());
       const map = client.spamMap.get(gKey);
@@ -96,7 +108,8 @@ module.exports = {
       map.set(message.author.id, arr);
       if (arr.length >= 5) {
         violations.push('spam');
-        map.set(message.author.id, []);
+        map.delete(message.author.id);
+        if (map.size === 0) client.spamMap.delete(gKey);
       }
     }
 
@@ -113,7 +126,7 @@ module.exports = {
     const reply = await message.channel
       .send(`⚠️ ${message.author}, messaggio rimosso (**${violations.join(', ')}**). Warn #${total} (ID \`${warn.id}\`).`)
       .catch(() => null);
-    if (reply) setTimeout(() => reply.delete().catch(() => {}), 8000);
+    if (reply) setTimeout(() => reply.delete().catch(() => {}), 8000).unref?.();
 
     // Muto automatico se 3+ warn totali e moderabile
     if (total >= 3 && message.member?.moderatable) {
