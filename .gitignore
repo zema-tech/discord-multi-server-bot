@@ -1,0 +1,5 @@
+node_modules/
+.env
+*.log
+src/database/economy.json
+.DS_Store
