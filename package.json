@@ -1,0 +1,27 @@
+{
+  "name": "discord-multi-server-bot",
+  "version": "1.0.0",
+  "description": "Bot Discord multi-server con tante funzioni",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "deploy": "node deploy-commands.js",
+    "dev": "node --watch src/index.js"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "discord.js",
+    "multi-server"
+  ],
+  "author": "zema-tech",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5",
+    "ms": "^2.1.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
