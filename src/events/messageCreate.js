@@ -118,8 +118,10 @@ module.exports = {
     try {
       await message.delete().catch(() => {});
     } catch {}
+    const botId = client.user?.id;
+    if (!botId) return; // senza bot loggato non si può attribuire il warn: messaggio già cancellato
     const warn = addWarn(message.guild.id, message.author.id, {
-      modId: client.user.id,
+      modId: botId,
       reason: `Automod: ${violations.join(', ')}`,
     });
     const total = require('../database/warnings').getWarnings(message.guild.id, message.author.id).length;

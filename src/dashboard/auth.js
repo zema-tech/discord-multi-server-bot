@@ -89,8 +89,13 @@ function parseCookies(req) {
     const i = part.indexOf('=');
     if (i < 0) continue;
     const k = part.slice(0, i).trim();
-    const v = part.slice(i + 1).trim();
-    if (k) out[k] = decodeURIComponent(v);
+    if (!k) continue;
+    // decodeURIComponent lancia su '%' malformati: mai far crashare il middleware.
+    try {
+      out[k] = decodeURIComponent(part.slice(i + 1).trim());
+    } catch {
+      out[k] = part.slice(i + 1).trim();
+    }
   }
   return out;
 }

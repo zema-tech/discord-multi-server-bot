@@ -292,9 +292,13 @@ function createApiRouter(client) {
   });
 
   // ---- PUT /api/guilds/:gid/modules/:mod ---------------------------------
-  router.put('/guilds/:gid/modules/:mod', loadAccess, (req, res) => {
+  // Hardening: range numerici, cap testi, canali verificati nella guild.
+  // (Senza questi, maxMentions negativo flaggherebbe OGNI messaggio e ID
+  //  spazzatura romperebbero le feature in silenzio.)
+  router.put('/guilds/:gid/modules/:mod', loadAccess, async (req, res) => {
     const gid = req.params.gid;
     const mod = req.params.mod;
+    const guild = req.access.guild;
     try {
       const spec = MODULE_FIELDS[mod];
       if (!spec) return res.status(400).json({ errore: `Modulo sconosciuto: ${mod}.` });
@@ -307,9 +311,30 @@ function createApiRouter(client) {
           return res.status(400).json({ errore: `Tipo non valido per ${k}: atteso ${spec[k]}.` });
         }
       }
+      const NUMBER_RANGES = { maxMentions: [1, 20], maxPerUser: [1, 10], autoCloseDays: [0, 90] };
+      const TEXT_LIMITS = { welcomeMessage: 500, systemPrompt: 1000 };
       const patch = {};
       for (const k of keys) {
-        patch[k] = spec[k] === 'number' ? Math.floor(body[k]) : body[k];
+        let v = body[k];
+        if (spec[k] === 'number') {
+          v = Math.floor(v);
+          const range = NUMBER_RANGES[k];
+          if (range && (v < range[0] || v > range[1])) {
+            return res.status(400).json({ errore: `${k} deve stare tra ${range[0]} e ${range[1]}.` });
+          }
+        } else if (spec[k] === 'text' && typeof v === 'string') {
+          v = v.slice(0, TEXT_LIMITS[k] || 1000);
+        } else if (spec[k] === 'channel' && v !== null) {
+          if (typeof v !== 'string' || !/^\d{10,25}$/.test(v)) {
+            return res.status(400).json({ errore: `Canale non valido per ${k}.` });
+          }
+          let ch = guild.channels.cache.get(v);
+          if (!ch) ch = await guild.channels.fetch(v).catch(() => null);
+          if (!ch) {
+            return res.status(400).json({ errore: `Canale non trovato in questo server per ${k}.` });
+          }
+        }
+        patch[k] = v;
       }
 
       const guildConfig = safeRequire('../database/guildConfig');

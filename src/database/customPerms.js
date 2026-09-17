@@ -4,11 +4,14 @@ const FILE = dbFile('customPerms');
 
 const COMMAND_RE = /^[\w-]{1,32}$/;
 const MAX_ROLES = 5;
+// Chiavi che manipolerebbero il prototype invece di creare una entry (prototype pollution).
+const FORBIDDEN_COMMANDS = new Set(['__proto__', 'constructor', 'prototype']);
 
 function normalizeCommand(name) {
   if (typeof name !== 'string') return null;
   const n = name.toLowerCase().trim();
-  return COMMAND_RE.test(n) ? n : null;
+  if (!COMMAND_RE.test(n) || FORBIDDEN_COMMANDS.has(n)) return null;
+  return n;
 }
 
 function readDb() {
