@@ -65,7 +65,7 @@ function rel(p) {
 }
 
 // ---------------------------------------------------------------- (a) COMANDI
-console.log('== [1/4] Comandi ==');
+console.log('== [1/5] Comandi ==');
 commandFiles = collectJs(COMMANDS_DIR, true);
 console.log(`File comando trovati: ${commandFiles.length}`);
 
@@ -122,7 +122,7 @@ for (const file of commandFiles) {
 }
 
 // ---------------------------------------------------------------- (b) EVENTI
-console.log('== [2/4] Eventi ==');
+console.log('== [2/5] Eventi ==');
 eventFiles = collectJs(EVENTS_DIR, false);
 console.log(`File evento trovati: ${eventFiles.length}`);
 
@@ -183,7 +183,7 @@ for (const file of eventFiles) {
 }
 
 // ------------------------------------------------------- (c) DATABASE (qatest)
-console.log('== [3/4] Database (chiavi qatest) ==');
+console.log('== [3/5] Database (chiavi qatest) ==');
 const QGUILD = 'qatest_guild';
 const QUSER = 'qatest_user';
 const QCHAN = 'qatest_channel';
@@ -500,6 +500,169 @@ try {
     fail(`analytics (qatest): ${e.message.split('\n')[0]}`);
   }
 
+  // ---- LOTTO dashboard+permessi+AI: customPerms (set/get/has/clear) ----
+  // Candidati multipli: il modulo può vivere in database/ o utils/ con nomi
+  // diversi a seconda dell'agente. Se assente: WARNING (skip, lavori in corso).
+  // Se presente ma API incompleta: WARNING (WIP). Se API completa ma
+  // roundtrip rotto: FAIL. Cleanup via scrubTestKeys (generico su *.json).
+  try {
+    const QCMD = 'qatest_cmd';
+    const candidates = [
+      'src/database/customPerms.js',
+      'src/database/permissions.js',
+      'src/utils/customPerms.js',
+      'src/utils/permissions.js',
+    ];
+    const found = candidates.map((c) => path.join(ROOT, c)).find((f) => fs.existsSync(f));
+    if (!found) {
+      skipMissing('customPerms', 'src/database/customPerms.js (o permissions)');
+    } else {
+      delete require.cache[require.resolve(found)];
+      const cp = require(found);
+      const tag = path.relative(ROOT, found);
+      const pick = (...names) => {
+        for (const n of names) if (cp && typeof cp[n] === 'function') return { fn: cp[n], name: n };
+        return null;
+      };
+      const setE = pick('setCommandRoles', 'setPerm', 'set', 'setCustomPerm', 'setPermission', 'grant', 'allow', 'addPerm');
+      const getE = pick('getCommandRoles', 'getPerm', 'get', 'getPerms', 'getCustomPerm', 'getPermission', 'getAll', 'list', 'listPerms');
+      const hasE = pick('hasCustom', 'has', 'hasPerm', 'hasPermission', 'can', 'check', 'canUse', 'checkPerm');
+      const clearE = pick('clearCommandRoles', 'clearAll', 'clear', 'clearPerm', 'clearPerms', 'clearPermissions', 'remove', 'removePerm', 'reset', 'deletePerm');
+      if (!setE || !getE || !hasE || !clearE) {
+        warn(`customPerms: API incompleta in ${tag} (set=${setE ? setE.name : '-'}/get=${getE ? getE.name : '-'}/has=${hasE ? hasE.name : '-'}/clear=${clearE ? clearE.name : '-'}; exports: ${cp && typeof cp === 'object' ? Object.keys(cp).sort().join(',') : typeof cp}) — skip (WIP)`);
+      } else {
+        const tryCall = (entry, argsList) => {
+          let lastErr = null;
+          for (const args of argsList) {
+            try {
+              return { ok: true, value: entry.fn(...args), via: `${entry.name}(${args.length})` };
+            } catch (e) { lastErr = e; }
+          }
+          return { ok: false, error: lastErr };
+        };
+        // pulizia iniziale (best-effort, entrambe le arity)
+        try { clearE.fn(QGUILD, QCMD); } catch { try { clearE.fn(QGUILD); } catch {} }
+        // NOTA: le API reali validano gli ID ruolo come snowflake numerici
+        // (customPerms.cleanRoleIds scarta 'qatest_role'): si usa quindi un
+        // ID numerico fittizio QROLEID; la traccia è cercata come QROLEID o 'qatest'.
+        const QROLEID = '123456789012345678';
+        // SET: prova più forme (array ruoli numerici / stringa / oggetto)
+        const setR = tryCall(setE, [
+          [QGUILD, QCMD, [QROLEID]],
+          [QGUILD, QCMD, QROLEID],
+          [QGUILD, QCMD, [QROLE]],
+          [QGUILD, QCMD, QROLE],
+          [QGUILD, QCMD, { roles: [QROLEID] }],
+          [QGUILD, { command: QCMD, roles: [QROLEID] }],
+        ]);
+        const hasTrace = (v) => {
+          const s = JSON.stringify(v || '');
+          return s.indexOf('qatest') !== -1 || s.indexOf(QROLEID) !== -1;
+        };
+        if (!setR.ok) fail(`customPerms: set fallito in ogni forma (qatest) in ${tag}: ${(setR.error && setR.error.message || '?').split('\n')[0]} (exports: ${Object.keys(cp).sort().join(',')})`);
+        else {
+          // GET: deve contenere traccia qatest
+          const getR = tryCall(getE, [[QGUILD, QCMD], [QGUILD]]);
+          if (!getR.ok) fail(`customPerms: get fallito (qatest) in ${tag}: ${(getR.error && getR.error.message || '?').split('\n')[0]}`);
+          else if (!hasTrace(getR.value)) {
+            fail(`customPerms: get senza traccia qatest dopo set (qatest) in ${tag} (via ${getR.via}): ${JSON.stringify(getR.value).slice(0, 160)}`);
+          }
+          // HAS: prima arity-2 (hasCustom), poi forme a 3+ argomenti
+          const hasR = tryCall(hasE, [
+            [QGUILD, QCMD],
+            [QGUILD, QCMD, QROLEID],
+            [QGUILD, QCMD, QROLE],
+            [QGUILD, QCMD, QUSER],
+            [QGUILD, QUSER, QCMD],
+            [QGUILD, QCMD, { id: QUSER, roles: [QROLEID] }],
+          ]);
+          if (!hasR.ok) fail(`customPerms: has fallito (qatest) in ${tag}: ${(hasR.error && hasR.error.message || '?').split('\n')[0]}`);
+          else if (hasR.value !== true && hasR.value !== 1) {
+            fail(`customPerms: has(qatest) atteso true, ottenuto ${JSON.stringify(hasR.value)} in ${tag} (via ${hasR.via})`);
+          }
+          // CLEAR: poi get/has devono risultare vuoti/falsi
+          tryCall(clearE, [[QGUILD, QCMD], [QGUILD]]);
+          const getAfter = tryCall(getE, [[QGUILD, QCMD], [QGUILD]]);
+          if (getAfter.ok && hasTrace(getAfter.value)) {
+            fail(`customPerms: dopo clear ancora traccia qatest in ${tag}: ${JSON.stringify(getAfter.value).slice(0, 160)}`);
+          }
+          const hasAfter = tryCall(hasE, [[QGUILD, QCMD], [QGUILD, QCMD, QROLEID], [QGUILD, QCMD, QUSER]]);
+          if (hasAfter.ok && (hasAfter.value === true || hasAfter.value === 1)) {
+            fail(`customPerms: dopo clear has(qatest) ancora true in ${tag}`);
+          }
+        }
+        // pulizia finale best-effort
+        try { clearE.fn(QGUILD, QCMD); } catch { try { clearE.fn(QGUILD); } catch {} }
+      }
+    }
+  } catch (e) {
+    fail(`customPerms (qatest): ${e.message.split('\n')[0]}`);
+  }
+
+  // ---- LOTTO dashboard+permessi+AI: aiConfig (get/set/defaults) ----
+  // Stessa policy: assente/incompleto -> WARNING (skip, lavori in corso);
+  // presente ma roundtrip rotto -> FAIL. Cleanup via scrubTestKeys.
+  try {
+    const candidates = [
+      'src/database/aiConfig.js',
+      'src/utils/aiConfig.js',
+    ];
+    const found = candidates.map((c) => path.join(ROOT, c)).find((f) => fs.existsSync(f));
+    if (!found) {
+      skipMissing('aiConfig', 'src/database/aiConfig.js (o utils/aiConfig)');
+    } else {
+      delete require.cache[require.resolve(found)];
+      const ac = require(found);
+      const tag = path.relative(ROOT, found);
+      const pick = (...names) => {
+        for (const n of names) if (ac && typeof ac[n] === 'function') return { fn: ac[n], name: n };
+        return null;
+      };
+      const getE = pick('getAiConfig', 'getConfig', 'get', 'getSettings');
+      const setE = pick('setAiConfig', 'setConfig', 'set', 'update', 'updateConfig');
+      const defaults = (ac && (ac.DEFAULTS || ac.defaults)) || null;
+      if (!getE || !setE) {
+        warn(`aiConfig: API incompleta in ${tag} (get=${getE ? getE.name : '-'}/set=${setE ? setE.name : '-'}; exports: ${ac && typeof ac === 'object' ? Object.keys(ac).sort().join(',') : typeof ac}) — skip (WIP)`);
+      } else {
+        const tryCall = (entry, argsList) => {
+          let lastErr = null;
+          for (const args of argsList) {
+            try {
+              return { ok: true, value: entry.fn(...args), via: `${entry.name}(${args.length})` };
+            } catch (e) { lastErr = e; }
+          }
+          return { ok: false, error: lastErr };
+        };
+        if (!defaults || typeof defaults !== 'object') warn(`aiConfig: DEFAULTS assenti in ${tag} (exports: ${Object.keys(ac).sort().join(',')})`);
+        const g0 = tryCall(getE, [[QGUILD]]);
+        if (!g0.ok) fail(`aiConfig: get(qatest) fallito in ${tag}: ${(g0.error && g0.error.message || '?').split('\n')[0]}`);
+        else if (!g0.value || typeof g0.value !== 'object') fail(`aiConfig: get(qatest) atteso oggetto-config in ${tag}, ottenuto ${JSON.stringify(g0.value).slice(0, 120)}`);
+        const s1 = tryCall(setE, [
+          [QGUILD, { model: 'qatest-model' }],
+          [QGUILD, { Model: 'qatest-model' }],
+          [QGUILD, 'model', 'qatest-model'],
+        ]);
+        if (!s1.ok) fail(`aiConfig: set(qatest) fallito in ogni forma in ${tag}: ${(s1.error && s1.error.message || '?').split('\n')[0]}`);
+        else {
+          const g1 = tryCall(getE, [[QGUILD]]);
+          if (!g1.ok) fail(`aiConfig: get dopo set fallito in ${tag}`);
+          else if (JSON.stringify(g1.value || '').indexOf('qatest-model') === -1) {
+            fail(`aiConfig: get dopo set non contiene "qatest-model" in ${tag} (via ${s1.via}): ${JSON.stringify(g1.value).slice(0, 200)}`);
+          }
+          // ripristino defaults best-effort
+          if (defaults && typeof defaults === 'object') {
+            tryCall(setE, [[QGUILD, defaults], [QGUILD, {}]]);
+          } else {
+            const clr = (ac && typeof ac.clear === 'function') ? ac.clear : (typeof ac.reset === 'function' ? ac.reset : null);
+            if (clr) { try { clr(QGUILD); } catch {} }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    fail(`aiConfig (qatest): ${e.message.split('\n')[0]}`);
+  }
+
   // jobs/ticketAutoclose — require-safe (NON avvia timer: niente start/checkOnce qui)
   try {
     const candidates = ['src/jobs/ticketAutoclose.js', 'src/utils/ticketAutoclose.js', 'src/handlers/ticketAutoclose.js'];
@@ -551,7 +714,7 @@ try {
 }
 
 // ------------------------------------------------- (e) Collisioni cross-modulo
-console.log('== [4/4] Collisioni cross-modulo ==');
+console.log('== [4/5] Collisioni cross-modulo ==');
 try {
   const allSrc = [...commandFiles, ...eventFiles,
     ...collectJs(path.join(ROOT, 'src', 'handlers'), true),
@@ -581,6 +744,131 @@ try {
   console.log(`customId letterali unici scansionati: ${customIdMap.size}`);
 } catch (e) {
   fail(`Scansione customId: ${e.message.split('\n')[0]}`);
+}
+
+// --------------------------------------- (f) Dashboard lotto (server + FE) ==
+console.log('== [5/5] Dashboard lotto (server require-safe + contratto FE) ==');
+try {
+  // (f1) require-safe di src/dashboard/server.js SENZA express installato.
+  // Se il file manca: WARNING (skip, lavori in corso).
+  // Se require riesce: verifica export minimi (createApp/start o router).
+  // Se require fallisce con MODULE_NOT_FOUND express: è OK (skip) SOLO se
+  // express è richiesto in modo lazy (dentro funzione, non top-level);
+  // verifica via sorgente, altrimenti FAIL (eager require romperebbe il bot).
+  // Qualsiasi altro errore di require: FAIL.
+  const dashServer = path.join(ROOT, 'src', 'dashboard', 'server.js');
+  if (!fs.existsSync(dashServer)) {
+    warn('dashboard/server: modulo non ancora presente (src/dashboard/server.js) — skip (lavori in corso)');
+  } else {
+    let loaded = null;
+    let loadErr = null;
+    try {
+      delete require.cache[require.resolve(dashServer)];
+      loaded = require(dashServer);
+    } catch (e) {
+      loadErr = e;
+    }
+    if (loadErr) {
+      const msg = String((loadErr && loadErr.message) || loadErr);
+      const isExpressMissing = loadErr.code === 'MODULE_NOT_FOUND' && /express/.test(msg);
+      if (isExpressMissing) {
+        // Verifica lazy: express deve essere required dentro una funzione.
+        let src = '';
+        try { src = fs.readFileSync(dashServer, 'utf8'); } catch {}
+        const lines = src.split('\n');
+        const topLevelExpress = lines.filter((ln) => /^\s{0,1}(const|let|var)\s+.*require\(\s*['"]express['"]\s*\)/.test(ln) && !/^\s{2,}/.test(ln));
+        const anyExpress = /require\(\s*['"]express['"]\s*\)/.test(src);
+        const lazyHint = /function\s+(createApp|start|init|buildApp)|createApp\s*=|=>\s*\{[^}]*require\(\s*['"]express['"]\s*\)|function[^{]*\{[\s\S]{0,2000}require\(\s*['"]express['"]\s*\)/.test(src);
+        if (!anyExpress) {
+          fail(`dashboard/server: MODULE_NOT_FOUND express ma sorgente senza require('express') — errore anomalo: ${msg.split('\n')[0]}`);
+        } else if (topLevelExpress.length > 0) {
+          fail(`dashboard/server: require('express') EAGER a top-level (${topLevelExpress.length} occorrenze) — deve essere lazy dentro createApp/start altrimenti rompe smoke/bot senza express: ${msg.split('\n')[0]}`);
+        } else if (!lazyHint) {
+          fail(`dashboard/server: express richiesto ma lazy non verificabile (nessuna createApp/function wrapper trovata) — rendilo lazy: ${msg.split('\n')[0]}`);
+        } else {
+          warn(`dashboard/server: skip require-safe (express non installato, lazy OK) — ${msg.split('\n')[0]}`);
+        }
+      } else {
+        fail(`dashboard/server: require fallito (NON per express mancante): ${msg.split('\n')[0]}`);
+      }
+    } else if (!loaded || (typeof loaded !== 'object' && typeof loaded !== 'function')) {
+      fail('dashboard/server: export non valido (atteso oggetto/funzione con createApp o start)');
+    } else {
+      const hasEntry = typeof loaded.createApp === 'function' || typeof loaded.start === 'function'
+        || typeof loaded.startDashboard === 'function'
+        || typeof loaded.init === 'function' || typeof loaded.buildApp === 'function';
+      if (!hasEntry) warn(`dashboard/server: export senza createApp/startDashboard/start/init/buildApp (exports: ${Object.keys(loaded).sort().join(',') || '(nessuna)'})`);
+      else console.log('dashboard/server: require-safe OK');
+    }
+  }
+
+  // (f2) Contratto FE<->BE: src/dashboard/public/app.js via grep.
+  // Se il file manca: WARNING (skip, lavori in corso).
+  // Il FE costruisce gli URL per concatenazione
+  // (es. "/api/guilds/" + encodeURIComponent(gid) + "/schema"), quindi:
+  //  1. si spogliano i commenti (niente falsi positivi dal testo libero);
+  //  2. solo literal su SINGOLA riga (niente match multi-linea);
+  //  3. le righe con '+' vengono ricomposte in un template unico dove ogni
+  //     espressione dinamica diventa :p, poi verificato contro il contratto.
+  // Endpoint extra -> FAIL.
+  const dashApp = path.join(ROOT, 'src', 'dashboard', 'public', 'app.js');
+  if (!fs.existsSync(dashApp)) {
+    warn('dashboard/app.js: file non ancora presente (src/dashboard/public/app.js) — skip (lavori in corso)');
+  } else {
+    const rawSrc = fs.readFileSync(dashApp, 'utf8');
+    // Contratto: solo questi pattern (path, senza query).
+    const allowed = [
+      /^\/api\/me\/?$/,
+      /^\/api\/guilds\/?$/,
+      /^\/api\/guilds\/[^/]+\/?$/, // :gid
+      /^\/api\/guilds\/[^/]+\/meta\/?$/,
+      /^\/api\/guilds\/[^/]+\/schema\/?$/,
+      /^\/api\/guilds\/[^/]+\/modules\/[^/]+\/?$/, // PUT modules/:mod
+      /^\/api\/guilds\/[^/]+\/perms\/?$/, // PUT perms
+    ];
+    // Spoglia commenti block + line (i commenti di app.js citano gli endpoint).
+    const code = rawSrc.replace(/\/\*[\s\S]*?\*\//g, '')
+      .split('\n')
+      .map((ln) => ln.replace(/\/\/.*$/, ''))
+      .join('\n');
+    // Righe che costruiscono/chiamano endpoint (fetch, helper getJSON/putJSON, o literal /api/).
+    const lines = code.split('\n')
+      .map((ln) => ln.trim())
+      .filter((ln) => ln && /fetch|getJSON|putJSON|\/api\//.test(ln));
+    let checked = 0;
+    for (const ln of lines) {
+      // Literal su singola riga (niente backtick multilinea: solo ' e ").
+      const lits = [];
+      const qRe = /"([^"\n]*)"|'([^'\n]*)'/g;
+      let q;
+      while ((q = qRe.exec(ln)) !== null) lits.push(q[1] !== undefined ? q[1] : q[2]);
+      const apiLits = lits.filter((s) => s.includes('/api/') || /^(\/(meta|schema|modules|perms|guilds))/.test(s));
+      if (!apiLits.length) continue;
+      let template;
+      if (/\+/.test(ln)) {
+        // Ricompone: ogni espressione tra i literal diventa un segmento :p.
+        template = apiLits.join('/:p/').replace(/\/{2,}/g, '/');
+        // Coda dinamica (".../guilds/" + gid): aggiunge il segmento mancante.
+        if (/\+[^'"`]*$/.test(ln)) template = template.replace(/\/?$/, '/:p');
+        // Se la riga usa template literal ${...} (non catturati da qRe), normalizza.
+        template = template.replace(/\$\{[^}]*\}/g, ':p');
+      } else {
+        template = apiLits[0].replace(/\$\{[^}]*\}/g, ':p');
+      }
+      // Normalizza placeholder noti (:gid, <gid>, ${gid}) a :p.
+      template = template.replace(/:gid|<gid>|\{gid\}/gi, ':p');
+      const pathOnly = template.split('?')[0].split('#')[0];
+      if (!pathOnly.startsWith('/')) continue; // URL esterni/CDN: ignorati
+      checked += 1;
+      const ok = allowed.some((re) => re.test(pathOnly));
+      if (!ok) {
+        fail(`dashboard/app.js: endpoint FUORI CONTRATTO (riga: ${ln.slice(0, 120)}) => template "${pathOnly}" — consentiti solo GET /api/me, /api/guilds, /api/guilds/:gid, /meta, /schema, PUT modules/:mod, PUT perms`);
+      }
+    }
+    console.log(`dashboard/app.js: righe endpoint scansionate: ${checked}`);
+  }
+} catch (e) {
+  fail(`dashboard lotto: ${e.message.split('\n')[0]}`);
 }
 
 // ------------------------------------------------------------------ REPORT

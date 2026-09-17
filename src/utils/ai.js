@@ -2,12 +2,32 @@ const DEFAULT_BASE_URL = 'https://text.pollinations.ai';
 const TIMEOUT_MS = 25000;
 const MAX_LENGTH = 1800;
 
+function isTimeoutError(err) {
+  return (
+    err &&
+    (err.name === 'AbortError' ||
+      (typeof err.message === 'string' && /aborted|timeout|timed out/i.test(err.message)))
+  );
+}
+
+function isNetworkError(err) {
+  if (!err || isTimeoutError(err)) return false;
+  // fetch fallita: TypeError "fetch failed", ECONN*, ENOTFOUND, EAI_AGAIN...
+  const msg = String((err && err.message) || err || '');
+  const code = String((err && (err.code || err.cause?.code)) || '');
+  if (err instanceof TypeError) return true;
+  return /fetch failed|failed to fetch|network|ECONN|ENOTFOUND|EAI_AGAIN|EPIPE|UND_ERR|socket|irraggiungibile/i.test(
+    `${msg} ${code}`
+  );
+}
+
 /**
- * Interroga un endpoint AI gratuito via fetch globale (Node 24).
+ * Interroga un endpoint AI gratuito via fetch globale (Node 18+).
+ * Firma stabile usata da costruisci/chiedi/riassumi.
  * @param {string} prompt - Domanda/testo da inviare all'AI.
  * @param {string} [systemPrompt] - Istruzioni di sistema (opzionale).
  * @returns {Promise<string>} Risposta pulita (max 1800 caratteri).
- * @throws {Error} Con messaggio breve in italiano se l'AI non risponde.
+ * @throws {Error} Messaggio breve in italiano (vuoto / irraggiungibile / rate-limit / timeout).
  */
 async function askAI(prompt, systemPrompt = '') {
   const cleanPrompt = String(prompt || '').trim();
@@ -24,33 +44,87 @@ async function askAI(prompt, systemPrompt = '') {
   if (system) params.set('system', system);
   if (model) params.set('model', model);
   const query = params.toString() ? `?${params.toString()}` : '';
-
   const url = `${baseUrl}/${encodeURIComponent(cleanPrompt)}${query}`;
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const headers = {};
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
 
-  try {
-    const headers = {};
-    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
-
-    const res = await fetch(url, { headers, signal: controller.signal });
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
+  let lastError = null;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    try {
+      const res = await fetch(url, { headers, signal: controller.signal });
+      if (res.status === 429) {
+        throw new Error('Rate limit AI raggiunto: attendi qualche secondo e riprova.');
+      }
+      if (!res.ok) {
+        throw new Error(`AI non disponibile (HTTP ${res.status}), riprova più tardi.`);
+      }
+      const raw = await res.text();
+      const text = extractText(raw).trim();
+      if (!text) {
+        throw new Error("L'AI ha restituito una risposta vuota, riprova.");
+      }
+      return text.slice(0, MAX_LENGTH).trim();
+    } catch (err) {
+      if (err instanceof Error && (err.message === 'Prompt vuoto.' || /Rate limit|HTTP \d+|risposta vuota/.test(err.message))) {
+        throw err;
+      }
+      lastError = err;
+      const retryable = isTimeoutError(err) || isNetworkError(err);
+      if (retryable && attempt === 1) {
+        continue;
+      }
+      if (isTimeoutError(err)) {
+        throw new Error("L'AI non ha risposto in tempo (timeout), riprova più tardi.");
+      }
+      if (isNetworkError(err)) {
+        throw new Error('AI irraggiungibile: controlla la connessione o riprova più tardi.');
+      }
+      throw new Error('AI non disponibile, riprova più tardi.');
+    } finally {
+      clearTimeout(timer);
     }
-
-    const raw = await res.text();
-    const text = extractText(raw).trim();
-    if (!text) {
-      throw new Error('Risposta vuota.');
-    }
-    return text.slice(0, MAX_LENGTH).trim();
-  } catch (err) {
-    if (err instanceof Error && err.message === 'Prompt vuoto.') throw err;
-    throw new Error('AI non disponibile, riprova più tardi.');
-  } finally {
-    clearTimeout(timer);
   }
+  if (lastError) {
+    if (isTimeoutError(lastError)) throw new Error("L'AI non ha risposto in tempo (timeout), riprova più tardi.");
+    throw new Error('AI irraggiungibile: controlla la connessione o riprova più tardi.');
+  }
+  throw new Error('AI non disponibile, riprova più tardi.');
+}
+
+/**
+ * Variante chat: compatta messages[{role,content}] in un unico prompt
+ * e riusa lo stesso endpoint di askAI (retry/timeout/trim/errori identici).
+ * I messaggi con role "system" vengono uniti al systemPrompt.
+ * @param {Array<{role:string,content:string}>} messages
+ * @param {string} [systemPrompt]
+ * @returns {Promise<string>}
+ */
+async function askAIChat(messages, systemPrompt = '') {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    throw new Error('Prompt vuoto.');
+  }
+  const systemParts = [];
+  const lines = [];
+  for (const m of messages) {
+    const role = String((m && m.role) || 'user').toLowerCase();
+    const content = String((m && m.content) ?? '').trim();
+    if (!content) continue;
+    if (role === 'system') {
+      systemParts.push(content);
+      continue;
+    }
+    const label = role === 'assistant' ? 'Assistente' : role === 'user' ? 'Utente' : role;
+    lines.push(`${label}: ${content}`);
+  }
+  const combinedSystem = [String(systemPrompt || '').trim(), ...systemParts].filter(Boolean).join('\n');
+  const prompt = lines.join('\n').trim();
+  if (!prompt) {
+    throw new Error('Prompt vuoto.');
+  }
+  return askAI(prompt, combinedSystem);
 }
 
 /**
@@ -97,4 +171,4 @@ function pickText(data) {
   return '';
 }
 
-module.exports = { askAI };
+module.exports = { askAI, askAIChat, TIMEOUT_MS, MAX_LENGTH };

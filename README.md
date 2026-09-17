@@ -1,6 +1,6 @@
 # Discord Multi-Server Bot 🤖
 
-Bot Discord avanzato per **più server** contemporaneamente — moderazione, economia, livelli XP, automod, welcome, giveaway, ticket professionali e tanto altro. **58 slash command**, zero dipendenze extra oltre `discord.js`.
+Bot Discord avanzato per **più server** contemporaneamente — moderazione, economia, livelli XP, automod, welcome, giveaway, ticket professionali e tanto altro. **65 slash command**, zero dipendenze extra oltre `discord.js` (+ `express` solo per la dashboard web opzionale).
 
 ## 🚀 Funzionalità
 
@@ -12,9 +12,14 @@ Bot Discord avanzato per **più server** contemporaneamente — moderazione, eco
 - `/slowmode` `/lock` `/nuke` — slowmode, blocco **singolo canale**, rigenerazione canale (con conferma)
 - `/lockdown on|off` — **emergenza raid**: blocca TUTTI i canali testuali con snapshot dei permessi e ripristino (`/lock` = singolo canale, `/lockdown` = intero server)
 
-### 🤖 AI (2)
+### 🤖 AI (6)
 - `/chiedi` — fai una domanda all'AI (endpoint configurabile via `AI_API_URL`, opzionali `AI_API_KEY`/`AI_MODEL`; default gratuito Pollinations)
 - `/riassumi` — riassume gli ultimi N messaggi del canale (stesso backend AI)
+- `/immagina` — genera un'immagine dal prompt (rispetta `fun-ai`)
+- `/storia` — storia generativa interattiva con bottoni (rispetta `fun-ai`)
+- `/analizza` — 5 insight azionabili per far crescere il server (serve Gestisci Server; niente chiamata AI se gli analytics sono vuoti)
+- `/ai-config` — configura l'AI del server (serve Gestisci Server): `mostra` · `mention on/off` (risposta alle menzioni, default OFF = muta finché non la attivi) · `automod-ai on/off` · `ticket-ai on/off` · `fun-ai on/off` · `prompt <testo>` · `prompt-reset`
+- Extra automatiche (fuori slash): risposta alle menzioni (`mentionReply`, default OFF), analisi AI dei messaggi sospetti (`automodAI`, default OFF), AI nei ticket (`ticketAI`, default ON)
 
 ### 🎮 Divertimento (8)
 - `/meme` `/joke` `/8ball` `/coinflip` `/rps` `/dice`
@@ -33,8 +38,8 @@ Bot Discord avanzato per **più server** contemporaneamente — moderazione, eco
 - `/premi` — ruoli premio automatici per livello (`imposta`/`rimuovi`/`lista`; assegnati al level-up da messaggi e in vocale)
 - **Voice XP**: chi resta in vocale (non mutato) guadagna 5 XP/minuto, max 300/sessione; level-up silenzioso con eventuale ruolo premio
 
-### 🔧 Utility (24)
-- `/ping` `/userinfo` `/serverinfo` `/avatar` `/help` (auto-generato per categoria, include 🤖 AI)
+### 🔧 Utility (26)
+- `/ping` `/userinfo` `/serverinfo` `/avatar` `/help` (auto-generato per categoria: copre tutte le cartelle comandi — moderation, fun, economy, levels, utility, tickets, ai — più "altri" come fallback)
 - `/poll` — sondaggi con reazioni automatiche
 - `/giveaway` — estrazione vincitori con 🎉 (storage persistente; il ripristino automatico dopo restart è solo predisposto, i timer vivono in memoria — vedi nota nel codice)
 - `/suggest` — suggerimenti con voto ✅/❌
@@ -55,12 +60,18 @@ Bot Discord avanzato per **più server** contemporaneamente — moderazione, eco
 - `/costruisci` — genera la struttura del server con la AI da una descrizione (anteprima + conferma con bottoni entro 60s; serve Gestisci Server)
 - `/analytics` — statistiche stile YouTube-Studio (messaggi e membri per giorno, ultimi 1-30 giorni, con barre testuali)
 
-### 🎫 Ticket (1 comando, 9 sotto-comandi)
-- `/ticket setup` — configura panel, categoria, log, ruoli staff, max per utente
-- `/ticket panel` — ripubblica il pannello con menu di selezione (Supporto, Bug, Appeal, Partnership)
+### 🎫 Ticket (2 comandi)
+- `/ticket` con 9 sotto-comandi: `setup` (panel, categoria, log, ruoli staff, max per utente) · `panel` (ripubblica il pannello con menu Supporto/Bug/Appeal/Partnership) · `aggiungi` · `rimuovi` · `claim` · `chiudi` · `riapri` · `transcript` · `stats`
+- `/ticket-ai` — risposte AI automatiche nei ticket (rispetta `ticket-ai` da `/ai-config`)
 - Canali privati con permessi automatici, pulsante **Prendi in carico** (claim), **Chiudi** con motivo + **transcript .txt** (log + DM al proprietario), **Riapri**, **Elimina**
 - `/ticket aggiungi|rimuovi|claim|chiudi|riapri|transcript|stats`
 - **Auto-chiusura inattivi** (`src/jobs/ticketAutoclose.js`, avviato da `ready.js` ogni 15 min, prima passata dopo 60s): chiude i ticket aperti senza attività da N giorni (`setAutoClose(guildId, giorni)`, 0 = off, max 90; `lastActivityAt` aggiornata a ogni messaggio con throttle 60s). La chiusura automatica usa l'utente bot come autore ed è registrata come le chiusure manuali (embed + transcript + log + DM).
+
+### 🔐 Permessi personalizzati (stile PeakBot)
+- `/permessi imposta <comando> <ruolo…>` — limita un comando a max 5 ruoli (serve Gestisci Server; `/permessi` stesso non è limitabile, gli Amministratori restano sempre esclusi dal blocco)
+- `/permessi rimuovi <comando> [ruolo]` — togli un ruolo o resetta il comando · `/permessi mostra [comando]` · `/permessi reset` (con conferma a bottoni, 30s)
+- Check in `interactionCreate` **prima** del cooldown: chi viene respinto non consuma attesa
+- Stesse regole esposte via dashboard: `PUT /api/guilds/:gid/perms` (`{ command, roleIds }`; `roleIds: []` = reset del comando)
 
 ### ⚙️ Sistema
 - **Automoderazione**: anti-spam (5 msg/5s), anti-link, anti-invite, bad words, anti-mention, anti-caps — lo staff è esente
@@ -100,7 +111,33 @@ Test di coerenza (non avvia il bot, non richiede token):
 npm test   # = node scripts/smoke-test.js (comandi, eventi, database, customId)
 ```
 
-Per l'AI nessun setup obbligatorio: di default usa l'endpoint gratuito Pollinations. Opzionalmente imposta `AI_API_URL`, `AI_API_KEY`, `AI_MODEL` nel `.env` (vedi `.env.example`).
+Per l'AI nessun setup obbligatorio: di default usa l'endpoint gratuito Pollinations. Opzionalmente imposta `AI_API_URL`, `AI_API_KEY`, `AI_MODEL` nel `.env` (vedi `.env.example`). Le funzioni per-server (`mentionReply`, `automodAI`, `ticketAI`, `funAI`, prompt di sistema) si configurano con `/ai-config` (serve Gestisci Server) o dalla dashboard.
+
+## 🌐 Dashboard web (opzionale, stesso processo del bot)
+
+Pannello web per configurare ogni server senza comandi: moduli (welcome, automod, ticket, livelli, AI, log, vocali temporanee), permessi custom e statistiche.
+
+**Prerequisiti OAuth2** (portale [Discord Developer](https://discord.com/developers/applications)):
+1. Apri la tua applicazione → **OAuth2 → General** → aggiungi il redirect: `<BASE_URL>/callback` (es. `http://localhost:3000/callback`).
+2. Copia il **Client Secret** (serve per lo scambio code→token). Gli scope usati sono `identify guilds`.
+
+**Env** (vedi `.env.example`):
+```bash
+DASHBOARD_PORT=3000
+SESSION_SECRET=una_stringa_lunga_casuale_da_almeno_32_caratteri
+CLIENT_ID=quello_che_hai_già
+CLIENT_SECRET=il_client_secret_dell_app
+BASE_URL=http://localhost:3000
+```
+
+**Avvio e URL**:
+```bash
+npm install   # serve express (già in package.json)
+npm start     # la dashboard parte SOLO se DASHBOARD_PORT è impostato; un suo errore non spegne mai il bot
+```
+- `http://localhost:3000/` → landing con login · `/login` → OAuth2 Discord (con `state` anti-CSRF su cookie) · `/logout`
+- API (richiedono login + Gestisci Server sulla guild + bot presente): `GET /api/me` · `GET /api/guilds` (icone come URL CDN completi) · `GET /api/guilds/:gid` · `GET /api/guilds/:gid/schema` · `GET /api/guilds/:gid/meta` · `PUT /api/guilds/:gid/modules/:mod` · `PUT /api/guilds/:gid/perms`
+- Solo chi ha **Gestisci Server** sulla guild vede/modifica quella guild; il bot deve esserci dentro (altrimenti 403).
 
 ## 📁 Struttura
 
@@ -108,23 +145,27 @@ Per l'AI nessun setup obbligatorio: di default usa l'endpoint gratuito Pollinati
 ├── src/
 │   ├── index.js
 │   ├── commands/
-│   │   ├── ai/            # 2 comandi (chiedi, riassumi)
+│   │   ├── ai/            # 6 comandi (chiedi, riassumi, immagina, storia, analizza, ai-config)
 │   │   ├── moderation/    # 12 comandi
 │   │   ├── fun/           # 8 comandi
 │   │   ├── economy/       # 8 comandi
 │   │   ├── levels/        # 3 comandi (rank, top, premi)
-│   │   ├── utility/       # 24 comandi (incl. autorole, snipe, starboard, reactionroles, autoresponder, inviti, tempvoice, voice, stanza, embed, evento, template, costruisci, analytics)
-│   │   └── tickets/       # 1 comando (9 sotto-comandi)
-│   ├── events/          # ready, interactionCreate (ticket + reaction roles + nuke), messageCreate x3 (XP/automod, autoresponder, analytics), messageReactionAdd (starboard), guildMemberAdd x5 (welcome/autorole/antiRaid/analytics/inviteTracker), guildMemberRemove (+ lazy-attach analytics e inviteTracker), auditLog (messageDelete + altri, lazy-attach), inviteCreate/inviteDelete (cache), voiceStateUpdate x2 (tempVoice, voiceXp)
+│   │   ├── utility/       # 26 comandi (incl. autorole, snipe, starboard, reactionroles, autoresponder, inviti, tempvoice, voice, stanza, embed, evento, template, costruisci, analytics, permessi, wizard)
+│   │   └── tickets/       # 2 comandi (ticket con 9 sotto-comandi, ticket-ai)
+│   ├── events/          # ready, interactionCreate (ticket + reaction roles + nuke; check permessi custom PRIMA del cooldown), messageCreate x3 (XP/automod, autoresponder, analytics), messageReactionAdd (starboard), guildMemberAdd x5 (welcome/autorole/antiRaid/analytics/inviteTracker), guildMemberRemove (+ lazy-attach analytics e inviteTracker), auditLog (messageDelete + altri, lazy-attach), inviteCreate/inviteDelete (cache), voiceStateUpdate x2 (tempVoice, voiceXp), aiMention, aiModeration
 │   ├── handlers/        # ticketHandler, reactionRoleHandler
 │   ├── jobs/            # ticketAutoclose (auto-chiusura ticket inattivi)
-│   ├── utils/           # helpers (embed, log, gerarchia ruoli), ai, antiRaid, snipeCache, blueprints (template/costruisci), transcript
-│   └── database/        # JSON: economy, levels, warnings, guildConfig, tickets, autorole, lockdown, starboard, reactionRoles, autoresponder, invites, tempvoice, stanze, levelRewards, analytics
+│   ├── dashboard/       # server.js (startDashboard, lazy express), api.js (REST /api/*), auth.js (OAuth2 + sessione su cookie firmato con state anti-CSRF)
+│   │   └── public/      # index.html, app.html, app.js (vanilla JS, solo textContent), styles.css
+│   ├── utils/           # helpers (embed, log, gerarchia ruoli), ai, antiRaid, snipeCache, blueprints (template/costruisci), transcript, wizardSteps
+│   └── database/        # JSON: economy, levels, warnings, guildConfig, tickets (+ autoCloseDays), autorole, lockdown, starboard, reactionRoles, autoresponder, invites, tempvoice, stanze, levelRewards, analytics, aiConfig, customPerms
 ├── scripts/
 │   └── smoke-test.js    # `npm test`
 ├── deploy-commands.js
 └── package.json
 ```
+
+Totale comandi = file in `src/commands/*/*.js` (1 file = 1 slash command): **65** (12+8+8+3+26+2+6).
 
 ## 🌐 Multi-Server
 

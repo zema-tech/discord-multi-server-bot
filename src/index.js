@@ -80,3 +80,13 @@ for (const file of fs.readdirSync(eventsPath).filter((f) => f.endsWith('.js'))) 
 process.on('unhandledRejection', (e) => console.error('UnhandledRejection:', e));
 
 client.login(process.env.DISCORD_TOKEN);
+
+// Dashboard web (stesso processo del bot). Parte solo se DASHBOARD_PORT è impostato;
+// un fallimento qui non deve mai spegnere il bot.
+if (process.env.DASHBOARD_PORT) {
+  try {
+    require('./dashboard/server').startDashboard(client);
+  } catch (e) {
+    console.error('[Dashboard] avvio fallito:', e.message);
+  }
+}

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Bot Discord multi-server: moderazione, ticket, XP, AI, analytics e reaction roles. Gratis, 58 comandi.">
+  <title>Discord Multi-Server Bot — Moderazione, Ticket, XP e AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#contenuto">Salta al contenuto</a>
+
+  <header class="nav">
+    <div class="container nav-inner">
+      <a class="brand" href="/" aria-label="Home Discord Multi-Server Bot">
+        <span class="brand-dot" aria-hidden="true"></span>
+        <span>Multi-Server Bot</span>
+      </a>
+      <nav class="nav-links" aria-label="Navigazione principale">
+        <a href="#funzioni">Funzioni</a>
+        <a href="#numeri">Numeri</a>
+        <a href="/app.html">Dashboard</a>
+        <a class="btn btn-primary btn-sm" href="/login">Accedi con Discord</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="contenuto">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="container hero-inner">
+        <span class="hero-badge reveal">58 comandi · Multi-server · 100% gratis</span>
+        <h1 id="hero-title" class="reveal">Un solo bot per <span class="hl">tutti</span> i tuoi server Discord</h1>
+        <p class="lead reveal">Moderazione, ticket, livelli XP, AI, analytics e reaction roles. Configura tutto dal browser in pochi clic, senza toccare codice.</p>
+        <div class="hero-cta reveal">
+          <a class="btn btn-primary" href="/login">Accedi con Discord</a>
+          <a class="btn btn-secondary" href="#funzioni">Vedi funzioni</a>
+        </div>
+        <p class="scroll-hint reveal" aria-hidden="true">Scorri per scoprire ↓</p>
+      </div>
+    </section>
+
+    <section class="section" id="funzioni" aria-labelledby="funzioni-title">
+      <div class="container">
+        <h2 id="funzioni-title" class="reveal">Tutto quello che serve al tuo server</h2>
+        <p class="sub reveal">Sei moduli configurabili dalla dashboard, ognuno con permessi granulari per ruolo.</p>
+        <ul class="grid-features">
+          <li class="card reveal">
+            <div class="card-icon" aria-hidden="true">🛡️</div>
+            <h3>Moderazione</h3>
+            <p>Ban, kick, timeout, warn, clear, slowmode, lock e nuke con log automatico e permessi per ruolo.</p>
+          </li>
+          <li class="card reveal">
+            <div class="card-icon" aria-hidden="true">🎫</div>
+            <h3>Ticket</h3>
+            <p>Supporto organizzato con pannello ticket, categorie dedicate e chiusura con transcript.</p>
+          </li>
+          <li class="card reveal">
+            <div class="card-icon" aria-hidden="true">⭐</div>
+            <h3>Livelli XP</h3>
+            <p>Ricompense per l'attività, classifiche e ruoli premio per tenere viva la community.</p>
+          </li>
+          <li class="card reveal">
+            <div class="card-icon" aria-hidden="true">🤖</div>
+            <h3>AI integrata</h3>
+            <p>Risposte automatiche intelligenti e assistenza contestuale direttamente nei canali.</p>
+          </li>
+          <li class="card reveal">
+            <div class="card-icon" aria-hidden="true">📊</div>
+            <h3>Analytics</h3>
+            <p>Statistiche su membri, messaggi e comandi per capire la salute del server.</p>
+          </li>
+          <li class="card reveal">
+            <div class="card-icon" aria-hidden="true">🎭</div>
+            <h3>Reaction roles</h3>
+            <p>Ruoli self-service con reazioni, sondaggi, giveaway ed eventi programmati.</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section section-alt" id="numeri" aria-labelledby="numeri-title">
+      <div class="container">
+        <h2 id="numeri-title" class="reveal">Numeri che contano</h2>
+        <p class="sub reveal">Un bot leggero, gratuito e pensato per crescere con le tue community.</p>
+        <div class="grid-stats">
+          <div class="stat reveal">
+            <div class="stat-num" data-count="58">0</div>
+            <div class="stat-label">comandi disponibili</div>
+          </div>
+          <div class="stat reveal">
+            <div class="stat-num"><span data-count="100">0</span>%</div>
+            <div class="stat-label">gratis, per sempre</div>
+          </div>
+          <div class="stat reveal">
+            <div class="stat-num"><span data-count="15">0</span>+</div>
+            <div class="stat-label">comandi con permessi custom</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="cta-title">
+      <div class="container">
+        <div class="cta-final reveal">
+          <h2 id="cta-title">Pronto in 2 minuti</h2>
+          <p>Accedi con Discord, scegli il server e configura i moduli. Nessuna installazione.</p>
+          <a class="btn btn-secondary" href="/login">Accedi con Discord</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <span>© 2026 Multi-Server Bot · 100% gratis</span>
+      <span><a href="/app.html">Dashboard</a> · <a href="/login">Accedi</a></span>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      "use strict";
+      var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      // Reveal on scroll: soglia 15%, una sola volta, stagger 80ms
+      var items = document.querySelectorAll(".reveal");
+      if (reduceMotion || !("IntersectionObserver" in window)) {
+        items.forEach(function (el) { el.classList.add("visible"); });
+      } else {
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (!entry.isIntersecting) return;
+            var el = entry.target;
+            var siblings = Array.prototype.slice.call(el.parentNode ? el.parentNode.children : [el]);
+            var idx = siblings.indexOf(el);
+            if (idx < 0) idx = 0;
+            el.style.transitionDelay = Math.min(idx, 8) * 80 + "ms";
+            el.classList.add("visible");
+            io.unobserve(el);
+          });
+        }, { threshold: 0.15 });
+        items.forEach(function (el) { io.observe(el); });
+      }
+
+      // Contatori animati nelle stats
+      var counters = document.querySelectorAll("[data-count]");
+      function animateCount(el) {
+        var target = parseInt(el.getAttribute("data-count"), 10);
+        if (isNaN(target)) return;
+        if (reduceMotion) { el.textContent = String(target); return; }
+        var start = null;
+        var dur = 1200;
+        function step(ts) {
+          if (!start) start = ts;
+          var p = Math.min((ts - start) / dur, 1);
+          var eased = 1 - Math.pow(1 - p, 3);
+          el.textContent = String(Math.round(target * eased));
+          if (p < 1) requestAnimationFrame(step);
+        }
+        requestAnimationFrame(step);
+      }
+      if (!("IntersectionObserver" in window)) {
+        counters.forEach(animateCount);
+      } else {
+        var cio = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (!entry.isIntersecting) return;
+            animateCount(entry.target);
+            cio.unobserve(entry.target);
+          });
+        }, { threshold: 0.15 });
+        counters.forEach(function (el) { cio.observe(el); });
+      }
+    })();
+  </script>
+</body>
+</html>

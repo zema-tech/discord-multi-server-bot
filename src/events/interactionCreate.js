@@ -92,7 +92,31 @@ module.exports = {
       return;
     }
 
-    // Cooldown
+    // Permessi personalizzati (stile PeakBot): ruoli custom per comando.
+    // NOTA: il check sta VOLUTAMENTE prima del cooldown — un utente respinto qui
+    // non deve consumare il cooldown (altrimenti un rifiuto "costa" attesa extra).
+    try {
+      if (interaction.guild) {
+        const customPerms = require('../database/customPerms');
+        if (customPerms.hasCustom(interaction.guild.id, command.data.name)) {
+          const isAdmin = interaction.memberPermissions?.has(PermissionFlagsBits.Administrator);
+          const roleIds = customPerms.getCommandRoles(interaction.guild.id, command.data.name);
+          const memberRoles = interaction.member?.roles?.cache;
+          const hasRole = memberRoles ? roleIds.some((id) => memberRoles.has(id)) : false;
+          if (!isAdmin && !hasRole) {
+            const richiesti = roleIds.map((id) => `<@&${id}>`).join(' / ') || 'ruolo autorizzato';
+            return interaction.reply({
+              content: `❌ Non hai il permesso di usare \`/${command.data.name}\` (richiede ${richiesti}).`,
+              flags: MessageFlags.Ephemeral,
+            }).catch(() => {});
+          }
+        }
+      }
+    } catch (e) {
+      console.error('customPerms check:', e);
+    }
+
+    // Cooldown (registrato solo DOPO il check permessi: chi viene respinto non consuma attesa)
     const { cooldowns } = client;
     if (!cooldowns.has(command.data.name)) cooldowns.set(command.data.name, new Map());
     const now = Date.now();

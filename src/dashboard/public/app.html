@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Dashboard di configurazione del bot per i tuoi server Discord.">
+  <title>Dashboard — Multi-Server Bot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#pannello">Salta al pannello</a>
+
+  <div class="app-layout">
+    <aside class="sidebar" aria-label="Lista server">
+      <a class="brand" href="/" aria-label="Torna alla home">
+        <span class="brand-dot" aria-hidden="true"></span>
+        <span>Multi-Server Bot</span>
+      </a>
+
+      <div class="userbox" aria-live="polite">
+        <div class="userbox-avatar" id="user-avatar" aria-hidden="true">?</div>
+        <div>
+          <div class="userbox-name" id="user-name">Caricamento…</div>
+          <div class="userbox-sub" id="user-sub">connessione…</div>
+        </div>
+      </div>
+
+      <h2 id="guilds-heading">I tuoi server</h2>
+      <ul class="guild-list" id="guild-list" aria-labelledby="guilds-heading">
+        <li class="guild-empty">Caricamento server…</li>
+      </ul>
+
+      <div class="sidebar-foot">
+        <a class="btn btn-secondary btn-sm" href="/">← Landing</a>
+        <a class="btn btn-secondary btn-sm" href="/login">Cambia account</a>
+      </div>
+    </aside>
+
+    <main class="main" id="pannello">
+      <div class="main-head">
+        <h1 id="guild-title">Seleziona un server</h1>
+        <p id="guild-sub">Scegli dalla lista un server dove il bot è presente.</p>
+      </div>
+
+      <p class="status-line" id="status" role="status" aria-live="polite"></p>
+
+      <section class="panel" aria-labelledby="stats-h">
+        <h2 id="stats-h">Statistiche</h2>
+        <p>Dati live del server selezionato.</p>
+        <div class="stats-cards" id="stats">
+          <div class="stat-card"><div class="k">Server</div><div class="v">—</div></div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="modules-h">
+        <h2 id="modules-h">Moduli</h2>
+        <p>Configurazione guidata dallo schema del server: modifica e salva ogni modulo.</p>
+        <div class="modules" id="modules"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="perms-h">
+        <h2 id="perms-h">Permessi custom</h2>
+        <p>Scegli un comando e i ruoli autorizzati a usarlo, poi salva.</p>
+        <form id="perms-form" class="card">
+          <div class="field">
+            <label for="perm-command">Comando</label>
+            <select id="perm-command" name="command" required></select>
+          </div>
+          <div class="field">
+            <span id="perm-roles-label">Ruoli autorizzati</span>
+            <div class="roles-checks" id="perm-roles" role="group" aria-labelledby="perm-roles-label"></div>
+          </div>
+          <button class="btn btn-primary btn-sm" type="submit" id="perm-save">Salva permessi</button>
+          <div class="perms-current" aria-live="polite">
+            <strong>Permessi attuali</strong>
+            <ul id="perms-list"><li>Nessun dato.</li></ul>
+          </div>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast-wrap" id="toasts" aria-live="polite" aria-atomic="false"></div>
+</body>
+</html>
