@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } = require('discord.js');
 const { sendLog } = require('../../utils/helpers');
+const { logCase } = require('../../database/cases');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -20,6 +21,7 @@ module.exports = {
     const reason = (interaction.options.getString('motivo') || 'Nessun motivo').slice(0, 512);
     try {
       await interaction.guild.bans.remove(id, `${reason} | Mod: ${interaction.user.tag}`.slice(0, 512));
+      try { logCase(interaction.guild.id, { type: 'unban', userId: id, modId: interaction.user.id, reason }); } catch {}
       const embed = new EmbedBuilder().setColor(0x57f287).setTitle('✅ Utente sbannato').setDescription(`ID: \`${id}\`\nMotivo: ${reason}`.slice(0, 4096)).setTimestamp();
       await interaction.reply({ embeds: [embed] });
       await sendLog(interaction.guild, { embeds: [embed] });

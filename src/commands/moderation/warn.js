@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } = require('discord.js');
 const { addWarn } = require('../../database/warnings');
 const { sendLog, hierarchyAllows } = require('../../utils/helpers');
+const { logCase } = require('../../database/cases');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -25,6 +26,7 @@ module.exports = {
       return interaction.reply({ content: '❌ Ruolo uguale/superiore al tuo.', flags: MessageFlags.Ephemeral });
 
     const warn = addWarn(interaction.guild.id, user.id, { modId: interaction.user.id, reason });
+    try { logCase(interaction.guild.id, { type: 'warn', userId: user.id, modId: interaction.user.id, reason, meta: { warnId: warn.id } }); } catch {}
     const total = require('../../database/warnings').getWarnings(interaction.guild.id, user.id).length;
 
     // Escalation automatica: 3 warn -> timeout 10 minuti

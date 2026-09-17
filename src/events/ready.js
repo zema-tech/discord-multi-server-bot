@@ -20,6 +20,13 @@ module.exports = {
       console.error('ticketAutoclose:', e.message);
     }
 
+    // BACKUP: copia notturna del database ore 03:00 (interval con unref dentro il job).
+    try {
+      require('../jobs/backup').startBackup(client);
+    } catch (e) {
+      console.error('backup:', e.message);
+    }
+
     // SELF: auto-miglioramento notturno (attivo solo con SELF_IMPROVE=1).
     try {
       require('../jobs/selfImprove').startSelfImprove(client);

@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } = require('discord.js');
 const ms = require('ms');
 const { sendLog, hierarchyAllows } = require('../../utils/helpers');
+const { logCase } = require('../../database/cases');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -38,6 +39,7 @@ module.exports = {
 
     try {
       await member.timeout(duration, `${reason} | Mod: ${interaction.user.tag}`);
+      try { logCase(interaction.guild.id, { type: 'timeout', userId: user.id, modId: interaction.user.id, reason, meta: { durata: raw } }); } catch {}
       const embed = new EmbedBuilder()
         .setColor(0xfee75c)
         .setTitle('⏱️ Timeout applicato')

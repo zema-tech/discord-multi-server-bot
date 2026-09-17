@@ -1,27 +1,14 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { t, getLang } = require('../../utils/i18n');
 
-const risposte = [
-  'Sì, assolutamente.',
-  'È deciso così.',
-  'Senza dubbio.',
-  'Sì, decisamente.',
-  'Puoi contarci.',
-  'Come la vedo io, sì.',
-  'Molto probabilmente.',
-  'Le prospettive sono buone.',
-  'Sì.',
-  'I segnali puntano al sì.',
-  'Risposta confusa, riprova.',
-  'Chiedi più tardi.',
-  'Meglio non dirtelo ora.',
-  'Non posso prevederlo ora.',
-  'Concentrati e riprova.',
-  'Non contarci.',
-  'La mia risposta è no.',
-  'Le mie fonti dicono no.',
-  'Le prospettive non sono così buone.',
-  'Molto dubbioso.',
-];
+// NOTA i18n: nome/descrizione slash invariati (restano in IT per ora).
+// Le risposte sono in src/locales/{it,en}.js -> eightball.answers (20 voci).
+function pickAnswers(lang) {
+  const arr = t('eightball.answers', lang);
+  if (Array.isArray(arr) && arr.length) return arr;
+  const fb = t('eightball.answers', 'it');
+  return Array.isArray(fb) && fb.length ? fb : ['…'];
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -34,19 +21,21 @@ module.exports = {
     ),
   cooldown: 3,
   async execute(interaction) {
+    const lang = getLang(interaction.guildId);
     const domanda = interaction.options.getString('domanda');
+    const risposte = pickAnswers(lang);
     const risposta = risposte[Math.floor(Math.random() * risposte.length)];
 
     const embed = new EmbedBuilder()
       .setColor(0x3498db)
-      .setTitle('🎱 Palla Magica 8')
+      .setTitle(t('eightball.title', lang))
       .setThumbnail(interaction.user.displayAvatarURL())
       .addFields(
         // Limite field Discord 1024 char: domande lunghe crasherebbero l'invio.
-        { name: '❓ Domanda', value: String(domanda || '').slice(0, 1024) || '(nessuna domanda)' },
-        { name: '🔮 Risposta', value: `**${risposta}**` }
+        { name: t('eightball.question', lang), value: String(domanda || '').slice(0, 1024) || t('eightball.noQuestion', lang) },
+        { name: t('eightball.answer', lang), value: t('eightball.answerValue', lang, { answer: risposta }) }
       )
-      .setFooter({ text: `Richiesto da ${interaction.user.tag}` })
+      .setFooter({ text: t('common.requestedBy', lang, { tag: interaction.user.tag }) })
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed] });

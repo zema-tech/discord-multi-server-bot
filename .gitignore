@@ -1,6 +1,11 @@
 node_modules/
 .env
 *.log
+logs/
+data/
+*.db*
+*.sqlite*
+backups/
 src/database/*.json
 !src/database/.gitkeep
 .DS_Store

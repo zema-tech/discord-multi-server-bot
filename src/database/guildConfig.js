@@ -3,6 +3,7 @@ const { load, save, dbFile } = require('./jsonDb');
 const FILE = dbFile('guildConfig');
 
 const DEFAULTS = {
+  language: 'it', // 'it' | 'en' — gestita da src/utils/i18n.js + /lingua
   welcomeChannelId: null,
   welcomeMessage: '👋 Benvenuto {user} su **{server}**! Ora siamo {count} membri.',
   goodbyeChannelId: null,

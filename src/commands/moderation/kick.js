@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } = require('discord.js');
 const { sendLog, hierarchyAllows } = require('../../utils/helpers');
+const { logCase } = require('../../database/cases');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -28,6 +29,7 @@ module.exports = {
 
     try {
       await member.kick(`${reason} | Mod: ${interaction.user.tag}`);
+      try { logCase(interaction.guild.id, { type: 'kick', userId: user.id, modId: interaction.user.id, reason }); } catch {}
       const embed = new EmbedBuilder()
         .setColor(0xfee75c)
         .setTitle('👢 Utente espulso')

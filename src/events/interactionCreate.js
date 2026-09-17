@@ -1,4 +1,5 @@
-const { Events, MessageFlags, PermissionFlagsBits } = require('discord.js');
+const { Events, MessageFlags, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { logger, logCommand } = require('../utils/logger');
 
 module.exports = {
   name: Events.InteractionCreate,
@@ -157,10 +158,43 @@ module.exports = {
     timestamps.set(interaction.user.id, now);
     setTimeout(() => timestamps.delete(interaction.user.id), cooldownAmount).unref?.();
 
+    const startedAt = Date.now();
     try {
       await command.execute(interaction, client);
+      try {
+        logCommand(interaction.guildId || interaction.guild?.id, interaction.user?.id, interaction.commandName, Date.now() - startedAt);
+      } catch {}
     } catch (error) {
-      console.error(`Errore eseguendo ${interaction.commandName}:`, error);
+      try {
+        logger.error(`Errore eseguendo ${interaction.commandName}`, {
+          command: interaction.commandName,
+          guild: interaction.guildId || interaction.guild?.id || 'dm',
+          user: interaction.user?.id || 'sconosciuto',
+          stack: error?.stack?.split('\n').slice(0, 5).join(' | ') || String(error),
+        });
+      } catch {}
+      // Report best-effort (max 1 invio) nel canale log della guild. Mai rompere il flusso.
+      try {
+        if (interaction.guild) {
+          const { getGuild } = require('../database/guildConfig');
+          const cfg = getGuild(interaction.guild.id);
+          if (cfg?.logChannelId) {
+            const ch = await interaction.guild.channels.fetch(cfg.logChannelId).catch(() => null);
+            if (ch?.isTextBased()) {
+              const embed = new EmbedBuilder()
+                .setColor(0xed4245)
+                .setTitle('❌ Errore comando')
+                .addFields(
+                  { name: 'Comando', value: `\`/${interaction.commandName}\``, inline: true },
+                  { name: 'Utente', value: `${interaction.user} (\`${interaction.user?.tag || interaction.user?.id || 'sconosciuto'}\`)`, inline: true },
+                  { name: 'Dettaglio', value: String(error?.message || error).slice(0, 1000) }
+                )
+                .setTimestamp();
+              await ch.send({ embeds: [embed] }).catch(() => {});
+            }
+          }
+        }
+      } catch {}
       // L'esecuzione è fallita: non far pagare il cooldown per un errore.
       timestamps.delete(interaction.user.id);
       const errorMsg = { content: "❌ Si è verificato un errore durante l'esecuzione del comando!", flags: MessageFlags.Ephemeral };

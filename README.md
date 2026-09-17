@@ -1,16 +1,17 @@
 # Discord Multi-Server Bot 🤖
 
-Bot Discord avanzato per **più server** contemporaneamente — moderazione, economia, livelli XP, automod, welcome, giveaway, ticket professionali e tanto altro. **79 slash command**, zero dipendenze extra oltre `discord.js` (+ `express` solo per la dashboard web opzionale).
+Bot Discord avanzato per **più server** contemporaneamente — moderazione, economia, livelli XP, automod, welcome, giveaway, ticket professionali e tanto altro. **84 slash command**, dipendenze in `package.json`: `discord.js` (+ `express` solo per la dashboard web opzionale, più lo stack musica `discord-player`/`@discordjs/voice`/extractor).
 
 ## 🚀 Funzionalità
 
-### 🛡️ Moderazione (12)
+### 🛡️ Moderazione (13)
 - `/ban` `/kick` `/unban` — ban con pulizia messaggi, kick, unban per ID
 - `/timeout` `/untimeout` — mute temporaneo (`30s`, `10m`, `2h`, `1d`)
 - `/warn` `/warnings` — warn con escalation automatica (3 warn → timeout 10m), lista/rimozione/pulizia
 - `/clear` — cancella 1-100 messaggi, opzionale filtro per utente
 - `/slowmode` `/lock` `/nuke` — slowmode, blocco **singolo canale**, rigenerazione canale (con conferma)
 - `/lockdown on|off` — **emergenza raid**: blocca TUTTI i canali testuali con snapshot dei permessi e ripristino (`/lock` = singolo canale, `/lockdown` = intero server)
+- `/caso` — storico moderazione per utente (`mostra` casi + note, `nota` aggiunge nota staff, `rimuovi` elimina un caso, `cerca` filtra per tipo; ogni `/ban` `/kick` `/timeout` `/unban` `/warn` scrive un caso in automatico)
 
 ### 🤖 AI (7 + extra)
 Provider plug-and-play: basta **una chiave** nel `.env` (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY` o `OPENROUTER_API_KEY`) e il bot la usa da solo (`AI_PROVIDER=auto`; `AI_MODEL` opzionale). Senza chiavi: Pollinations gratuito. `/ai-config mostra` dice sempre quale provider è attivo.
@@ -51,8 +52,13 @@ Provider plug-and-play: basta **una chiave** nel `.env` (`OPENAI_API_KEY`, `ANTH
 - `/premi` — ruoli premio automatici per livello (`imposta`/`rimuovi`/`lista`; assegnati al level-up da messaggi e in vocale)
 - **Voice XP**: chi resta in vocale (non mutato) guadagna 5 XP/minuto, max 300/sessione; level-up silenzioso con eventuale ruolo premio
 
-### 🔧 Utility (31)
-- `/ping` `/userinfo` `/serverinfo` `/avatar` `/help` (auto-generato per categoria: copre tutte le cartelle comandi — moderation, fun, economy, levels, utility, tickets, ai — più "altri" come fallback; generato dinamicamente da `client.commands`, quindi include sempre i nuovi comandi senza aggiornamenti manuali)
+### 🎵 Musica (1)
+- `/musica` con sottocomandi: `play` (ricerca YouTube o link, accoda in coda), `skip` · `stop` · `pausa` · `riprendi` · `coda` (prossimi 10 brani + progress bar) · `volume` · `mescola` · `loop`
+- Richiede i permessi **Connetti** + **Parla** nel vocale; utente e bot devono stare nello stesso vocale per i controlli; errori mappati in italiano (timeout ricerca, nessun risultato, permessi, audio host mancante)
+- **Dipendenze persistenti in `package.json` (versioni esatte)**: `discord-player@7.2.0`, `@discordjs/voice@0.19.2`, `@discord-player/extractor@7.2.0`, `discord-player-youtubei@3.1.0`, `simple-ytdl-core@1.1.1`. Singleton lazy in `src/utils/player.js` con fallback: se lo stack manca, il comando risponde "modulo musica non installato" senza crashare bot né smoke test
+
+### 🔧 Utility (34)
+- `/ping` `/userinfo` `/serverinfo` `/avatar` `/help` (auto-generato per categoria: copre tutte le cartelle comandi — moderation, fun, economy, levels, utility, tickets, ai, music — più "altri" come fallback; generato dinamicamente da `client.commands`, quindi include sempre i nuovi comandi senza aggiornamenti manuali)
 - `/profilo` — profilo completo dell'utente (livello, saldo+banca, rep, warn, ingresso, top 3 ruoli)
 - `/poll` — sondaggi con reazioni automatiche
 - `/giveaway` — estrazione vincitori con 🎉 (storage persistente; il ripristino automatico dopo restart è solo predisposto, i timer vivono in memoria — vedi nota nel codice)
@@ -77,6 +83,9 @@ Provider plug-and-play: basta **una chiave** nel `.env` (`OPENAI_API_KEY`, `ANTH
 - `/traduci` — traduci un testo via MyMemory gratis (max 500 caratteri, `da`/`a` con whitelist lingue, default auto→it)
 - `/qr` — genera un QR code dal testo (max 500 caratteri, colore esadecimale opzionale, via api.qrserver.com)
 - `/selfimprove` — vedi sezione 🌙 Self-improvement sopra (`stato`/`prova`/`esegui`, serve Gestisci Server)
+- `/lingua mostra|imposta it|en` — lingua del bot per il server (serve Gestisci Server per `imposta`; comandi migrati: vedi sezione 🌐 i18n sotto)
+- `/comando` — comandi custom del server (`crea`/`modifica`/`elimina`/`lista`, max 20 per server, risposta max 500 caratteri con variabili `{user}` `{username}` `{server}` `{count}` `{canale}` `{data}`; trigger anche via `!nome` in chat con cooldown 3s)
+- `/export server|backup-ora|backup-lista` — bundle JSON dei dati del server (allegato, max 8 MB), backup immediato + report, ultime 7 cartelle di backup (serve Gestisci Server)
 
 ### 🎫 Ticket (2 comandi)
 - `/ticket` con 9 sotto-comandi: `setup` (panel, categoria, log, ruoli staff, max per utente) · `panel` (ripubblica il pannello con menu Supporto/Bug/Appeal/Partnership) · `aggiungi` · `rimuovi` · `claim` · `chiudi` · `riapri` · `transcript` · `stats`
@@ -164,28 +173,40 @@ npm start     # la dashboard parte SOLO se DASHBOARD_PORT è impostato; un suo e
 │   ├── index.js
 │   ├── commands/
 │   │   ├── ai/            # 7 comandi (chiedi, riassumi, immagina, storia, analizza, ai-config, codice)
-│   │   ├── moderation/    # 12 comandi
+│   │   ├── moderation/    # 13 comandi
 │   │   ├── fun/           # 13 comandi (meme, joke, 8ball, coinflip, rps, dice, trivia, affinita, oroscopo, preferiresti, confessa, animale, sfida)
 │   │   ├── economy/       # 11 comandi (balance, daily, work, pay, leaderboard, bank, slots, rob, shop, lotteria, rep)
 │   │   ├── levels/        # 3 comandi (rank, top, premi)
-│   │   ├── utility/       # 31 comandi (incl. autorole, snipe, starboard, reactionroles, autoresponder, inviti, tempvoice, voice, stanza, embed, evento, template, costruisci, analytics, permessi, wizard, meteo, traduci, qr, profilo, selfimprove)
+│   │   ├── music/         # 1 comando (musica con 8 sotto-comandi: play/skip/stop/pausa/riprendi/coda/volume/mescola/loop)
+│   │   ├── utility/       # 34 comandi (incl. autorole, snipe, starboard, reactionroles, autoresponder, inviti, tempvoice, voice, stanza, embed, evento, template, costruisci, analytics, permessi, wizard, meteo, traduci, qr, profilo, selfimprove, lingua, comando, export)
 │   │   └── tickets/       # 2 comandi (ticket con 9 sotto-comandi, ticket-ai)
-│   ├── events/          # ready, interactionCreate (ticket + reaction roles + nuke; check permessi custom PRIMA del cooldown), messageCreate x3 (XP/automod, autoresponder, analytics), messageReactionAdd (starboard), guildMemberAdd x5 (welcome/autorole/antiRaid/analytics/inviteTracker), guildMemberRemove (+ lazy-attach analytics e inviteTracker), auditLog (messageDelete + altri, lazy-attach), inviteCreate/inviteDelete (cache), voiceStateUpdate x2 (tempVoice, voiceXp), aiMention, aiModeration
+│   ├── events/          # ready, interactionCreate (ticket + reaction roles + nuke; check permessi custom PRIMA del cooldown; logging comandi + report errori nel canale log), messageCreate x5 (XP/automod, autoresponder, analytics, customCommands `!nome`, AI mention/moderation), messageReactionAdd (starboard), guildMemberAdd x5 (welcome/autorole/antiRaid/analytics/invite tracker), guildMemberRemove (+ lazy-attach analytics e inviteTracker), auditLog (messageDelete + altri, lazy-attach), inviteCreate/inviteDelete (cache), voiceStateUpdate x2 (tempVoice, voiceXp), aiMention, aiModeration
 │   ├── handlers/        # ticketHandler, reactionRoleHandler
-│   ├── jobs/            # ticketAutoclose (auto-chiusura ticket inattivi)
+│   ├── jobs/            # ticketAutoclose (auto-chiusura ticket inattivi), backup (snapshot notturno ore 03:00 in backups/, retention 7 giorni, avviato da ready.js)
+│   ├── locales/         # it.js, en.js (stringhe i18n; nomi/descrizioni slash restano in IT)
 │   ├── dashboard/       # server.js (startDashboard, lazy express), api.js (REST /api/*), auth.js (OAuth2 + sessione su cookie firmato con state anti-CSRF)
 │   │   └── public/      # index.html, app.html, app.js (vanilla JS, solo textContent), styles.css
-│   ├── utils/           # helpers (embed, log, gerarchia ruoli), ai, antiRaid, snipeCache, blueprints (template/costruisci), transcript, wizardSteps
-│   └── database/        # JSON: economy, levels, warnings, guildConfig, tickets (+ autoCloseDays), autorole, lockdown, starboard, reactionRoles, autoresponder, invites, tempvoice, stanze, levelRewards, analytics, aiConfig, customPerms, shop, lotteria, rep, sfide, confessioni
+│   ├── utils/           # helpers (embed, log, gerarchia ruoli), ai, aiProviders, antiRaid, snipeCache, blueprints (template/costruisci), transcript, wizardSteps, i18n (mini-i18n IT/EN), logger (JSON-lines su console + logs/), player (singleton discord-player lazy con fallback), codebase (indice per /codice)
+│   └── database/        # JSON: economy, levels, warnings, guildConfig (+language), tickets (+ autoCloseDays), autorole, lockdown, starboard, reactionRoles, autoresponder, invites, tempvoice, stanze, levelRewards, analytics, aiConfig, customPerms, shop, lotteria, rep, sfide, confessioni, cases (storico moderazione), customCommands (+ store.js compat json/sqlite, postgres-schema.sql solo schema futuro)
 ├── scripts/
 │   └── smoke-test.js    # `npm test`
 ├── deploy-commands.js
 └── package.json
 ```
 
-Totale comandi = file in `src/commands/*/*.js` (1 file = 1 slash command): **79** (12+13+11+3+31+2+7).
+Totale comandi = file in `src/commands/*/*.js` (1 file = 1 slash command): **84** (13+13+11+3+34+1+2+7).
 
 > **Restyling premium**: embed uniformati in tutto il bot — footer "Richiesto da …", numeri in formato `it-IT`, colori oro per l'economia, timestamp e miniature utente dove utili.
+
+## 🗺️ Roadmap (completata)
+
+1. **SQLite / store** — `src/database/store.js`: API sincrona a collection (`get`/`set`/`update`/`delete`/`all`) con backend da env `DB_BACKEND=json|sqlite` (`DB_SQLITE_PATH`, default `./data/bot.db`). Backend `json` byte-identico allo storico (stessi path, zero migrazione); backend `sqlite` via `node:sqlite` (Node 22+, tabella `kv`, WAL, transazioni, fallback a json mai-crash). `jsonDb.js` è un compat-layer invariato sopra `store.js`: i ~25 moduli esistenti funzionano senza modifiche.
+2. **Musica** — `/musica` (8 sotto-comandi, vedi sopra). Dipendenze persistenti in `package.json` a versioni esatte: `discord-player@7.2.0`, `@discordjs/voice@0.19.2`, `@discord-player/extractor@7.2.0`, `discord-player-youtubei@3.1.0`, `simple-ytdl-core@1.1.1` (+ `npm install` già eseguito). `src/utils/player.js` è lazy con fallback: senza stack vocale, i comandi rispondono con messaggio utente e lo smoke test resta verde.
+3. **Case moderazione** — `src/database/cases.js` + `/caso`: hook automatici in `ban/kick/timeout/unban/warn` (best-effort, mai bloccanti) + note staff, ricerca per utente/tipo, rimozione singoli casi.
+4. **Backup / export** — `src/jobs/backup.js`: snapshot notturno ore 03:00 in `backups/YYYY-MM-DD-HHmm/` (JSON + sqlite se presente), retention 7 giorni, journal `backups/last.json`, avviato da `ready.js`. `/export` espone `server` (bundle JSON allegato) · `backup-ora` (run immediato + report) · `backup-lista` (ultime 7).
+5. **Logging** — `src/utils/logger.js`: JSON-lines su console colorata + `logs/YYYY-MM-DD.log` (rotazione per data, IO best-effort), livelli da `LOG_LEVEL` (default `info`), `logger.child(ctx)`, `logCommand()` per uso comandi (solo ID, mai contenuti). `interactionCreate.js` logga durata/esiti ed errori (console + canale log della guild); `index.js` logga `unhandledRejection`/`uncaughtException`.
+6. **Custom commands** — `src/database/customCommands.js` + `/comando` + listener `src/events/customCommands.js` (trigger `!nome`, cooldown 3s, variabili di risposta, contatore usi). Quarto listener `messageCreate` voluto assieme a XP/automod, autoresponder e analytics (smoke test: WARNING, non errore).
+7. **🌐 i18n** — `src/utils/i18n.js` + `src/locales/it.js`/`en.js`: `t(chiave, lang, vars)` con fallback IT, `getLang`/`setLang` via `guildConfig.language`, `/lingua` per impostarla. **Stato migrazione: 6 comandi** (`help`, `serverinfo`, `userinfo`, `avatar`, `ping`, `8ball`) con embed premium + `t()` fusi (nessun conflitto perso); nomi/descrizioni slash restano in IT per scelta. Da migrare: tutti gli altri comandi restano in italiano hardcoded.
 
 ## 🌐 Multi-Server
 
@@ -193,7 +214,7 @@ Ogni server ha dati indipendenti: economia, livelli, warn, ticket, config welcom
 
 ## 🛠️ Tecnologie
 
-- **discord.js** v14 · **Node.js** · Storage JSON (migrabile a MongoDB/PostgreSQL)
+- **discord.js** v14 · **Node.js** 18+ (24 consigliato per `node:sqlite`) · Storage JSON o SQLite (`DB_BACKEND`, migrabile a PostgreSQL via `src/database/postgres-schema.sql`, solo schema futuro — `pg` NON installato di proposito) · Musica via `discord-player` (vedi § Roadmap/2)
 
 ## 📝 Licenza
 

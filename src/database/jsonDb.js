@@ -1,31 +1,30 @@
-const fs = require('fs');
-const path = require('path');
+'use strict';
 
-/** Mini JSON-DB sincrono, sicuro per Termux / hosting piccoli. */
-function ensureFile(file) {
-  const dir = path.dirname(file);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  if (!fs.existsSync(file)) fs.writeFileSync(file, JSON.stringify({}));
-}
+/**
+ * jsonDb.js — compat layer sopra store.js (CommonJS, zero dipendenze).
+ *
+ * Export e semantica IDENTICI allo storico mini JSON-DB sincrono:
+ *   load(file)  -> oggetto dal file ({} se manca/corrotto; i corrotti vengono
+ *                  copiati in "<file>.corrupt-<timestamp>" per il recupero).
+ *   save(file, data) -> scrittura atomica via tmp+rename.
+ *   dbFile(name) -> path.join(__dirname, `<name>.json`).
+ *
+ * Il backend reale (json su file o sqlite via node:sqlite) è scelto da
+ * store.js in base a env DB_BACKEND/DB_SQLITE_PATH: con backend json il
+ * comportamento è byte-identico a prima (stessi path, zero migrazione);
+ * con backend sqlite load/save mappano il FILE sulla collection omonima
+ * (basename senza .json), così i ~25 moduli esistenti funzionano invariati.
+ */
+
+const path = require('path');
+const store = require('./store');
 
 function load(file) {
-  ensureFile(file);
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf8') || '{}');
-  } catch {
-    // File corrotto: conservalo per il recupero invece di perderlo al prossimo save().
-    try {
-      fs.copyFileSync(file, `${file}.corrupt-${Date.now()}`);
-    } catch {}
-    return {};
-  }
+  return store.loadFile(file);
 }
 
 function save(file, data) {
-  ensureFile(file);
-  const tmp = file + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
-  fs.renameSync(tmp, file);
+  store.saveFile(file, data);
 }
 
 function dbFile(name) {

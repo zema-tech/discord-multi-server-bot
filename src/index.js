@@ -2,6 +2,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Collection, Partials } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
+const logger = require('./utils/logger');
 
 if (!process.env.DISCORD_TOKEN) {
   console.error('❌ DISCORD_TOKEN mancante! Copia .env.example in .env e configuralo.');
@@ -77,8 +78,18 @@ for (const file of fs.readdirSync(eventsPath).filter((f) => f.endsWith('.js'))) 
   }
 }
 
-process.on('unhandledRejection', (e) => console.error('UnhandledRejection:', e));
-process.on('uncaughtException', (e) => console.error('UncaughtException:', e));
+process.on('unhandledRejection', (e) => {
+  console.error('UnhandledRejection:', e);
+  try {
+    logger.error('UnhandledRejection', { stack: e?.stack?.split('\n').slice(0, 3).join(' | ') || String(e) });
+  } catch {}
+});
+process.on('uncaughtException', (e) => {
+  console.error('UncaughtException:', e);
+  try {
+    logger.error('UncaughtException', { stack: e?.stack?.split('\n').slice(0, 3).join(' | ') || String(e) });
+  } catch {}
+});
 
 client.login(process.env.DISCORD_TOKEN);
 

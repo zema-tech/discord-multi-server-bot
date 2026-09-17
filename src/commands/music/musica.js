@@ -1,0 +1,344 @@
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
+const {
+  MUSIC_UNAVAILABLE_MESSAGE,
+  getPlayer,
+  ensureExtractors,
+  getQueue,
+  getUpcomingTracks,
+  mustBeInVoice,
+  checkSameVoice,
+  getQueryType,
+  formatDuration,
+} = require('../../utils/player');
+
+const QUERY_MAX = 200;
+const QUEUE_SHOWN = 10;
+
+function safeText(v, max) {
+  return String(v ?? '').slice(0, max);
+}
+
+async function replyEphemeral(interaction, content) {
+  const data = { content };
+  try {
+    if (interaction.deferred) return await interaction.editReply(data);
+    if (interaction.replied) return await interaction.followUp({ ...data, flags: MessageFlags.Ephemeral });
+    return await interaction.reply({ ...data, flags: MessageFlags.Ephemeral });
+  } catch {
+    return null;
+  }
+}
+
+async function replyEmbed(interaction, embed) {
+  try {
+    if (interaction.deferred) return await interaction.editReply({ embeds: [embed] });
+    if (interaction.replied) return await interaction.followUp({ embeds: [embed], flags: MessageFlags.Ephemeral });
+    return await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+  } catch {
+    return null;
+  }
+}
+
+function trackLine(track, index) {
+  const title = safeText(track?.title ?? 'Sconosciuto', 60);
+  const author = safeText(track?.author ?? '?', 40);
+  const dur = safeText(track?.duration ?? '', 12);
+  return `\`${index}.\` **${title}** — ${author}${dur ? ` \`${dur}\`` : ''}`;
+}
+
+function buildProgress(current, total, len = 12) {
+  if (!Number.isFinite(current) || !Number.isFinite(total) || total <= 0) return null;
+  const ratio = Math.min(1, Math.max(0, current / total));
+  const filled = Math.round(ratio * len);
+  return `\`[${'█'.repeat(filled)}${'░'.repeat(len - filled)}]\``;
+}
+
+function setThumb(embed, track) {
+  try {
+    const t = track?.thumbnail;
+    const url = typeof t === 'string' ? t : t?.url;
+    if (typeof url === 'string' && /^https?:\/\//.test(url)) embed.setThumbnail(url);
+  } catch {
+    // ignora
+  }
+  return embed;
+}
+
+function mapPlayError(e, query) {
+  const msg = String(e?.message ?? e ?? '');
+  if (/abort|timeout|timed out|ETIMEDOUT/i.test(msg)) return '⏱️ Ricerca scaduta per timeout. Riprova tra poco.';
+  if (/no results|no_result|empty|not found|nessun risultato/i.test(msg)) {
+    return `❌ Nessun risultato per **${safeText(query, 100)}**. Prova con un altro titolo o un link diretto.`;
+  }
+  if (/connect|speak|permission|permessi|join/i.test(msg)) {
+    return '❌ Non riesco a entrare nel vocale: verifica i permessi **Connetti** e **Parla**.';
+  }
+  if (/opus|ffmpeg|sodium|voice connection/i.test(msg)) {
+    return '❌ Audio vocale non disponibile su questo host (dipendenze mancanti).';
+  }
+  return `❌ Non riesco a riprodurre: ${safeText(msg, 180) || 'errore sconosciuto.'}`;
+}
+
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('musica')
+    .setDescription('Riproduci musica nel canale vocale (stile PeakBot)')
+    .addSubcommand((s) =>
+      s
+        .setName('play')
+        .setDescription('Riproduci un brano o aggiungilo in coda')
+        .addStringOption((o) =>
+          o
+            .setName('query')
+            .setDescription('Titolo, link YouTube/Spotify/SoundCloud… (max 200 caratteri)')
+            .setMinLength(1)
+            .setMaxLength(QUERY_MAX)
+            .setRequired(true)
+        )
+    )
+    .addSubcommand((s) => s.setName('skip').setDescription('Salta il brano corrente'))
+    .addSubcommand((s) => s.setName('stop').setDescription('Ferma la musica e svuota la coda'))
+    .addSubcommand((s) => s.setName('coda').setDescription('Mostra la coda di riproduzione'))
+    .addSubcommand((s) => s.setName('pausa').setDescription('Mette in pausa il brano corrente'))
+    .addSubcommand((s) => s.setName('riprendi').setDescription('Riprende il brano in pausa'))
+    .addSubcommand((s) =>
+      s
+        .setName('volume')
+        .setDescription('Imposta il volume (0-100)')
+        .addIntegerOption((o) =>
+          o.setName('livello').setDescription('Volume da 0 a 100').setMinValue(0).setMaxValue(100).setRequired(true)
+        )
+    )
+    .addSubcommand((s) => s.setName('attuale').setDescription('Mostra il brano in riproduzione')),
+  cooldown: 3,
+
+  async execute(interaction) {
+    if (!interaction.guild) {
+      return replyEphemeral(interaction, '❌ Usa questo comando dentro un server.');
+    }
+
+    const player = getPlayer(interaction.client);
+    if (!player) {
+      return replyEphemeral(interaction, MUSIC_UNAVAILABLE_MESSAGE);
+    }
+
+    const sub = interaction.options.getSubcommand();
+
+    // ---- PLAY ----
+    if (sub === 'play') {
+      const { channel, error } = mustBeInVoice(interaction);
+      if (error) return replyEphemeral(interaction, error);
+      const query = interaction.options.getString('query', true).trim().slice(0, QUERY_MAX);
+      if (!query) return replyEphemeral(interaction, '❌ Query vuota: scrivi un titolo o incolla un link.');
+
+      try {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      } catch {
+        return null;
+      }
+
+      await ensureExtractors(player).catch(() => {});
+
+      const playOptions = {
+        nodeOptions: {
+          metadata: interaction,
+          selfDeaf: true,
+          leaveOnEnd: true,
+          leaveOnEndCooldown: 300000,
+          leaveOnEmpty: true,
+          leaveOnEmptyCooldown: 300000,
+        },
+        requestedBy: interaction.user,
+      };
+      const QueryType = getQueryType();
+      if (QueryType?.AUTO) playOptions.searchEngine = QueryType.AUTO;
+      if (typeof AbortSignal?.timeout === 'function') playOptions.signal = AbortSignal.timeout(25000);
+
+      let res;
+      try {
+        res = await player.play(channel, query, playOptions);
+      } catch (e) {
+        return replyEphemeral(interaction, mapPlayError(e, query));
+      }
+
+      const track = res?.track;
+      if (!track) {
+        return replyEphemeral(interaction, `❌ Nessun risultato per **${safeText(query, 100)}**.`);
+      }
+      const queue = res.queue ?? getQueue(player, interaction.guild.id);
+      const upcoming = queue ? getUpcomingTracks(queue) : [];
+      const isCurrent = queue?.currentTrack?.title === track.title && upcoming.length === 0;
+
+      const embed = new EmbedBuilder()
+        .setColor(0x57f287)
+        .setTitle(isCurrent ? '🎵 In riproduzione' : '➕ Aggiunto in coda')
+        .setDescription(
+          `[**${safeText(track.title, 120)}**](${track.url ?? 'https://discord.com/'})${track.author ? `\n👤 ${safeText(track.author, 80)}` : ''}`
+        )
+        .addFields(
+          { name: '⏱️ Durata', value: safeText(track.duration ?? '—', 12), inline: true },
+          {
+            name: '📍 Posizione',
+            value: isCurrent ? 'Adesso' : `#${upcoming.length}`,
+            inline: true,
+          },
+          { name: '🙋 Richiesto da', value: `${track.requestedBy ?? interaction.user}`, inline: true }
+        )
+        .setFooter({ text: `Richiesto da ${interaction.user.tag}`.slice(0, 200) })
+        .setTimestamp();
+      setThumb(embed, track);
+
+      const playlistCount = res?.searchResult?.playlist?.tracks?.length ?? 0;
+      if (!isCurrent && playlistCount > 1) {
+        embed.setFooter({ text: `Playlist: ${playlistCount} brani aggiunti • ${interaction.user.tag}`.slice(0, 200) });
+      }
+      return replyEmbed(interaction, embed);
+    }
+
+    // ---- Tutti gli altri subcommand richiedono l'utente in vocale ----
+    const { error: voiceError } = mustBeInVoice(interaction);
+    if (voiceError) return replyEphemeral(interaction, voiceError);
+
+    const queue = getQueue(player, interaction.guild.id);
+    const current = queue?.currentTrack ?? null;
+
+    // ---- CODA / ATTUALE: funzionano anche solo in lettura ----
+    if (sub === 'coda') {
+      const upcoming = getUpcomingTracks(queue);
+      if (!current && upcoming.length === 0) {
+        return replyEphemeral(interaction, '📭 La coda è vuota. Usa `/musica play` per iniziare!');
+      }
+      const lines = [];
+      if (current) lines.push(`▶️ **In riproduzione:** ${trackLine(current, '•')}`);
+      upcoming.slice(0, QUEUE_SHOWN).forEach((t, i) => lines.push(trackLine(t, i + 1)));
+      const total = upcoming.length + (current ? 1 : 0);
+      let totalTime = 0;
+      try {
+        for (const t of [current, ...upcoming]) totalTime += Number(t?.durationMS) || 0;
+      } catch {
+        // ignora
+      }
+      const embed = new EmbedBuilder()
+        .setColor(0x5865f2)
+        .setTitle('📜 Coda di riproduzione')
+        .setDescription(safeText(lines.join('\n'), 4000))
+        .setFooter({
+          text:
+            (upcoming.length > QUEUE_SHOWN ? `…e altri ${upcoming.length - QUEUE_SHOWN} brani • ` : '') +
+            `Totale: ${total} brano${total === 1 ? '' : 'i'}` +
+            (totalTime > 0 ? ` • ${formatDuration(totalTime)}` : ''),
+        })
+        .setTimestamp();
+      return replyEmbed(interaction, embed);
+    }
+
+    if (sub === 'attuale') {
+      if (!current) return replyEphemeral(interaction, '❌ Niente in riproduzione al momento.');
+      let bar = null;
+      try {
+        const ts = typeof queue.node?.getTimestamp === 'function' ? queue.node.getTimestamp() : null;
+        const cur = ts?.current ?? ts?.progress ?? queue.node?.playbackTime;
+        const tot = ts?.total ?? current?.durationMS;
+        bar = buildProgress(Number(cur), Number(tot));
+      } catch {
+        bar = null;
+      }
+      const embed = new EmbedBuilder()
+        .setColor(0xfee75c)
+        .setTitle('🎶 Brano attuale')
+        .setDescription(
+          `[**${safeText(current.title, 120)}**](${current.url ?? 'https://discord.com/'})${current.author ? `\n👤 ${safeText(current.author, 80)}` : ''}${bar ? `\n${bar}` : ''}`
+        )
+        .addFields(
+          { name: '⏱️ Durata', value: safeText(current.duration ?? '—', 12), inline: true },
+          { name: '🔊 Volume', value: `${Number(queue.node?.volume ?? 100)}%`, inline: true },
+          { name: '🙋 Richiesto da', value: `${current.requestedBy ?? '?'}`, inline: true }
+        )
+        .setTimestamp();
+      setThumb(embed, current);
+      return replyEmbed(interaction, embed);
+    }
+
+    // ---- SKIP / STOP / PAUSA / RIPRENDI / VOLUME: serve una coda attiva ----
+    if (!queue || !current) {
+      return replyEphemeral(interaction, '❌ Niente in riproduzione. Usa `/musica play` per iniziare!');
+    }
+    const sameVoiceError = checkSameVoice(interaction, queue);
+    if (sameVoiceError) return replyEphemeral(interaction, sameVoiceError);
+
+    if (sub === 'skip') {
+      let ok = false;
+      try {
+        ok = queue.node.skip();
+      } catch {
+        ok = false;
+      }
+      if (!ok) return replyEphemeral(interaction, '❌ Non riesco a saltare il brano. Riprova.');
+      const next = queue.currentTrack;
+      return replyEphemeral(
+        interaction,
+        next ? `⏭️ Brano saltato. Ora: **${safeText(next.title, 100)}**.` : '⏭️ Brano saltato.'
+      );
+    }
+
+    if (sub === 'stop') {
+      try {
+        try {
+          queue.node.stop();
+        } catch {
+          // ignora: prova comunque a eliminare la coda
+        }
+        queue.delete();
+      } catch {
+        return replyEphemeral(interaction, '❌ Non riesco a fermare la riproduzione. Riprova.');
+      }
+      return replyEphemeral(interaction, '⏹️ Riproduzione fermata e coda svuotata. Alla prossima! 🎶');
+    }
+
+    if (sub === 'pausa') {
+      let paused = false;
+      try {
+        paused = queue.node.isPaused();
+      } catch {
+        paused = false;
+      }
+      if (paused) return replyEphemeral(interaction, '⏸️ Il brano è già in pausa.');
+      try {
+        queue.node.setPaused(true);
+      } catch {
+        return replyEphemeral(interaction, '❌ Non riesco a mettere in pausa. Riprova.');
+      }
+      return replyEphemeral(interaction, '⏸️ Pausa. Usa `/musica riprendi` per continuare.');
+    }
+
+    if (sub === 'riprendi') {
+      let paused = false;
+      try {
+        paused = queue.node.isPaused();
+      } catch {
+        paused = false;
+      }
+      if (!paused) return replyEphemeral(interaction, '▶️ Il brano non è in pausa.');
+      try {
+        queue.node.setPaused(false);
+      } catch {
+        return replyEphemeral(interaction, '❌ Non riesco a riprendere. Riprova.');
+      }
+      return replyEphemeral(interaction, '▶️ Riproduzione ripresa!');
+    }
+
+    if (sub === 'volume') {
+      const livello = Math.max(0, Math.min(100, interaction.options.getInteger('livello', true)));
+      let ok = false;
+      try {
+        ok = queue.node.setVolume(livello);
+      } catch {
+        ok = false;
+      }
+      if (!ok) return replyEphemeral(interaction, '❌ Non riesco a cambiare il volume. Riprova.');
+      return replyEphemeral(interaction, `🔊 Volume impostato a **${livello}%**.`);
+    }
+
+    return replyEphemeral(interaction, '❌ Sottocomando sconosciuto.');
+  },
+};

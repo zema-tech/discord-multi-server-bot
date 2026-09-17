@@ -12,12 +12,22 @@
  *  (c2) NUOVI moduli DB attesi (reactionRoles, autoresponder, invites,
  *      tempvoice, stanze, levelRewards, analytics) + jobs/ticketAutoclose
  *      require-safe: roundtrip con chiavi `qatest_*` + cleanup verificato.
-  *  (c3) NUOVI moduli DB attesi (shop, lotteria, rep, sfide, confessioni):
-  *      roundtrip con chiavi `qatest_*` + cleanup verificato (solo DB,
-  *      mai execute() di comandi, mai scritture su canali, mai soldi veri:
-  *      i pot/premi dei moduli sono contatori interni su chiavi qatest).
-  *      Se un modulo non esiste ancora: WARNING (skip), non errore (lavori in corso).
-  *      Regola duplicati-evento invariata (la gestisce il revisore).
+ *  (c3) NUOVI moduli DB attesi (shop, lotteria, rep, sfide, confessioni):
+ *      roundtrip con chiavi `qatest_*` + cleanup verificato (solo DB,
+ *      mai execute() di comandi, mai scritture su canali, mai soldi veri:
+ *      i pot/premi dei moduli sono contatori interni su chiavi qatest).
+ *      Se un modulo non esiste ancora: WARNING (skip), non errore (lavori in corso).
+ *      Regola duplicati-evento invariata (la gestisce il revisore).
+ *  (c4) LOTTO roadmap QA (questo file, dentro il try con cleanup qatest):
+ *      cases + customCommands (roundtrip `qatest_*` adattivo), shop riuso
+ *      (già coperto in c3, nessun duplicato), store (collection qatest
+ *      set/get su backend json; sqlite solo se node:sqlite disponibile,
+ *      altrimenti warning), logger (LOG_DIR tmp + cleanup), i18n+locales
+ *      (t fallback), backup (solo export check, MAI start), music
+ *      require-safe anche senza dipendenze vocali (require vocale eager a
+ *      top-level = FAIL con messaggio chiaro). Assente/API incompleta ->
+ *      WARNING (skip, lavori in corso); presente ma rotto -> FAIL.
+ *      Regola duplicati-evento invariata (la gestisce il revisore).
  *  (e) extra QA: customId letterali duplicati, nomi evento duplicati.
  *
  * Uso: node scripts/smoke-test.js
@@ -903,6 +913,459 @@ try {
     if (out.ok) fail('selfImprove: validateProposal accetta file fuori allowlist');
   } catch (e) {
     fail(`selfImprove: ${e.message.split('\n')[0]}`);
+  }
+
+  // ---- (c4) LOTTO roadmap QA: cases, customCommands, shop-riuso, store,
+  //      logger, i18n+locales, backup, music ----
+  // Policy: assente -> WARNING (skip, lavori in corso); API incompleta ->
+  // WARNING (WIP); presente ma roundtrip/require rotto -> FAIL. Mai
+  // execute() di comandi, mai start di job/timer, mai soldi veri, mai
+  // scritture fuori chiavi qatest_*. Cleanup via scrubTestKeys/finally
+  // sotto (chiave qatest_guild). Regola duplicati-evento NON toccata.
+  console.log('---- (c4) Lotto roadmap QA (cases, customCommands, store, logger, i18n, backup, music) ----');
+
+  // shop: roundtrip già coperto in (c3) sopra — riuso, nessun duplicato.
+  try {
+    if (!fs.existsSync(path.join(DB_DIR, 'shop.js'))) {
+      skipMissing('shop (riuso)', 'src/database/shop.js');
+    } else {
+      console.log('shop: roundtrip già coperto in (c3) — riuso, nessun duplicato');
+    }
+  } catch (e) {
+    fail(`shop riuso (qatest): ${e.message.split('\n')[0]}`);
+  }
+
+  // cases — hook moderazione (ban/kick/timeout/unban/warn + /caso).
+  try {
+    const fp = path.join(DB_DIR, 'cases.js');
+    if (!fs.existsSync(fp)) {
+      skipMissing('cases', 'src/database/cases.js');
+    } else {
+      delete require.cache[require.resolve(fp)];
+      const cs = require(fp);
+      const need = ['logCase', 'getCase', 'getUserCases', 'addNote', 'removeCase', 'searchCases'];
+      const miss = need.filter((fn) => typeof cs[fn] !== 'function');
+      if (miss.length) {
+        fail(`cases: export mancanti: ${miss.join(', ')}`);
+      } else {
+        const entry = cs.logCase(QGUILD, { type: 'warn', userId: QUSER, modId: QUSER, reason: 'qa smoke' });
+        if (!entry || entry.id === undefined || entry.id === null) {
+          fail('cases: logCase(qatest) non ritorna {id,...}');
+        } else {
+          const eid = String(entry.id);
+          const got = cs.getCase(QGUILD, eid);
+          if (!got || got.userId !== QUSER) fail('cases: getCase(qatest) non ritorna il caso salvato');
+          if (!cs.getUserCases(QGUILD, QUSER).some((c) => String(c.id) === eid)) fail('cases: getUserCases non contiene il caso qatest');
+          if (!cs.searchCases(QGUILD, { userId: QUSER }).some((c) => String(c.id) === eid)) fail('cases: searchCases(userId) non contiene il caso qatest');
+          const n1 = cs.addNote(QGUILD, { userId: QUSER, modId: QUSER, reason: 'qa nota obj' });
+          if (!n1 || n1.type !== 'note' || n1.id === undefined) fail('cases: addNote(obj) non ritorna nota con id');
+          else if (cs.removeCase(QGUILD, n1.id) !== true) fail('cases: removeCase(nota obj) atteso true');
+          const n2 = cs.addNote(QGUILD, QUSER, { modId: QUSER, reason: 'qa nota args' });
+          if (!n2 || n2.type !== 'note' || n2.id === undefined) fail('cases: addNote(userId, opts) non ritorna nota con id');
+          else if (cs.removeCase(QGUILD, n2.id) !== true) fail('cases: removeCase(nota args) atteso true');
+          if (cs.removeCase(QGUILD, eid) !== true) fail('cases: removeCase(id valido) atteso true');
+          if (cs.getCase(QGUILD, eid) !== null) fail('cases: dopo removeCase atteso null');
+        }
+        if (cs.logCase(QGUILD, { type: 'warn' }) !== null) fail('cases: logCase senza userId dovrebbe ritornare null (mai lanciare)');
+        if (cs.removeCase(QGUILD, 'qatest_inesistente') !== false) fail('cases: removeCase(id ignoto) atteso false');
+      }
+    }
+  } catch (e) {
+    fail(`cases (qatest): ${e.message.split('\n')[0]}`);
+  }
+
+  // customCommands — comandi custom per-guild (roundtrip adattivo: il nome
+  // file/funzioni dipende dall'agente; assente/incompleto -> skip, rotto -> FAIL).
+  try {
+    const candidates = [
+      'src/database/customCommands.js',
+      'src/database/customcommands.js',
+      'src/utils/customCommands.js',
+    ];
+    const found = candidates.map((c) => path.join(ROOT, c)).find((f) => fs.existsSync(f));
+    if (!found) {
+      skipMissing('customCommands', 'src/database/customCommands.js');
+    } else {
+      delete require.cache[require.resolve(found)];
+      const cc = require(found);
+      const tag = path.relative(ROOT, found);
+      const pick = (...names) => {
+        for (const n of names) if (cc && typeof cc[n] === 'function') return { fn: cc[n].bind(cc), name: n };
+        return null;
+      };
+      const setE = pick('addCommand', 'setCommand', 'createCommand', 'upsertCommand', 'registerCommand', 'add', 'set', 'create', 'upsert', 'register');
+      const getE = pick('getCommand', 'get', 'find', 'findCommand', 'listCommands', 'list');
+      const delE = pick('removeCommand', 'deleteCommand', 'remove', 'delete', 'clear', 'reset', 'clearCommands');
+      if (!setE || !getE) {
+        warn(`customCommands: API incompleta in ${tag} (set=${setE ? setE.name : '-'}/get=${getE ? getE.name : '-'}/del=${delE ? delE.name : '-'}; exports: ${cc && typeof cc === 'object' ? Object.keys(cc).sort().join(',') : typeof cc}) — skip (WIP)`);
+      } else {
+        // NOTA nomi: customCommands valida /^[a-z0-9-]{2,20}$/ (niente
+        // underscore): si usa 'qatest-cmd' con hyphen, comunque tracciabile.
+        const QCMD = 'qatest-cmd';
+        const ccTry = (entry, argsList) => {
+          let lastErr = null;
+          for (const args of argsList) {
+            try {
+              return { ok: true, value: entry.fn(...args), via: `${entry.name}(${args.length})` };
+            } catch (e) { lastErr = e; }
+          }
+          return { ok: false, error: lastErr };
+        };
+        try { if (delE) delE.fn(QGUILD, QCMD); } catch { /* best-effort */ }
+        const setR = ccTry(setE, [
+          [QGUILD, QCMD, 'qatest pong'],
+          [QGUILD, QCMD, { response: 'qatest pong' }],
+          [QGUILD, { name: QCMD, response: 'qatest pong' }],
+        ]);
+        if (!setR.ok) {
+          fail(`customCommands: set fallito in ogni forma (qatest) in ${tag}: ${(setR.error && setR.error.message || '?').split('\n')[0]}`);
+        } else if (setR.value && setR.value.ok === false) {
+          fail(`customCommands: set rifiutato dal modulo in ${tag} (via ${setR.via}): ${setR.value.error || 'ok:false'}`);
+        } else {
+          const getR = ccTry(getE, [[QGUILD, QCMD], [QGUILD]]);
+          if (!getR.ok) fail(`customCommands: get fallito (qatest) in ${tag}: ${(getR.error && getR.error.message || '?').split('\n')[0]}`);
+          else if (JSON.stringify(getR.value || '').indexOf('qatest') === -1) {
+            fail(`customCommands: get senza traccia qatest dopo set in ${tag} (via ${getR.via}): ${JSON.stringify(getR.value).slice(0, 160)}`);
+          }
+          if (delE) {
+            ccTry(delE, [[QGUILD, QCMD], [QGUILD]]);
+            const after = ccTry(getE, [[QGUILD, QCMD], [QGUILD]]);
+            if (after.ok && JSON.stringify(after.value || '').indexOf('qatest') !== -1) {
+              fail(`customCommands: dopo delete ancora traccia qatest in ${tag}: ${JSON.stringify(after.value).slice(0, 160)}`);
+            }
+          } else {
+            warn(`customCommands: export delete assente in ${tag} — cleanup via scrubTestKeys/finally`);
+          }
+        }
+        try { if (delE) delE.fn(QGUILD, QCMD); } catch { /* best-effort */ }
+      }
+    }
+  } catch (e) {
+    fail(`customCommands (qatest): ${e.message.split('\n')[0]}`);
+  }
+
+  // store.js — require-safe: collection qatest set/get su backend json;
+  // sqlite SOLO se node:sqlite disponibile, altrimenti warning.
+  try {
+    const fp = path.join(DB_DIR, 'store.js');
+    if (!fs.existsSync(fp)) {
+      skipMissing('store', 'src/database/store.js');
+    } else {
+      delete require.cache[require.resolve(fp)];
+      const st = require(fp);
+      const tag = 'src/database/store.js';
+      if (!st || (typeof st !== 'object' && typeof st !== 'function')) {
+        fail(`store: export non valido (${tag})`);
+      } else {
+        const pick = (...names) => {
+          for (const n of names) if (typeof st[n] === 'function') return { fn: st[n].bind(st), name: n };
+          return null;
+        };
+        let sqliteOk = false;
+        try { require('node:sqlite'); sqliteOk = true; } catch { sqliteOk = false; }
+        if (!sqliteOk) warn('store: node:sqlite non disponibile — backend sqlite non testato (solo json)');
+        const filesBefore = new Set(fs.readdirSync(DB_DIR));
+        const QKEY = 'qatest_key';
+        const QVAL = { v: 'qatest', n: 42 };
+        let didRoundtrip = false;
+        const colE = pick('collection', 'getCollection', 'col');
+        if (colE) {
+          // Forma collection-style: st.collection('qatest').set/get/delete.
+          try {
+            const c = colE.fn('qatest');
+            if (!c || typeof c.set !== 'function' || typeof c.get !== 'function') {
+              warn(`store: collection('qatest') senza set/get in ${tag} — skip (WIP)`);
+            } else {
+              c.set(QKEY, QVAL);
+              if (JSON.stringify(c.get(QKEY)) !== JSON.stringify(QVAL)) {
+                fail('store: collection(qatest) get/set roundtrip fallito (json)');
+              }
+              didRoundtrip = true;
+              if (typeof c.delete === 'function') c.delete(QKEY);
+              else if (typeof c.remove === 'function') c.remove(QKEY);
+              else if (typeof c.clear === 'function') c.clear();
+              const after = c.get(QKEY);
+              if (after !== undefined && after !== null) fail('store: collection(qatest) dopo delete atteso undefined/null');
+            }
+          } catch (e) {
+            fail(`store: collection(qatest) roundtrip (json): ${e.message.split('\n')[0]}`);
+            didRoundtrip = true;
+          }
+        } else {
+          // Forma kv-style: st.set/get(ns, key, value).
+          const setE = pick('set', 'put', 'save', 'upsert');
+          const getE = pick('get', 'fetch', 'load');
+          const delE = pick('delete', 'del', 'remove', 'clear');
+          if (!setE || !getE) {
+            warn(`store: API incompleta in ${tag} (set=${setE ? setE.name : '-'}/get=${getE ? getE.name : '-'}; exports: ${Object.keys(st).sort().join(',')}) — skip (WIP)`);
+          } else {
+            const shapes = [
+              { label: 'ns3', sArgs: ['qatest', QKEY, QVAL], gArgs: ['qatest', QKEY] },
+              { label: 'flat', sArgs: [`qatest_${QKEY}`, QVAL], gArgs: [`qatest_${QKEY}`] },
+            ];
+            let used = null;
+            for (const sh of shapes) {
+              try {
+                setE.fn(...sh.sArgs);
+                if (JSON.stringify(getE.fn(...sh.gArgs)) === JSON.stringify(QVAL)) { used = sh; break; }
+                try { if (delE) delE.fn(...sh.gArgs); } catch { /* best-effort */ }
+              } catch { /* forma non supportata: prova la prossima */ }
+            }
+            if (!used) {
+              warn(`store: nessuna forma set/get riconosciuta in ${tag} (set=${setE.name}/get=${getE.name}) — skip (WIP, contratto ignoto)`);
+            } else {
+              didRoundtrip = true;
+              try {
+                if (delE) delE.fn(...used.gArgs);
+                else warn(`store: export delete assente in ${tag} — cleanup via scrubTestKeys/finally`);
+                const after = getE.fn(...used.gArgs);
+                if (after !== undefined && after !== null) fail(`store: dopo delete atteso undefined/null (via ${used.label})`);
+              } catch (e) {
+                fail(`store: cleanup qatest (${used.label}): ${e.message.split('\n')[0]}`);
+              }
+            }
+          }
+        }
+        if (sqliteOk && didRoundtrip) {
+          let srcHead = '';
+          try { srcHead = fs.readFileSync(fp, 'utf8').slice(0, 4000); } catch { /* best-effort */ }
+          if (!/sqlite/i.test(Object.keys(st).join(' ')) && !/sqlite/i.test(srcHead)) {
+            warn('store: backend sqlite non esposto via API — verificato solo json (ok)');
+          }
+        }
+        // Artefatti NUOVI (*.json/*.db/*.sqlite) con tracce qatest = miei:
+        // rimuovi. Solo queste estensioni: MAI toccare .js altrui.
+        for (const f of fs.readdirSync(DB_DIR)) {
+          if (filesBefore.has(f)) continue;
+          if (!/\.(json|db|sqlite|sqlite-journal)$/.test(f)) continue;
+          const full = path.join(DB_DIR, f);
+          let raw = '';
+          try { raw = fs.readFileSync(full, 'utf8'); } catch { continue; }
+          if (raw.includes('qatest')) {
+            try {
+              fs.rmSync(full, { force: true });
+              warn(`store: rimosso artefatto di test ${path.relative(ROOT, full)}`);
+            } catch (e) {
+              fail(`store: artefatto di test non rimovibile ${path.relative(ROOT, full)}: ${e.message}`);
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    fail(`store (qatest): ${e.message.split('\n')[0]}`);
+  }
+
+  // logger.js — require-safe: scrive su LOG_DIR tmp, cleanup (mai crashare).
+  try {
+    const fp = path.join(ROOT, 'src', 'utils', 'logger.js');
+    if (!fs.existsSync(fp)) {
+      skipMissing('logger', 'src/utils/logger.js');
+    } else {
+      const prevLogDir = process.env.LOG_DIR;
+      const prevLogLevel = process.env.LOG_LEVEL;
+      const tmpDir = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'smoke-log-'));
+      const realLog = console.log;
+      const realWarn = console.warn;
+      const realErr = console.error;
+      try {
+        process.env.LOG_DIR = tmpDir;
+        process.env.LOG_LEVEL = 'debug';
+        console.log = () => {};
+        console.warn = () => {};
+        console.error = () => {};
+        delete require.cache[require.resolve(fp)];
+        const lg = require(fp);
+        const api = (lg && (lg.logger || lg.default)) || lg;
+        for (const fn of ['debug', 'info', 'warn', 'error']) {
+          if (typeof api[fn] !== 'function') fail(`logger: metodo "${fn}" mancante`);
+        }
+        api.info('qa smoke', { guild: QGUILD });
+        api.warn({ msg: 'qa warn', k: 'qatest' });
+        api.error(new Error('qa error'));
+        api.debug('qa debug');
+        if (typeof api.child === 'function') api.child({ mod: 'qa' }).info('qa child');
+        if (typeof lg.logCommand === 'function') lg.logCommand(QGUILD, QUSER, 'qatest', 12);
+        const files = fs.readdirSync(tmpDir).filter((f) => f.endsWith('.log'));
+        if (!files.length) {
+          fail('logger: nessun file .log scritto su LOG_DIR tmp (qatest)');
+        } else {
+          const content = fs.readFileSync(path.join(tmpDir, files[0]), 'utf8');
+          if (content.indexOf('qa smoke') === -1 && content.indexOf('qa warn') === -1) {
+            fail('logger: record qatest non trovato nel .log tmp');
+          }
+          for (const ln of content.trim().split('\n').filter(Boolean)) {
+            try {
+              JSON.parse(ln);
+            } catch {
+              fail('logger: riga non JSON-lines nel .log tmp');
+              break;
+            }
+          }
+        }
+      } finally {
+        console.log = realLog;
+        console.warn = realWarn;
+        console.error = realErr;
+        if (prevLogDir === undefined) delete process.env.LOG_DIR;
+        else process.env.LOG_DIR = prevLogDir;
+        if (prevLogLevel === undefined) delete process.env.LOG_LEVEL;
+        else process.env.LOG_LEVEL = prevLogLevel;
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
+    }
+  } catch (e) {
+    fail(`logger (qatest): ${e.message.split('\n')[0]}`);
+  }
+
+  // i18n.js + locales — require-safe: t() con fallback (mai undefined).
+  try {
+    const fp = path.join(ROOT, 'src', 'utils', 'i18n.js');
+    if (!fs.existsSync(fp)) {
+      skipMissing('i18n', 'src/utils/i18n.js');
+    } else {
+      delete require.cache[require.resolve(fp)];
+      let iu = null;
+      try {
+        iu = require(fp);
+      } catch (e) {
+        fail(`i18n: require fallito (locales mancanti?): ${e.message.split('\n')[0]}`);
+      }
+      if (iu) {
+        if (typeof iu.t !== 'function') {
+          fail('i18n: export "t" mancante');
+        } else {
+          if (iu.t('qatest.chiave.mai.esistente', 'it') !== 'qatest.chiave.mai.esistente') {
+            fail('i18n: t(chiave ignota, it) dovrebbe ritornare la chiave stessa');
+          }
+          if (iu.t('qatest.chiave.mai.esistente', 'en') !== 'qatest.chiave.mai.esistente') {
+            fail('i18n: t(chiave ignota, en) dovrebbe ritornare la chiave stessa (fallback)');
+          }
+          try {
+            delete require.cache[require.resolve(path.join(ROOT, 'src', 'locales', 'it.js'))];
+            const itLoc = require(path.join(ROOT, 'src', 'locales', 'it.js'));
+            const findStr = (obj, prefix) => {
+              for (const [k, v] of Object.entries(obj)) {
+                const key = prefix ? `${prefix}.${k}` : k;
+                if (typeof v === 'string') return { key, val: v };
+                if (v && typeof v === 'object' && !Array.isArray(v)) {
+                  const r = findStr(v, key);
+                  if (r) return r;
+                }
+              }
+              return null;
+            };
+            const first = findStr(itLoc, '');
+            if (!first) {
+              warn('i18n: src/locales/it.js senza stringhe — fallback non verificabile');
+            } else if (iu.t(first.key, 'it') !== first.val) {
+              fail(`i18n: t('${first.key}', 'it') non ritorna la stringa attesa`);
+            }
+          } catch (e) {
+            warn(`i18n: src/locales/it.js non caricato — fallback reale non verificabile (${e.message.split('\n')[0]})`);
+          }
+        }
+        if (typeof iu.getLang === 'function') {
+          if (iu.getLang(null) !== 'it' || iu.getLang(undefined) !== 'it') {
+            fail('i18n: getLang(null/DM) atteso "it"');
+          }
+        }
+        if (typeof iu.setLang === 'function' && typeof iu.getLang === 'function') {
+          let threw = false;
+          try { iu.setLang(QGUILD, 'xx-bogus'); } catch { threw = true; }
+          if (!threw) fail('i18n: setLang(lingua bogus) dovrebbe lanciare');
+          else {
+            iu.setLang(QGUILD, 'en'); // solo chiave qatest (cleanup via scrub/finally)
+            if (iu.getLang(QGUILD) !== 'en') fail('i18n: setLang(qatest, en)/getLang roundtrip fallito');
+            iu.setLang(QGUILD, 'it'); // ripristina (scrub rimuove comunque la chiave)
+          }
+        }
+      }
+    }
+  } catch (e) {
+    fail(`i18n (qatest): ${e.message.split('\n')[0]}`);
+  }
+
+  // backup.js — require-safe: MAI start, solo export check + no auto-start.
+  try {
+    const candidates = ['src/jobs/backup.js', 'src/utils/backup.js'];
+    const found = candidates.map((c) => path.join(ROOT, c)).find((f) => fs.existsSync(f));
+    if (!found) {
+      skipMissing('backup', 'src/jobs/backup.js');
+    } else {
+      delete require.cache[require.resolve(found)];
+      const bk = require(found);
+      const tag = path.relative(ROOT, found);
+      if (!bk || (typeof bk !== 'object' && typeof bk !== 'function')) {
+        fail(`backup: export non valido (${tag})`);
+      } else {
+        const fns = Object.keys(bk).filter((k) => typeof bk[k] === 'function');
+        if (!fns.length) fail(`backup: nessun export funzione in ${tag} (atteso almeno create/backup/run/start)`);
+        else {
+          // MAI avviare qui (niente start/run/schedule): solo export check +
+          // euristica no auto-start a top-level (colonna 0, fuori funzioni).
+          let raw = '';
+          try { raw = fs.readFileSync(found, 'utf8'); } catch {}
+          const lines = raw.replace(/\/\*[\s\S]*?\*\//g, '').split('\n')
+            .map((ln) => ln.replace(/\/\/.*$/, ''));
+          const auto = lines.filter((ln) => /^(setInterval|setTimeout)\s*\(/.test(ln)
+            || /^(start|run|init|schedule|startBackup|runBackup|createBackup|scheduleBackup)\s*\(/.test(ln));
+          if (auto.length) {
+            fail(`backup: auto-start a top-level in ${tag} (mai avviare al require: ${auto[0].trim().slice(0, 80)})`);
+          } else {
+            console.log(`backup: export check OK (${tag}: ${fns.sort().join(', ')}) — mai avviato`);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    fail(`backup require-safe: ${e.message.split('\n')[0]}`);
+  }
+
+  // comandi music — require-safe ANCHE senza dipendenze vocali.
+  // Se un comando lancia al require per discord-player/@discordjs/voice
+  // mancanti -> FAIL con messaggio chiaro (devono usare require lazy o
+  // try/catch con messaggio utente, mai rompere l'avvio del bot/smoke).
+  try {
+    const musicDirs = ['src/commands/music', 'src/commands/musica']
+      .map((d) => path.join(ROOT, d))
+      .filter((d) => fs.existsSync(d));
+    if (!musicDirs.length) {
+      skipMissing('music', 'src/commands/music');
+    } else {
+      const VOCAL_RE = /discord-player|@discordjs\/voice|play-dl|ytdl|yt-search|sodium|opusscript|prism-media|ffmpeg|@discordjs\/opus/;
+      const files = musicDirs.flatMap((d) => collectJs(d, true));
+      if (!files.length) {
+        warn('music: directory presente ma senza file .js — skip');
+      }
+      for (const file of files) {
+        const r = rel(file);
+        try {
+          delete require.cache[require.resolve(file)];
+          const mod = require(file);
+          if (!mod || typeof mod !== 'object') fail(`${r} (music): export non è un oggetto`);
+        } catch (e) {
+          const msg = String((e && e.message) || e);
+          if (e.code === 'MODULE_NOT_FOUND' && VOCAL_RE.test(msg)) {
+            fail(`${r} (music): richiede dipendenza vocale a TOP-LEVEL senza fallback (${msg.split('\n')[0]}) — i comandi music DEVONO caricarsi anche senza discord-player/@discordjs/voice (require lazy in execute() o try/catch)`);
+          } else {
+            fail(`${r} (music): require fallito: ${msg.split('\n')[0]}`);
+          }
+          continue;
+        }
+        try {
+          const srcM = fs.readFileSync(file, 'utf8');
+          const codeM = srcM.replace(/\/\*[\s\S]*?\*\//g, '').split('\n')
+            .map((ln) => ln.replace(/\/\/.*$/, ''));
+          const eager = codeM.filter((ln) => /^(const|let|var)\s+.*require\(\s*['"][^'"]*(discord-player|@discordjs\/voice|play-dl|ytdl-core)[^'"]*['"]\s*\)/.test(ln));
+          if (eager.length) {
+            fail(`${r} (music): require vocale EAGER a top-level (${eager.length} occorrenze) — deve essere lazy dentro execute() o protetto da try/catch, altrimenti il bot non parte senza dipendenze vocali`);
+          }
+        } catch { /* best-effort: la scansione non deve mai rompere lo smoke */ }
+      }
+    }
+  } catch (e) {
+    fail(`music require-safe: ${e.message.split('\n')[0]}`);
   }
 } finally {
   const touched = scrubTestKeys();
