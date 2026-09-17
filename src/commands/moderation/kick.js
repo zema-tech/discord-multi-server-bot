@@ -10,12 +10,17 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers),
   cooldown: 5,
   async execute(interaction) {
+    if (!interaction.guild) {
+      return interaction.reply({ content: '❌ Usa questo comando dentro un server.', flags: MessageFlags.Ephemeral });
+    }
     const user = interaction.options.getUser('utente');
-    const reason = interaction.options.getString('motivo') || 'Nessun motivo specificato';
+    const reason = (interaction.options.getString('motivo') || 'Nessun motivo specificato').slice(0, 1024);
     const member = await interaction.guild.members.fetch(user.id).catch(() => null);
     if (!member) return interaction.reply({ content: '❌ Utente non trovato nel server.', flags: MessageFlags.Ephemeral });
     if (user.id === interaction.user.id)
       return interaction.reply({ content: '❌ Non puoi espellere te stesso!', flags: MessageFlags.Ephemeral });
+    if (member.id === interaction.guild.ownerId && interaction.user.id !== interaction.guild.ownerId)
+      return interaction.reply({ content: '❌ Non puoi espellere il proprietario del server.', flags: MessageFlags.Ephemeral });
     if (!member.kickable)
       return interaction.reply({ content: '❌ Non ho i permessi per espellere questo utente.', flags: MessageFlags.Ephemeral });
     if (!hierarchyAllows(interaction, member))

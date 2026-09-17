@@ -13,14 +13,21 @@ module.exports = {
     // Sanitizza: record corrotti (livello negativo) mandavano in crash String.repeat
     const level = Number.isFinite(d.level) ? Math.max(0, Math.floor(d.level)) : 0;
     const need = Math.max(1, xpForLevel(level));
-    const xp = Number.isFinite(d.xp) ? Math.min(Math.max(0, d.xp), need) : 0;
+    const xp = Number.isFinite(d.xp) ? Math.min(Math.max(0, Math.floor(d.xp)), need) : 0;
     const msgCount = Number.isFinite(d.messageCount) ? Math.max(0, Math.floor(d.messageCount)) : 0;
-    const bar = '▓'.repeat(Math.round((xp / need) * 12)).padEnd(12, '░');
+    const ratio = need > 0 ? xp / need : 0;
+    const SIZE = 12;
+    const filled = Math.min(SIZE, Math.max(0, Math.round(ratio * SIZE)));
+    const bar = '█'.repeat(filled) + '░'.repeat(SIZE - filled);
+    const percent = Math.round(ratio * 100);
     const embed = new EmbedBuilder()
-      .setColor(0x5865f2)
+      .setColor(0x9b59b6)
       .setTitle(`⭐ Rank di ${user.username}`)
       .setThumbnail(user.displayAvatarURL())
-      .setDescription(`**Livello ${level}**\n\`${bar}\` ${xp}/${need} XP\n💬 Messaggi: **${msgCount}**`)
+      .setDescription(
+        `**Livello ${level.toLocaleString('it-IT')}** • **${percent}%**\n\`${bar}\`\n✨ **${xp.toLocaleString('it-IT')}** / **${need.toLocaleString('it-IT')}** XP\n💬 Messaggi: **${msgCount.toLocaleString('it-IT')}**`
+      )
+      .setFooter({ text: `Richiesto da ${interaction.user.tag}` })
       .setTimestamp();
     await interaction.reply({ embeds: [embed] });
   },

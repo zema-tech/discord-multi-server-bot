@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, MessageFlags, EmbedBuilder } = require('discord.js');
 const { getStarboard, setStarboard, disableStarboard } = require('../../database/starboard');
 
 module.exports = {
@@ -26,10 +26,13 @@ module.exports = {
     if (sub === 'mostra') {
       const c = getStarboard(interaction.guild.id);
       const canale = c.channelId ? `<#${c.channelId}>` : '— (disattivata)';
-      return interaction.reply({
-        content: `⭐ **Starboard**\n📺 Canale: ${canale}\n🔢 Soglia: **${c.threshold}**\n😀 Emoji: ${c.emoji}`,
-        flags: MessageFlags.Ephemeral,
-      });
+      const embed = new EmbedBuilder()
+        .setColor(c.channelId ? 0xfbd000 : 0x99aab5)
+        .setTitle('⭐ Starboard')
+        .setDescription(`📺 Canale: ${canale}\n🔢 Soglia: **${c.threshold}** reazioni\n😀 Emoji: ${c.emoji}\n\n💡 *I messaggi che raggiungono la soglia finiscono in bacheca!*`)
+        .setFooter({ text: interaction.guild.name.slice(0, 200) })
+        .setTimestamp();
+      return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     }
 
     // imposta
@@ -38,9 +41,11 @@ module.exports = {
     const emoji = (interaction.options.getString('emoji') || '⭐').trim().slice(0, 50);
 
     setStarboard(interaction.guild.id, { channelId: canale.id, threshold: soglia, emoji });
-    return interaction.reply({
-      content: `✅ Starboard impostata: canale ${canale}, soglia **${soglia}**, emoji ${emoji}.`,
-      flags: MessageFlags.Ephemeral,
-    });
+    const okEmbed = new EmbedBuilder()
+      .setColor(0x57f287)
+      .setTitle('⭐ Starboard attivata!')
+      .setDescription(`📺 Canale: ${canale}\n🔢 Soglia: **${soglia}** reazioni\n😀 Emoji: ${emoji}`)
+      .setTimestamp();
+    return interaction.reply({ embeds: [okEmbed], flags: MessageFlags.Ephemeral });
   },
 };

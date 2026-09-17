@@ -20,7 +20,13 @@ module.exports = {
   cooldown: 3,
   async execute(interaction) {
     const joke = JOKES[Math.floor(Math.random() * JOKES.length)];
-    const embed = new EmbedBuilder().setColor(0xfee75c).setTitle('😂 Barzelletta').setDescription(joke).setTimestamp();
+    const embed = new EmbedBuilder()
+      .setColor(0x3498db)
+      .setTitle('😂 Barzelletta del giorno')
+      .setThumbnail(interaction.user.displayAvatarURL())
+      .setDescription(`_${joke}_`)
+      .setFooter({ text: `Richiesto da ${interaction.user.tag}` })
+      .setTimestamp();
     await interaction.reply({ embeds: [embed] });
   },
 };

@@ -18,11 +18,11 @@ function previewEmbed(key) {
   const channelTotal = v.blueprint ? v.blueprint.categories.reduce((n, c) => n + c.channels.length, 0) : 0;
   return new EmbedBuilder()
     .setColor(0x5865f2)
-    .setTitle(`📐 Template ${t.label}`)
+    .setTitle(`📐 Template ${t.label}`.slice(0, 256))
     .setDescription(
-      `${t.description}\n\n${describeBlueprint(v.blueprint || t)}\n\n🎭 Ruoli: **${t.roles.length}** • 💬🔊 Canali: **${channelTotal}**`
+      `✨ *${t.description}*\n\n${describeBlueprint(v.blueprint || t)}\n\n🎭 Ruoli: **${t.roles.length}** • 💬🔊 Canali: **${channelTotal}**`
     )
-    .setFooter({ text: 'Usa /template applica per creare questa struttura (non cancella nulla di esistente)' })
+    .setFooter({ text: 'Usa /template applica per creare questa struttura (non cancella nulla di esistente)'.slice(0, 200) })
     .setTimestamp();
 }
 

@@ -42,10 +42,11 @@ module.exports = {
     const percentuale = hashDeterministico(`${a}|${b}`) % 101;
 
     const embed = new EmbedBuilder()
-      .setColor(0xeb459e)
+      .setColor(0x3498db)
       .setTitle('💘 Affinità di coppia')
-      .setDescription(`**${utente1}** ❤️ **${utente2}**\n\n**${percentuale}%**  \`${barra(percentuale)}\`\n\n_${commento(percentuale)}_`)
-      .setFooter({ text: 'Puro divertimento: il risultato è casuale-ma-stabile, non prendetelo sul serio!' })
+      .setThumbnail(utente1.displayAvatarURL())
+      .setDescription(`**${utente1}**  ❤️ VS ❤️  **${utente2}**\n\n💯 **${percentuale}%**  \`${barra(percentuale)}\`\n\n_${commento(percentuale)}_`)
+      .setFooter({ text: `Richiesto da ${interaction.user.tag} • Puro divertimento, non prendetelo sul serio!` })
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed] });

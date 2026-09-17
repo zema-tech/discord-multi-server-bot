@@ -38,14 +38,16 @@ module.exports = {
     const risposta = risposte[Math.floor(Math.random() * risposte.length)];
 
     const embed = new EmbedBuilder()
-      .setColor(0x000000)
+      .setColor(0x3498db)
       .setTitle('🎱 Palla Magica 8')
+      .setThumbnail(interaction.user.displayAvatarURL())
       .addFields(
         // Limite field Discord 1024 char: domande lunghe crasherebbero l'invio.
-        { name: 'Domanda', value: String(domanda || '').slice(0, 1024) || '(nessuna domanda)' },
-        { name: 'Risposta', value: risposta }
+        { name: '❓ Domanda', value: String(domanda || '').slice(0, 1024) || '(nessuna domanda)' },
+        { name: '🔮 Risposta', value: `**${risposta}**` }
       )
-      .setFooter({ text: `Richiesto da ${interaction.user.username}` });
+      .setFooter({ text: `Richiesto da ${interaction.user.tag}` })
+      .setTimestamp();
 
     await interaction.reply({ embeds: [embed] });
   },

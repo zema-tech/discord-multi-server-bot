@@ -39,23 +39,25 @@ module.exports = {
     const num = nextNumber(interaction.guild.id);
     const cfg = getGuild(interaction.guild.id);
     const embed = new EmbedBuilder()
-      .setColor(0x5865f2)
-      .setTitle(`💡 Suggerimento #${num} di ${interaction.user.tag}`)
-      .setDescription(text)
+      .setColor(0xfbd000)
+      .setTitle(`💡 Suggerimento #${num}`.slice(0, 256))
+      .setDescription(`${text}\n\n✅ Vota **a favore** • ❌ Vota **contro**\n💬 Discuti nel thread dedicato!`)
       .setThumbnail(interaction.user.displayAvatarURL())
-      .setFooter({ text: `Suggerimento #${num}` })
+      .setAuthor({ name: `${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
+      .setFooter({ text: `Suggerimento #${num} • In attesa di voti`.slice(0, 200) })
       .setTimestamp();
 
     if (cfg.suggestChannelId) {
       const ch = await interaction.guild.channels.fetch(cfg.suggestChannelId).catch(() => null);
       if (ch?.isTextBased()) {
-        const m = await ch.send({ embeds: [embed] });
-        await addVotesAndThread(m, `Suggerimento #${num} — discussione`);
+        const m = await ch.send({ embeds: [embed] }).catch(() => null);
+        if (!m) return interaction.reply({ content: '❌ Non riesco a inviare nel canale suggerimenti: controlla i miei permessi.', flags: MessageFlags.Ephemeral });
+        await addVotesAndThread(m, `💡 Suggerimento #${num} — discussione`.slice(0, 100));
         return interaction.reply({ content: `✅ Suggerimento #${num} inviato in ${ch}!`, flags: MessageFlags.Ephemeral });
       }
     }
     const msg = await interaction.reply({ embeds: [embed], withResponse: true });
     const message = msg.resource.message;
-    await addVotesAndThread(message, `Suggerimento #${num} — discussione`);
+    await addVotesAndThread(message, `💡 Suggerimento #${num} — discussione`.slice(0, 100));
   },
 };

@@ -7,7 +7,7 @@
 //   - `ready.js` avvia già `startTicketAutoclose(client)` ogni 15 minuti.
 // Nessun sottocomando /ticket viene creato qui per non confliggere con l'altro agente.
 
-const { getConfig, setConfig, saveTicket } = require('../database/tickets');
+const { getConfig, setConfig, saveTicket, removeTicket } = require('../database/tickets');
 const { doClose } = require('../handlers/ticketHandler');
 
 const AUTO_CLOSE_REASON = 'Chiusura automatica per inattività';
@@ -64,8 +64,13 @@ async function checkOnce(client) {
 
       try {
         const channel = await guild.channels.fetch(ticket.channelId).catch(() => null);
-        if (!channel) continue; // canale eliminato: salto senza crashare il ciclo
+        if (!channel) {
+          // Canale eliminato: elimina il ticket orfano dal DB invece di lasciarlo `open`.
+          try { removeTicket(guildId, ticket.channelId); } catch {}
+          continue;
+        }
         const botUser = client.user;
+        if (!botUser) continue;
         await doClose(channel, guild, ticket, botUser, AUTO_CLOSE_REASON);
         closed.push({ guildId, channelId: ticket.channelId, number: ticket.number });
       } catch (e) {

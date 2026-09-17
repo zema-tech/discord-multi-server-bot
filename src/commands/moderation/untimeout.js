@@ -10,10 +10,17 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
   cooldown: 3,
   async execute(interaction) {
+    if (!interaction.guild) {
+      return interaction.reply({ content: '❌ Usa questo comando dentro un server.', flags: MessageFlags.Ephemeral });
+    }
     const user = interaction.options.getUser('utente');
     const reason = interaction.options.getString('motivo') || 'Timeout rimosso';
     const member = await interaction.guild.members.fetch(user.id).catch(() => null);
     if (!member) return interaction.reply({ content: '❌ Utente non nel server.', flags: MessageFlags.Ephemeral });
+    if (!member.moderatable)
+      return interaction.reply({ content: '❌ Non posso moderare questo utente.', flags: MessageFlags.Ephemeral });
+    if (member.id === interaction.guild.ownerId && interaction.user.id !== interaction.guild.ownerId)
+      return interaction.reply({ content: '❌ Non puoi moderare il proprietario del server.', flags: MessageFlags.Ephemeral });
     if (!hierarchyAllows(interaction, member))
       return interaction.reply({ content: '❌ Ruolo uguale/superiore al tuo.', flags: MessageFlags.Ephemeral });
     try {

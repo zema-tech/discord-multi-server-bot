@@ -97,7 +97,8 @@ function collectDecision(msg, filter, onPick) {
 async function runStep(interaction, step, idx, total) {
   const guild = interaction.guild;
   const key = step.key;
-  const header = () => `🧙 **Passo ${idx + 1}/${total} — ${step.label}**\n📍 Stato attuale: ${safeStatus(step, guild.id)}\n\n${step.ask}`;
+  const progress = '▰'.repeat(idx + 1) + '▱'.repeat(total - idx - 1);
+  const header = () => `🧙 **Passo ${idx + 1}/${total} — ${step.label}**\n${progress}\n📍 Stato attuale: ${safeStatus(step, guild.id)}\n\n${step.ask}`;
 
   // ---- Automod: bottoni on/off ----
   if (key === 'automod') {
@@ -251,7 +252,7 @@ module.exports = {
     );
 
     await interaction.reply({
-      content: `🧙 **Setup guidato** — seleziona fino a **${maxSel}** voci e premi **Inizia**.\n⏱️ Hai 60 secondi per ogni passo; puoi saltare o annullare in qualsiasi momento.`,
+      content: `🧙 **Setup guidato** ✨\n▱▱▱▱▱ Seleziona fino a **${maxSel}** voci e premi **Inizia**.\n⏱️ Hai 60 secondi per ogni passo; puoi saltare o annullare in qualsiasi momento.`,
       components: [pickRow, pickBtns],
       flags: MessageFlags.Ephemeral,
     });
@@ -323,7 +324,7 @@ module.exports = {
         ? '\n\n⏱️ Tempo scaduto: sopra il riepilogo parziale. Rilancia `/wizard` per continuare.'
         : '\n\n🎉 Wizard completato!';
     await interaction.editReply({
-      content: `🧙 **Riepilogo setup**\n${lines.join('\n') || 'Nessuna modifica.'}${tail}`,
+      content: `🧙 **Riepilogo setup** ${closed === 'done' ? '🎉' : '📋'}\n${'▰'.repeat(Math.min(results.length, steps.length))}${'▱'.repeat(Math.max(0, steps.length - results.length))}\n${lines.join('\n') || 'Nessuna modifica.'}${tail}`,
       components: [],
     }).catch(() => {});
   },

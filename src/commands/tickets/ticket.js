@@ -145,10 +145,18 @@ module.exports = {
       const allowed = staff || ticket.ownerId === interaction.user.id;
       if (!allowed) return interaction.reply({ content: '❌ Solo il proprietario o lo staff.', flags: MessageFlags.Ephemeral });
       if (ticket.status !== 'open') return interaction.reply({ content: '❌ Ticket già chiuso.', flags: MessageFlags.Ephemeral });
-      const reason = interaction.options.getString('motivo') || 'Chiuso via comando';
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-      const closed = await doClose(interaction.channel, interaction.guild, ticket, interaction.user, reason);
-      return interaction.editReply(closed ? '✅ Ticket chiuso, transcript inviato nei log e al proprietario.' : '❌ Ticket già chiuso.');
+      const reason = (interaction.options.getString('motivo') || 'Chiuso via comando').slice(0, 500);
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
+      if (!interaction.deferred && !interaction.replied) {
+        return;
+      }
+      let closed = false;
+      try {
+        closed = await doClose(interaction.channel, interaction.guild, ticket, interaction.user, reason);
+      } catch {
+        return interaction.editReply('❌ Errore durante la chiusura del ticket.').catch(() => {});
+      }
+      return interaction.editReply(closed ? '✅ Ticket chiuso, transcript inviato nei log e al proprietario.' : '❌ Ticket già chiuso.').catch(() => {});
     }
 
     if (sub === 'riapri') {
@@ -170,12 +178,15 @@ module.exports = {
     if (sub === 'transcript') {
       const allowed = staff || ticket.ownerId === interaction.user.id;
       if (!allowed) return interaction.reply({ content: '❌ Non hai accesso.', flags: MessageFlags.Ephemeral });
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
+      if (!interaction.deferred && !interaction.replied) {
+        return;
+      }
       try {
         const file = await buildTranscript(interaction.channel);
-        return interaction.editReply({ content: `📝 Transcript del ticket #${ticket.number}:`, files: [file] });
+        return interaction.editReply({ content: `📝 Transcript del ticket #${ticket.number}:`, files: [file] }).catch(() => {});
       } catch {
-        return interaction.editReply('❌ Errore nella generazione del transcript.');
+        return interaction.editReply('❌ Errore nella generazione del transcript.').catch(() => {});
       }
     }
   },

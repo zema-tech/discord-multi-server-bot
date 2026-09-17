@@ -9,6 +9,9 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
   cooldown: 3,
   async execute(interaction) {
+    if (!interaction.guild) {
+      return interaction.reply({ content: '❌ Usa questo comando dentro un server.', flags: MessageFlags.Ephemeral });
+    }
     const secs = interaction.options.getInteger('secondi');
     const ch = interaction.options.getChannel('canale') || interaction.channel;
     if (!ch?.isTextBased?.() || typeof ch.setRateLimitPerUser !== 'function') {

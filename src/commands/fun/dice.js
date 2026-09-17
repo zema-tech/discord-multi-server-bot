@@ -1,5 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
+const FACCE_DADO = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('dice')
@@ -12,11 +14,19 @@ module.exports = {
     const qty = interaction.options.getInteger('quantita') ?? 1;
     const rolls = Array.from({ length: qty }, () => 1 + Math.floor(Math.random() * faces));
     const total = rolls.reduce((a, b) => a + b, 0);
+    const best = Math.max(...rolls);
+    const mostra = faces === 6 ? rolls.map((r) => FACCE_DADO[r - 1]).join(' ') : `🎲 ${rolls.join(' • ')}`;
     const embed = new EmbedBuilder()
-      .setColor(0x57f287)
+      .setColor(0x3498db)
       .setTitle(`🎲 Lancio di ${qty}d${faces}`)
-      .setDescription(`Risultati: **${rolls.join(', ')}**\nTotale: **${total}**`)
-      .setFooter({ text: `Lanciato da ${interaction.user.tag}` })
+      .setThumbnail(interaction.user.displayAvatarURL())
+      .setDescription(`**${mostra}**`)
+      .addFields(
+        { name: '🎯 Risultati', value: `**${rolls.join(', ')}**`, inline: true },
+        { name: '🏆 Totale', value: `**${total.toLocaleString('it-IT')}**`, inline: true },
+        { name: '⭐ Migliore', value: `**${best}**`, inline: true }
+      )
+      .setFooter({ text: `Richiesto da ${interaction.user.tag}` })
       .setTimestamp();
     await interaction.reply({ embeds: [embed] });
   },

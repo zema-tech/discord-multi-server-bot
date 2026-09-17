@@ -17,6 +17,23 @@ const STATE_COOKIE = 'pb_oauth_state';
 const STATE_MAX_AGE_SEC = 600; // 10 min: basta per completare il login
 const SESSION_DAYS = 7;
 const DISCORD_API = 'https://discord.com/api/v10';
+const FETCH_TIMEOUT_MS = 15000; // timeout per le chiamate OAuth verso discord.com
+
+/** fetch con timeout 15s: abort + errore chiaro in italiano. */
+async function fetchConTimeout(url, options = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (e) {
+    if (e && e.name === 'AbortError') {
+      throw new Error('Discord non risponde (timeout 15s), riprova più tardi.');
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 function cfg() {
   return {
@@ -139,7 +156,7 @@ async function exchangeCode(code) {
     code,
     redirect_uri: `${baseUrl}/callback`,
   });
-  const r = await fetch('https://discord.com/api/oauth2/token', {
+  const r = await fetchConTimeout('https://discord.com/api/oauth2/token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -158,7 +175,7 @@ async function exchangeCode(code) {
 
 /** GET autenticata alle API Discord. Lancia su HTTP non-ok. */
 async function discordApi(token, apiPath) {
-  const r = await fetch(`${DISCORD_API}${apiPath}`, {
+  const r = await fetchConTimeout(`${DISCORD_API}${apiPath}`, {
     headers: {
       Authorization: `Bearer ${token}`,
       'User-Agent': 'discord-multi-server-bot-dashboard/1.0',

@@ -13,7 +13,7 @@ module.exports = {
     const lastDaily = Number(data.lastDaily) || 0;
     if (now - lastDaily < COOLDOWN) {
       return interaction.reply({
-        content: `⏳ Prossimo daily <t:${Math.floor((lastDaily + COOLDOWN) / 1000)}:R>`,
+        content: `⏳ Prossimo daily <t:${Math.floor((lastDaily + COOLDOWN) / 1000)}:R> (<t:${Math.floor((lastDaily + COOLDOWN) / 1000)}:T>)`,
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -29,10 +29,16 @@ module.exports = {
       lastDaily: now,
       dailyStreak: streak,
     });
+    const nextTs = Math.floor((now + COOLDOWN) / 1000);
+    const flames = '🔥'.repeat(Math.min(streak, 10));
     const embed = new EmbedBuilder()
-      .setColor(0x57f287)
+      .setColor(0xffd700)
       .setTitle('🎁 Ricompensa giornaliera!')
-      .setDescription(`Hai ricevuto **${reward}** 🪙!\n🔥 Streak: **${streak}** giorni (+${bonus} bonus)`)
+      .setThumbnail(interaction.user.displayAvatarURL())
+      .setDescription(
+        `Hai ricevuto **${reward.toLocaleString('it-IT')}** 🪙!\n${flames}\n🔥 Streak: **${streak}** ${streak === 1 ? 'giorno' : 'giorni'} (+${bonus.toLocaleString('it-IT')} bonus)\n⏳ Prossimo bonus <t:${nextTs}:R> (<t:${nextTs}:T>)`
+      )
+      .setFooter({ text: `Richiesto da ${interaction.user.tag}` })
       .setTimestamp();
     await interaction.reply({ embeds: [embed] });
   },

@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, EmbedBuilder } = require('discord.js');
 const { listTriggers, addTrigger, removeTrigger, clearTriggers, MAX_TRIGGERS, MAX_RESPONSE } = require('../../database/autoresponder');
 
 module.exports = {
@@ -91,14 +91,18 @@ module.exports = {
             flags: MessageFlags.Ephemeral,
           });
         }
-        const lines = list.map((t, i) => {
+        const lines = list.slice(0, 20).map((t, i) => {
           const preview = t.response.length > 80 ? `${t.response.slice(0, 80)}…` : t.response;
-          return `\`${t.id}\` • **${t.mode}** • ${i + 1}. 🔑 \`${String(t.match).slice(0, 100)}\` → ${preview}`;
+          const modeEmoji = t.mode === 'regex' ? '🔣' : t.mode === 'exact' ? '🎯' : '🔍';
+          return `${modeEmoji} \`${t.id}\` • **${t.mode}** • ${i + 1}. 🔑 \`${String(t.match).slice(0, 100)}\` → ${preview}`;
         });
-        const header = `📝 **Auto-responder** (${list.length}/${MAX_TRIGGERS}):\n`;
-        let text = header + lines.join('\n');
-        if (text.length > 1900) text = `${text.slice(0, 1900)}…`;
-        return interaction.reply({ content: text, flags: MessageFlags.Ephemeral });
+        const embed = new EmbedBuilder()
+          .setColor(0x5865f2)
+          .setTitle(`📝 Auto-responder (${list.length}/${MAX_TRIGGERS})`.slice(0, 256))
+          .setDescription(lines.join('\n').slice(0, 4000) + (list.length > 20 ? `\n\n…e altri **${list.length - 20}** trigger.` : ''))
+          .setFooter({ text: '🔍 include = contiene • 🎯 exact = esatta • 🔣 regex = pattern'.slice(0, 200) })
+          .setTimestamp();
+        return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
       }
 
       // pulisci

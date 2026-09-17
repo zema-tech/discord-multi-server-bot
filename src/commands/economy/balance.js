@@ -10,16 +10,20 @@ module.exports = {
   async execute(interaction) {
     const user = interaction.options.getUser('utente') || interaction.user;
     const data = getUser(interaction.guild.id, user.id);
-    const total = (data.balance || 0) + (data.bank || 0);
+    const wallet = Number.isFinite(data.balance) ? data.balance : 0;
+    const bank = Number.isFinite(data.bank) ? data.bank : 0;
+    const total = wallet + bank;
+    const fmt = (n) => n.toLocaleString('it-IT');
     const embed = new EmbedBuilder()
-      .setColor(0xfee75c)
+      .setColor(0xffd700)
       .setTitle(`💰 Saldo di ${user.username}`)
       .setThumbnail(user.displayAvatarURL())
       .addFields(
-        { name: '👛 Portafoglio', value: `**${data.balance}** 🪙`, inline: true },
-        { name: '🏦 Banca', value: `**${data.bank || 0}** 🪙`, inline: true },
-        { name: '💎 Totale', value: `**${total}** 🪙`, inline: true }
+        { name: '👛 Portafoglio', value: `**${fmt(wallet)}** 🪙`, inline: true },
+        { name: '🏦 Banca', value: `**${fmt(bank)}** 🪙`, inline: true },
+        { name: '💎 Totale', value: `**${fmt(total)}** 🪙`, inline: true }
       )
+      .setFooter({ text: `Richiesto da ${interaction.user.tag}` })
       .setTimestamp();
     await interaction.reply({ embeds: [embed] });
   },

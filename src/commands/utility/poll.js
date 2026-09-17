@@ -25,17 +25,28 @@ module.exports = {
     }
 
     const emoji = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
-    const desc = options.map((o, i) => `${emoji[i]} ${o}`).join('\n');
+    const desc = options.map((o, i) => `${emoji[i]} **${o}**`).join('\n');
     const endsAt = autoCloseMs ? Date.now() + autoCloseMs : null;
     const embed = new EmbedBuilder()
       .setColor(0x5865f2)
       .setTitle(`📊 ${question}`)
-      .setDescription(desc + (endsAt ? `\n\n⏳ Chiude <t:${Math.floor(endsAt / 1000)}:R>` : ''))
-      .setFooter({ text: `Sondaggio di ${interaction.user.tag}` })
+      .setDescription(`🗳️ **Vota con le reazioni!**\n\n${desc}` + (endsAt ? `\n\n⏳ Chiude <t:${Math.floor(endsAt / 1000)}:R> • 🗳️ 0 voti finora` : ''))
+      .setFooter({ text: `Sondaggio di ${interaction.user.tag} • ${options.length} opzioni`.slice(0, 200) })
       .setTimestamp();
-    const msg = await interaction.reply({ embeds: [embed], withResponse: true });
-    const message = msg.resource.message;
-    for (let i = 0; i < options.length; i++) await message.react(emoji[i]);
+    let message;
+    try {
+      const msg = await interaction.reply({ embeds: [embed], withResponse: true });
+      message = msg.resource.message;
+    } catch {
+      return;
+    }
+    for (let i = 0; i < options.length; i++) {
+      const ok = await message.react(emoji[i]).catch(() => null);
+      if (!ok && i === 0) {
+        await interaction.followUp({ content: '⚠️ Non riesco ad aggiungere le reazioni: controlla i miei permessi nel canale (i voti potrebbero non funzionare).', flags: MessageFlags.Ephemeral }).catch(() => {});
+        break;
+      }
+    }
 
     // Chiusura automatica: conta reazioni e pubblica i risultati.
     if (autoCloseMs) {
@@ -51,13 +62,18 @@ module.exports = {
           const total = counts.reduce((a, b) => a + b, 0);
           const max = Math.max(...counts);
           const winnerIdx = counts.map((c, i) => (c === max && max > 0 ? i : -1)).filter((i) => i >= 0);
-          const lines = options.map((o, i) => `${emoji[i]} ${o}: **${counts[i]}** voti`).join('\n');
-          const winnerLine = max <= 0 ? 'Nessun voto ricevuto.' : `🏆 Vincitore: **${winnerIdx.map((i) => options[i]).join('**, **')}** (${max} voti)`;
+          const pctBar = (c) => {
+            const pct = total > 0 ? Math.round((c / total) * 100) : 0;
+            const filled = Math.round(pct / 10);
+            return `\`[${'█'.repeat(filled)}${'░'.repeat(10 - filled)}]\` ${pct}%`;
+          };
+          const lines = options.map((o, i) => `${emoji[i]} **${o}**: **${counts[i]}** voti\n${pctBar(counts[i])}`).join('\n');
+          const winnerLine = max <= 0 ? '😶 Nessun voto ricevuto.' : `🏆 **Vincitore${winnerIdx.length > 1 ? 'i' : ''}: ${winnerIdx.map((i) => `**${options[i]}**`).join(', ')}** (${max} voti) 🎉`;
           const res = new EmbedBuilder()
             .setColor(0x57f287)
-            .setTitle(`📊 Risultati: ${question}`)
-            .setDescription(`${lines}\n\nTotale voti: **${total}**\n${winnerLine}`)
-            .setFooter({ text: `Sondaggio di ${interaction.user.tag}` })
+            .setTitle(`📊 Risultati: ${question}`.slice(0, 256))
+            .setDescription(`🗳️ **Totale voti: ${total}**\n\n${lines}\n\n${winnerLine}`.slice(0, 4000))
+            .setFooter({ text: `Sondaggio di ${interaction.user.tag}`.slice(0, 200) })
             .setTimestamp();
           await fresh.reply({ embeds: [res] }).catch(() => message.channel.send({ embeds: [res] }).catch(() => {}));
         } catch (e) {

@@ -33,11 +33,17 @@ module.exports = {
     const channels = guild.channels.cache.filter((c) => typeof c.isTextBased === 'function' && c.isTextBased() && (typeof c.isThread !== 'function' || !c.isThread()));
 
     if (sub === 'on') {
-      const motivo = interaction.options.getString('motivo') || 'Nessun motivo specificato';
+      const motivo = (interaction.options.getString('motivo') || 'Nessun motivo specificato').slice(0, 500);
+      if (getLockdown(guild.id)) {
+        return interaction.reply({ content: '❌ Lockdown già attivo su questo server. Usa `/lockdown off` per ripristinare prima.', flags: MessageFlags.Ephemeral });
+      }
       if (channels.size === 0) {
         return interaction.reply({ content: '❌ Nessun canale testuale trovato.', flags: MessageFlags.Ephemeral });
       }
-      await interaction.deferReply();
+      await interaction.deferReply().catch(() => null);
+      if (!interaction.deferred && !interaction.replied) {
+        return;
+      }
 
       // 1. Snapshot degli overwrites correnti di @everyone/SendMessages
       const snapshot = {};
@@ -65,7 +71,7 @@ module.exports = {
       let msg = `🔒 **Lockdown attivato**: bloccati **${ok}/${channels.size}** canali.\n📝 Motivo: ${motivo}`;
       if (failed.length > 0) msg += `\n⚠️ Non bloccati (${failed.length}): ${failed.slice(0, 10).join(', ')}`;
       msg += '\nPer ripristinare: `/lockdown off`.';
-      return interaction.editReply(msg);
+      return interaction.editReply(msg.slice(0, 2000)).catch(() => {});
     }
 
     // sub === 'off'
@@ -73,14 +79,21 @@ module.exports = {
     if (!snap) {
       return interaction.reply({ content: '❌ Nessun lockdown attivo su questo server.', flags: MessageFlags.Ephemeral });
     }
-    await interaction.deferReply();
+    await interaction.deferReply().catch(() => null);
+    if (!interaction.deferred && !interaction.replied) {
+      return;
+    }
 
     let ok = 0;
     const total = Object.keys(snap.channels).length;
     const failed = [];
+    const missing = [];
     for (const [channelId, prev] of Object.entries(snap.channels)) {
       const ch = guild.channels.cache.get(channelId) ?? await guild.channels.fetch(channelId).catch(() => null);
-      if (!ch) continue;
+      if (!ch) {
+        missing.push(channelId);
+        continue;
+      }
       try {
         const value = prev === 'allow' ? true : prev === 'deny' ? false : null;
         await ch.permissionOverwrites.edit(everyoneId, { SendMessages: value });
@@ -93,6 +106,7 @@ module.exports = {
 
     let msg = `🔓 **Lockdown terminato**: ripristinati **${ok}/${total}** canali.`;
     if (failed.length > 0) msg += `\n⚠️ Non ripristinati (${failed.length}): ${failed.slice(0, 10).join(', ')}`;
-    return interaction.editReply(msg);
+    if (missing.length > 0) msg += `\nℹ️ Canali eliminati durante il lockdown (${missing.length}): non ripristinabili.`;
+    return interaction.editReply(msg.slice(0, 2000)).catch(() => {});
   },
 };

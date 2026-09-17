@@ -29,7 +29,7 @@ function mentionRoles(roleIds) {
 }
 
 function listEmbed(title, description, color = 0x5865f2) {
-  return new EmbedBuilder().setColor(color).setTitle(title).setDescription(description).setTimestamp();
+  return new EmbedBuilder().setColor(color).setTitle(title.slice(0, 256)).setDescription(description.slice(0, 4000)).setTimestamp();
 }
 
 module.exports = {
@@ -202,13 +202,13 @@ module.exports = {
           flags: MessageFlags.Ephemeral,
         });
       }
-      const righe = nomi.map((cmd) => `\`/${cmd}\` → ${mentionRoles(tutti[cmd].roleIds)}`).join('\n');
+      const righe = nomi.map((cmd) => `🔐 \`/${cmd}\` → ${mentionRoles(tutti[cmd].roleIds)}`).join('\n');
       return interaction.reply({
         embeds: [
           listEmbed(
             `🔐 Permessi personalizzati (${nomi.length})`,
-            `${righe}\n\n👑 Gli Amministratori restano sempre esclusi dal blocco.`
-          ),
+            `✨ **${nomi.length} comandi protetti** in questo server:\n\n${righe}\n\n👑 Gli Amministratori restano sempre esclusi dal blocco.`
+          ).setFooter({ text: `Usa /permessi mostra comando:<nome> per il dettaglio`.slice(0, 200) }),
         ],
       });
     }

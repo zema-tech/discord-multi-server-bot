@@ -54,15 +54,15 @@ module.exports = {
       if (creatingRooms.has(lockKey)) {
         return interaction.reply({ content: '⏳ Creazione della stanza già in corso, attendi…', flags: MessageFlags.Ephemeral });
       }
-      const mie = getUserRooms(guildId, interaction.user.id);
-      if (mie.length >= MAX_PER_USER) {
-        return interaction.reply({
-          content: `❌ Hai già **${MAX_PER_USER}** stanze attive. Elimina una stanza prima di crearne una nuova.`,
-          flags: MessageFlags.Ephemeral,
-        });
-      }
       creatingRooms.add(lockKey);
       try {
+        const mie = getUserRooms(guildId, interaction.user.id);
+        if (mie.length >= MAX_PER_USER) {
+          return interaction.reply({
+            content: `❌ Hai già **${MAX_PER_USER}** stanze attive. Elimina una stanza prima di crearne una nuova.`,
+            flags: MessageFlags.Ephemeral,
+          });
+        }
         const tipo = interaction.options.getString('tipo') || 'testuale';
         const nome = (interaction.options.getString('nome') || `stanza-${interaction.user.username}`)
           .trim().slice(0, 100) || `stanza-${interaction.user.username}`;
@@ -116,12 +116,15 @@ module.exports = {
       if (user.id === room.ownerId) {
         return interaction.reply({ content: '❌ È il proprietario della stanza.', flags: MessageFlags.Ephemeral });
       }
-      if (user.bot) {
+      if (sub === 'aggiungi' && user.bot) {
         return interaction.reply({ content: '❌ Non puoi aggiungere un bot.', flags: MessageFlags.Ephemeral });
       }
       try {
         if (sub === 'aggiungi') {
-          await interaction.channel.permissionOverwrites.edit(user.id, { ViewChannel: true }, { reason: `Aggiunto da ${interaction.user.tag}` });
+          const overwrites = room.type === 'vocale'
+            ? { ViewChannel: true, Connect: true, Speak: true }
+            : { ViewChannel: true };
+          await interaction.channel.permissionOverwrites.edit(user.id, overwrites, { reason: `Aggiunto da ${interaction.user.tag}` });
           return interaction.reply(`✅ ${user} aggiunto alla stanza.`);
         }
         await interaction.channel.permissionOverwrites.delete(user.id, `Rimosso da ${interaction.user.tag}`);

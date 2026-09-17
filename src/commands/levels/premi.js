@@ -28,10 +28,17 @@ module.exports = {
       if (!list.length) {
         return interaction.reply({ content: '📭 Nessun premio livello configurato. Usa `/premi imposta`.', flags: MessageFlags.Ephemeral });
       }
+      // Micro-fix: con tanti premi la description supererebbe il limite 4096 char.
+      const ordinati = [...list].sort((a, b) => a.level - b.level);
+      const MAX = 25;
+      const righe = ordinati.slice(0, MAX).map((r) => `⭐ Livello **${r.level}** → <@&${r.roleId}>`);
+      if (ordinati.length > MAX) righe.push(`…e altri **${ordinati.length - MAX}** premi.`);
       const embed = new EmbedBuilder()
-        .setColor(0xf1c40f)
+        .setColor(0x9b59b6)
         .setTitle('🏆 Premi livello')
-        .setDescription(list.map((r) => `Livello **${r.level}** → <@&${r.roleId}>`).join('\n'))
+        .setThumbnail(interaction.guild.iconURL() || interaction.user.displayAvatarURL())
+        .setDescription(righe.join('\n').slice(0, 4096))
+        .setFooter({ text: `Richiesto da ${interaction.user.tag}` })
         .setTimestamp();
       return interaction.reply({ embeds: [embed] });
     }

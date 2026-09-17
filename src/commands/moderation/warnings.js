@@ -17,6 +17,9 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
   cooldown: 3,
   async execute(interaction) {
+    if (!interaction.guild) {
+      return interaction.reply({ content: '❌ Usa questo comando dentro un server.', flags: MessageFlags.Ephemeral });
+    }
     const sub = interaction.options.getSubcommand();
     const user = interaction.options.getUser('utente');
 

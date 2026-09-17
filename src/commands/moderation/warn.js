@@ -11,11 +11,16 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
   cooldown: 3,
   async execute(interaction) {
+    if (!interaction.guild) {
+      return interaction.reply({ content: '❌ Usa questo comando dentro un server.', flags: MessageFlags.Ephemeral });
+    }
     const user = interaction.options.getUser('utente');
-    const reason = interaction.options.getString('motivo');
+    const reason = interaction.options.getString('motivo').slice(0, 1024);
     if (user.bot) return interaction.reply({ content: '❌ Non puoi avvisare un bot.', flags: MessageFlags.Ephemeral });
 
     const member = interaction.guild.members.cache.get(user.id) ?? await interaction.guild.members.fetch(user.id).catch(() => null);
+    if (member && member.id === interaction.guild.ownerId && interaction.user.id !== interaction.guild.ownerId)
+      return interaction.reply({ content: '❌ Non puoi avvisare il proprietario del server.', flags: MessageFlags.Ephemeral });
     if (member && !hierarchyAllows(interaction, member))
       return interaction.reply({ content: '❌ Ruolo uguale/superiore al tuo.', flags: MessageFlags.Ephemeral });
 

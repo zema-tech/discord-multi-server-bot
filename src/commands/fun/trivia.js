@@ -45,9 +45,11 @@ module.exports = {
     });
 
     const embed = new EmbedBuilder()
-      .setColor(0x5865f2)
+      .setColor(0x3498db)
       .setTitle('🧠 Trivia — hai 20 secondi!')
-      .setDescription(`**${domanda.q}**\n\n${domanda.risposte.map((r, i) => `${LETTERE[i]} — ${r}`).join('\n')}`)
+      .setThumbnail(interaction.user.displayAvatarURL())
+      .setDescription(`**${domanda.q}**\n\n${domanda.risposte.map((r, i) => `${LETTERE[i]} **${'ABCD'[i]}** — ${r}`).join('\n')}`)
+      .addFields({ name: '🏆 Punteggio', value: 'Risposta corretta = **+1 punto** • sbagliata/scaduta = **0 punti**', inline: false })
       .setFooter({ text: `Sfida di ${interaction.user.tag} • Rispondi con i bottoni` })
       .setTimestamp();
 
@@ -90,14 +92,20 @@ module.exports = {
 
       const esito = new EmbedBuilder()
         .setColor(vittoria ? 0x57f287 : 0xed4245)
-        .setTitle(vittoria ? '🎉 Risposta corretta!' : '❌ Risposta sbagliata!')
-        .setDescription(`**${domanda.q}**\n\nLa risposta giusta era **${'ABCD'[domanda.corretta]} — ${domanda.risposte[domanda.corretta]}**.`)
+        .setTitle(vittoria ? '🎉 Risposta corretta! +1 punto' : '❌ Risposta sbagliata! 0 punti')
+        .setThumbnail(interaction.user.displayAvatarURL())
+        .setDescription(`**${domanda.q}**`)
+        .addFields(
+          { name: '🫵 La tua risposta', value: `${LETTERE[scelta] || '❔'} **${'ABCD'[scelta] || '?'}** — ${domanda.risposte[scelta] || '*non valida*'}`, inline: false },
+          { name: '✅ Risposta giusta', value: `${LETTERE[domanda.corretta]} **${'ABCD'[domanda.corretta]}** — ${domanda.risposte[domanda.corretta]}`, inline: false },
+          { name: '🏆 Punteggio round', value: vittoria ? '**+1 punto** — cervellone! 🧠' : '**0 punti** — ritenta con `/trivia`! 💔', inline: false }
+        )
         .setFooter({ text: `Giocatore: ${interaction.user.tag}` })
         .setTimestamp();
 
       await i.update({ embeds: [esito], components: [disabilitati] });
       await i.followUp({
-        content: vittoria ? '🏆 **Hai vinto!** Complimenti, cervellone!' : '💔 **Hai perso!** Ritenta con `/trivia`.',
+        content: vittoria ? '🏆 **Hai vinto! (+1 punto)** Complimenti, cervellone!' : '💔 **Hai perso! (0 punti)** Ritenta con `/trivia`.',
         flags: MessageFlags.Ephemeral,
       });
       collector.stop('risposto');
@@ -118,8 +126,13 @@ module.exports = {
       });
       const scaduto = new EmbedBuilder()
         .setColor(0xfee75c)
-        .setTitle('⏰ Tempo scaduto!')
-        .setDescription(`**${domanda.q}**\n\nLa risposta giusta era **${'ABCD'[domanda.corretta]} — ${domanda.risposte[domanda.corretta]}**.\nRiprova con \`/trivia\`!`)
+        .setTitle('⏰ Tempo scaduto! 0 punti')
+        .setThumbnail(interaction.user.displayAvatarURL())
+        .setDescription(`**${domanda.q}**`)
+        .addFields(
+          { name: '✅ Risposta giusta', value: `${LETTERE[domanda.corretta]} **${'ABCD'[domanda.corretta]}** — ${domanda.risposte[domanda.corretta]}`, inline: false },
+          { name: '🏆 Punteggio round', value: '**0 punti** — riprova con `/trivia`!', inline: false }
+        )
         .setFooter({ text: `Giocatore: ${interaction.user.tag}` })
         .setTimestamp();
       await interaction.editReply({ embeds: [scaduto], components: [disabilitati] }).catch(() => {});

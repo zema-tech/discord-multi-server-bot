@@ -30,14 +30,21 @@ function dropGiveaway(messageId) {
   }
 }
 
-function buildEmbed({ prize, winners, endsAt, startedByTag, roleId, halfTime = false }) {
-  const roleLine = roleId ? `\nRequisito: ruolo <@&${roleId}>` : '';
-  const midLine = halfTime ? '\n⏳ Siamo a metà tempo: reagisci ora!' : '';
+function barProgress(endsAt, duration) {
+  const ratio = duration > 0 ? Math.max(0, Math.min(1, (endsAt - Date.now()) / duration)) : 0;
+  const left = Math.round(ratio * 10);
+  return `\`[${'█'.repeat(10 - left)}${'░'.repeat(left)}]\``;
+}
+
+function buildEmbed({ prize, winners, endsAt, startedByTag, roleId, halfTime = false, durationMs = null }) {
+  const roleLine = roleId ? `\n🔒 Requisito: ruolo <@&${roleId}>` : '';
+  const midLine = halfTime ? '\n⏳ **Siamo a metà tempo: reagisci ora!**' : '';
+  const prog = durationMs ? `\n${barProgress(endsAt, durationMs)}` : '';
   return new EmbedBuilder()
-    .setColor(0xeb459e)
-    .setTitle(`🎉 GIVEAWAY: ${prize}`)
-    .setDescription(`Reagisci con 🎉 per partecipare!\nVincitori: **${winners}**${roleLine}\nTermina: <t:${Math.floor(endsAt / 1000)}:R>${midLine}`)
-    .setFooter({ text: `Avviato da ${startedByTag}` })
+    .setColor(halfTime ? 0xfee75c : 0xeb459e)
+    .setTitle(`🎉 GIVEAWAY: ${prize}`.slice(0, 256))
+    .setDescription(`🎊 **Reagisci con 🎉 per partecipare!**\n\n🏆 Vincitori: **${winners}**${roleLine}\n⏰ Termina: <t:${Math.floor(endsAt / 1000)}:R> (<t:${Math.floor(endsAt / 1000)}:F>)${midLine}${prog}`.slice(0, 4000))
+    .setFooter({ text: `Avviato da ${startedByTag}`.slice(0, 200) })
     .setTimestamp(endsAt);
 }
 
@@ -62,7 +69,7 @@ module.exports = {
       return interaction.reply({ content: '❌ Durata non valida (min 10s, max 7g). Esempi: `10m`, `2h`, `1d`.', flags: MessageFlags.Ephemeral });
 
     const endsAt = Date.now() + duration;
-    const embed = buildEmbed({ prize, winners, endsAt, startedByTag: interaction.user.tag, roleId: role?.id ?? null });
+    const embed = buildEmbed({ prize, winners, endsAt, startedByTag: interaction.user.tag, roleId: role?.id ?? null, durationMs: duration });
     const msg = await interaction.reply({ embeds: [embed], withResponse: true });
     const message = msg.resource.message;
     // Senza permesso "Aggiungi reazioni" il giveaway nascerebbe morto: errore chiaro invece di crash.
@@ -87,7 +94,7 @@ module.exports = {
     // Embed live: un solo edit a metà tempo (countdown testuale, niente spam di edit).
     if (duration >= 20000) {
       const halfTimer = setTimeout(() => {
-        message.edit({ embeds: [buildEmbed({ prize, winners, endsAt, startedByTag: interaction.user.tag, roleId: role?.id ?? null, halfTime: true })] }).catch(() => {});
+        message.edit({ embeds: [buildEmbed({ prize, winners, endsAt, startedByTag: interaction.user.tag, roleId: role?.id ?? null, halfTime: true, durationMs: duration })] }).catch(() => {});
       }, Math.floor(duration / 2));
       halfTimer.unref?.();
     }
@@ -115,7 +122,14 @@ module.exports = {
         for (let i = 0; i < Math.min(winners, arr.length); i++) {
           picked.push(arr.splice(Math.floor(Math.random() * arr.length), 1)[0]);
         }
-        await message.reply(`🎉 **GIVEAWAY TERMINATO!** Premio: **${prize}**\nVincitori: ${picked.join(', ')} 🎊`);
+        const totalEntries = users.size;
+        const winEmbed = new EmbedBuilder()
+          .setColor(0xffd700)
+          .setTitle('🎉 GIVEAWAY TERMINATO!'.slice(0, 256))
+          .setDescription(`🏆 **Premio: ${prize}**\n\n👑 **Vincitore${picked.length > 1 ? 'i' : ''}:** ${picked.join(', ')} 🎊\n\n👥 Partecipanti: **${totalEntries}** • 🎟️ Estratti: **${picked.length}/${winners}**`.slice(0, 4000))
+          .setFooter({ text: `Giveaway avviato da ${interaction.user.tag}`.slice(0, 200) })
+          .setTimestamp();
+        await message.reply({ embeds: [winEmbed], content: `🎉 ${picked.join(' ')} congratulazioni!` }).catch(() => message.channel.send({ embeds: [winEmbed] }).catch(() => {}));
       } catch (e) {
         console.error('giveaway end:', e.message);
       } finally {

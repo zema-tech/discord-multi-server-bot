@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
 const { getConfig, setConfig } = require('../../database/aiConfig');
+const { aiStatus } = require('../../utils/ai');
 
 function statoEmoji(v) {
   return v ? '✅ attivata' : '❌ disattivata';
@@ -9,10 +10,16 @@ function mostraEmbed(cfg) {
   const prompt = cfg.systemPrompt && cfg.systemPrompt.trim()
     ? cfg.systemPrompt.trim().slice(0, 1000)
     : '— (default del bot)';
+  let providerLine = '—';
+  try {
+    const st = aiStatus();
+    providerLine = `${st.label} (${st.model})${st.free ? ' — gratis, nessuna chiave' : ''}`;
+  } catch {}
   return new EmbedBuilder()
     .setColor(0x5865f2)
     .setTitle('🤖 Configurazione AI')
     .setDescription(
+      `🧠 Provider: **${providerLine}**\n` +
       `💬 Risposta alle menzioni: **${cfg.mentionReply ? 'ON' : 'OFF'}**\n` +
       `🛡️ Automod AI: **${cfg.automodAI ? 'ON' : 'OFF'}**\n` +
       `🎫 AI nei ticket: **${cfg.ticketAI ? 'ON' : 'OFF'}**\n` +

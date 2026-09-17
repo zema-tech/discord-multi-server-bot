@@ -1,12 +1,17 @@
-const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, EmbedBuilder } = require('discord.js');
 const { getConfig, setConfig, addRole, removeRole } = require('../../database/autorole');
 
-function formatStato(guild, cfg) {
-  const stato = cfg.enabled ? '✅ ATTIVO' : '❌ DISATTIVO';
+function statoEmbed(guild, cfg) {
+  const stato = cfg.enabled ? '✅ ATTIVO 🟢' : '❌ DISATTIVO 🔴';
   const ruoli = cfg.roleIds.length
-    ? cfg.roleIds.map((id) => `<@&${id}>`).join(', ')
+    ? cfg.roleIds.map((id) => `<@&${id}>`).join(' ').slice(0, 1000)
     : '— (nessun ruolo configurato)';
-  return `🎭 **Autorole — ${stato}**\n👥 Ruoli (${cfg.roleIds.length}): ${ruoli}\n⏳ Ritardo: **${cfg.delaySeconds}s**`;
+  return new EmbedBuilder()
+    .setColor(cfg.enabled ? 0x57f287 : 0x99aab5)
+    .setTitle(`🎭 Autorole — ${stato}`.slice(0, 256))
+    .setDescription(`👥 **Ruoli (${cfg.roleIds.length}):**\n${ruoli}\n\n⏳ Ritardo: **${cfg.delaySeconds}s**\n💡 *I nuovi membri ricevono questi ruoli in automatico!*`)
+    .setFooter({ text: guild.name.slice(0, 200) })
+    .setTimestamp();
 }
 
 module.exports = {
@@ -36,14 +41,15 @@ module.exports = {
 
     if (sub === 'lista') {
       const cfg = getConfig(guildId);
-      return interaction.reply({ content: formatStato(interaction.guild, cfg), flags: MessageFlags.Ephemeral });
+      return interaction.reply({ embeds: [statoEmbed(interaction.guild, cfg)], flags: MessageFlags.Ephemeral });
     }
 
     if (sub === 'attiva') {
       const stato = interaction.options.getBoolean('stato');
       const cfg = setConfig(guildId, { enabled: stato });
       return interaction.reply({
-        content: `🎭 Autorole **${stato ? 'attivato' : 'disattivato'}**.\n\n${formatStato(interaction.guild, cfg)}`,
+        content: `🎭 Autorole **${stato ? 'attivato 🟢' : 'disattivato 🔴'}**.`,
+        embeds: [statoEmbed(interaction.guild, cfg)],
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -68,10 +74,11 @@ module.exports = {
       }
       const { added, config } = addRole(guildId, ruolo.id);
       if (!added) {
-        return interaction.reply({ content: `⚠️ ${ruolo} è già tra i ruoli automatici.\n\n${formatStato(interaction.guild, config)}`, flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: `⚠️ ${ruolo} è già tra i ruoli automatici.`, embeds: [statoEmbed(interaction.guild, config)], flags: MessageFlags.Ephemeral });
       }
       return interaction.reply({
-        content: `✅ ${ruolo} verrà assegnato ai nuovi membri.\n\n${formatStato(interaction.guild, config)}`,
+        content: `✅ ${ruolo} verrà assegnato ai nuovi membri.`,
+        embeds: [statoEmbed(interaction.guild, config)],
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -80,10 +87,11 @@ module.exports = {
       const ruolo = interaction.options.getRole('ruolo');
       const { removed, config } = removeRole(guildId, ruolo.id);
       if (!removed) {
-        return interaction.reply({ content: `⚠️ ${ruolo} non è tra i ruoli automatici.\n\n${formatStato(interaction.guild, config)}`, flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: `⚠️ ${ruolo} non è tra i ruoli automatici.`, embeds: [statoEmbed(interaction.guild, config)], flags: MessageFlags.Ephemeral });
       }
       return interaction.reply({
-        content: `✅ ${ruolo} rimosso dai ruoli automatici.\n\n${formatStato(interaction.guild, config)}`,
+        content: `✅ ${ruolo} rimosso dai ruoli automatici.`,
+        embeds: [statoEmbed(interaction.guild, config)],
         flags: MessageFlags.Ephemeral,
       });
     }

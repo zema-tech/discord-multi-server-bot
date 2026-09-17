@@ -31,7 +31,8 @@ module.exports = {
 
       await interaction.reply({ content: `⏰ Ok! Pubblicherò il promemoria in ${ch} <t:${Math.floor((Date.now() + delay) / 1000)}:R>.`, flags: MessageFlags.Ephemeral });
       const timer = setTimeout(() => {
-        ch.send(`⏰ ${interaction.user}, promemoria: **${text}**`).catch(() => {
+        const embed = new EmbedBuilder().setColor(0xfee75c).setTitle('⏰ Promemoria').setDescription(`**${text}**`.slice(0, 4000)).setFooter({ text: `Per ${interaction.user.tag}`.slice(0, 200) }).setTimestamp();
+        ch.send({ content: `⏰ ${interaction.user}`, embeds: [embed] }).catch(() => {
           interaction.followUp({ content: `⏰ ${interaction.user}, promemoria: **${text}** (non sono riuscito a scrivere in ${ch})`, flags: MessageFlags.Ephemeral }).catch(() => {});
         });
       }, delay);
@@ -39,7 +40,8 @@ module.exports = {
       return;
     }
 
-    await interaction.reply(`⏰ Ok! Ti ricorderò <t:${Math.floor((Date.now() + delay) / 1000)}:R>: **${text}**`);
+    const dmEmbed = new EmbedBuilder().setColor(0xfee75c).setTitle('⏰ Promemoria impostato!').setDescription(`📝 **${text}**\n\n🔔 Ti avviserò <t:${Math.floor((Date.now() + delay) / 1000)}:R> in DM.`).setTimestamp();
+    await interaction.reply({ embeds: [dmEmbed] });
     const timer = setTimeout(() => {
       interaction.user.send(`⏰ **Promemoria** (${interaction.guild.name}): ${text}`).catch(() => {
         interaction.followUp({ content: `⏰ ${interaction.user}, promemoria: **${text}**`, flags: MessageFlags.Ephemeral }).catch(() => {});

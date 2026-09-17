@@ -43,12 +43,14 @@ module.exports = {
         }
         const lines = top.map((e, i) => {
           const medal = MEDALS[i] || `\`${i + 1}.\``;
-          return `${medal} <@${e.userId}> — **${e.valid}** validi (✅ ${e.joins} / ❌ ${e.leaves})`;
+          const crown = i === 0 ? ' 👑' : '';
+          return `${medal} <@${e.userId}> — **${e.valid}** validi${crown} (✅ ${e.joins} / ❌ ${e.leaves})`;
         });
         const embed = new EmbedBuilder()
-          .setColor(0x5865f2)
-          .setTitle(`📊 Classifica inviti — ${interaction.guild.name}`)
-          .setDescription(lines.join('\n').slice(0, 4000))
+          .setColor(0xfbd000)
+          .setTitle(`📊 Classifica inviti — ${interaction.guild.name}`.slice(0, 256))
+          .setDescription(`🏆 **Top ${top.length} invitanti**\n\n${lines.join('\n')}`.slice(0, 4000))
+          .setFooter({ text: `Totale invitanti tracciati: ${top.length}`.slice(0, 200) })
           .setTimestamp();
         return interaction.reply({ embeds: [embed] });
       }
@@ -66,18 +68,15 @@ module.exports = {
       const stats = getStats(interaction.guild.id, target.id);
       const embed = new EmbedBuilder()
         .setColor(0x5865f2)
-        .setTitle(`📨 Inviti — ${target.tag}`)
+        .setTitle(`📨 Inviti — ${target.tag}`.slice(0, 256))
+        .setDescription(stats.invitedBy ? `👤 Invitato da <@${stats.invitedBy}>` : '❓ Invitato da: sconosciuto')
         .setThumbnail(target.displayAvatarURL())
         .addFields(
-          {
-            name: 'Invitato da',
-            value: stats.invitedBy ? `<@${stats.invitedBy}>` : 'Sconosciuto',
-            inline: true,
-          },
-          { name: 'Join attribuiti', value: `✅ ${stats.joins}`, inline: true },
-          { name: 'Usciti', value: `❌ ${stats.leaves}`, inline: true },
-          { name: 'Inviti validi', value: `📊 ${stats.valid}`, inline: true }
+          { name: '✅ Join attribuiti', value: `**${stats.joins}**`, inline: true },
+          { name: '❌ Usciti', value: `**${stats.leaves}**`, inline: true },
+          { name: '📊 Inviti validi', value: `**${stats.valid}** 🏆`, inline: true }
         )
+        .setFooter({ text: interaction.guild.name.slice(0, 200) })
         .setTimestamp();
       return interaction.reply({ embeds: [embed] });
     } catch (e) {

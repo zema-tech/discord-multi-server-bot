@@ -19,11 +19,17 @@ module.exports = {
     const embed = new EmbedBuilder()
       .setColor(0x5865f2)
       .setTitle(`📚 Comandi — ${interaction.client.user.username}`)
-      .setDescription(`**${client.commands.size} comandi** su ${interaction.client.guilds.cache.size} server`);
+      .setDescription(`✨ **${client.commands.size} comandi** su **${interaction.client.guilds.cache.size}** server\n_Scegli una categoria qui sotto: ogni riga è pronta da copiare!_`);
     for (const [cat, list] of Object.entries(byFolder)) {
-      embed.addFields({ name: titles[cat] || cat, value: list.sort().join(' ') });
+      const sorted = list.sort();
+      const label = `${titles[cat] || `📌 ${cat}`} (${sorted.length})`;
+      embed.addFields({ name: label, value: sorted.join(' ').slice(0, 1024) || '—' });
     }
-    embed.setFooter({ text: 'Usa /setup per configurare welcome, log e automod' }).setTimestamp();
+    const baseUrl = (process.env.BASE_URL || '').trim().replace(/\/$/, '');
+    const footerText = baseUrl
+      ? `Usa /setup per configurare il server • Dashboard: ${baseUrl}`
+      : 'Usa /setup per configurare welcome, log e automod';
+    embed.setFooter({ text: footerText.slice(0, 200) }).setTimestamp();
     await interaction.reply({ embeds: [embed] });
   },
 };

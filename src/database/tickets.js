@@ -98,6 +98,15 @@ function touchActivity(guildId, channelId, now = Date.now()) {
   return true;
 }
 
+// Rimuove un ticket orfano (es. canale eliminato). Ritorna true se esisteva.
+function removeTicket(guildId, channelId) {
+  const data = guildData(guildId);
+  if (!data.tickets[channelId]) return false;
+  delete data.tickets[channelId];
+  persist(guildId, data);
+  return true;
+}
+
 module.exports = {
   TICKET_TYPES,
   getConfig,
@@ -105,6 +114,7 @@ module.exports = {
   nextNumber,
   saveTicket,
   getTicket,
+  removeTicket,
   getUserOpenTickets,
   getStats,
   touchActivity, // PEAK

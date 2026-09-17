@@ -178,7 +178,8 @@ module.exports = {
       .setColor(colore)
       .setTitle(titolo.slice(0, 256))
       .setDescription(descrizione.slice(0, 4096))
-      .setFooter({ text: (footerRaw || `Creato da ${interaction.user.tag}`).slice(0, 2048) })
+      .setAuthor({ name: `✨ ${interaction.guild.name}`.slice(0, 256) })
+      .setFooter({ text: (footerRaw || `Creato da ${interaction.user.tag}`).slice(0, 200) })
       .setTimestamp();
     if (immagine) embed.setImage(immagine);
 

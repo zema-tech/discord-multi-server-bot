@@ -11,12 +11,22 @@ module.exports = {
     const lines = await Promise.all(
       top.map(async (e, i) => {
         const u = await interaction.client.users.fetch(e.id).catch(() => null);
-        const name = u ? u.tag : 'Utente ' + e.id;
-        const pos = medals[i] || ('**' + (i + 1) + '.**');
-        return pos + ' ' + name + ' — Liv. **' + e.level + '** (' + e.xp + ' XP)';
+        const member = u ? await interaction.guild.members.fetch(e.id).catch(() => null) : null;
+        const display = member ? member.displayName : u ? u.username : null;
+        const name = display ? `**${display}**` : '*Utente uscito*';
+        const pos = medals[i] || `**${i + 1}.**`;
+        const lvl = Number.isFinite(e.level) ? Math.max(0, Math.floor(e.level)) : 0;
+        const xp = Number.isFinite(e.xp) ? Math.max(0, Math.floor(e.xp)) : 0;
+        return `${pos} ${name} — Liv. **${lvl.toLocaleString('it-IT')}** (${xp.toLocaleString('it-IT')} XP)`;
       })
     );
-    const embed = new EmbedBuilder().setColor(0x5865f2).setTitle(`⭐ Top livelli — ${interaction.guild.name}`).setDescription(lines.join('\n')).setTimestamp();
+    const embed = new EmbedBuilder()
+      .setColor(0x9b59b6)
+      .setTitle(`⭐ Top livelli — ${interaction.guild.name}`)
+      .setThumbnail(interaction.guild.iconURL() || interaction.user.displayAvatarURL())
+      .setDescription(lines.join('\n').slice(0, 4096))
+      .setFooter({ text: `Richiesto da ${interaction.user.tag}` })
+      .setTimestamp();
     await interaction.reply({ embeds: [embed] });
   },
 };

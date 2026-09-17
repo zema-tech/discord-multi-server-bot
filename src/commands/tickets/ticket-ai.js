@@ -82,18 +82,21 @@ module.exports = {
     }
 
     const sub = interaction.options.getSubcommand();
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
+    if (!interaction.deferred && !interaction.replied) {
+      return;
+    }
 
     let messages;
     try {
       messages = await interaction.channel.messages.fetch({ limit: MAX_HISTORY });
     } catch {
-      return interaction.editReply('❌ Impossibile leggere i messaggi del ticket.');
+      return interaction.editReply('❌ Impossibile leggere i messaggi del ticket.').catch(() => {});
     }
 
     const conversazione = formatHistory(messages);
     if (!conversazione) {
-      return interaction.editReply('❌ Nessun messaggio di testo da analizzare nel ticket.');
+      return interaction.editReply('❌ Nessun messaggio di testo da analizzare nel ticket.').catch(() => {});
     }
 
     if (sub === 'riassumi') {
@@ -104,14 +107,14 @@ module.exports = {
           'Sei un assistente del team di supporto. Rispondi in italiano con esattamente 5 punti elenco brevi e chiari, tono professionale.'
         );
       } catch {
-        return interaction.editReply('⚠️ AI non disponibile, riprova più tardi.');
+        return interaction.editReply('⚠️ AI non disponibile, riprova più tardi.').catch(() => {});
       }
       const embed = new EmbedBuilder()
         .setColor(0x5865f2)
         .setTitle(`🎫 Riassunto ticket #${ticket.number}`)
         .setDescription(riassunto.slice(0, 4096))
         .setTimestamp();
-      return interaction.editReply({ embeds: [embed] });
+      return interaction.editReply({ embeds: [embed] }).catch(() => {});
     }
 
     // ---- suggerisci ----
@@ -122,11 +125,11 @@ module.exports = {
         `Sei un membro dello staff di supporto Discord. Scrivi in italiano una bozza di risposta professionale, cortese e risolutiva, max ${MAX_DRAFT_CHARS} caratteri. Solo il testo della risposta, senza intestazioni.`
       );
     } catch {
-      return interaction.editReply('⚠️ AI non disponibile, riprova più tardi.');
+      return interaction.editReply('⚠️ AI non disponibile, riprova più tardi.').catch(() => {});
     }
     bozza = bozza.slice(0, MAX_DRAFT_CHARS).trim();
     if (!bozza) {
-      return interaction.editReply('⚠️ AI non disponibile, riprova più tardi.');
+      return interaction.editReply('⚠️ AI non disponibile, riprova più tardi.').catch(() => {});
     }
 
     const publishBtn = new ButtonBuilder()
@@ -143,7 +146,10 @@ module.exports = {
       .setFooter({ text: 'Solo lo staff può pubblicarla • Scade tra 60s' })
       .setTimestamp();
 
-    const reply = await interaction.editReply({ embeds: [embed], components: [row] });
+    const reply = await interaction.editReply({ embeds: [embed], components: [row] }).catch(() => null);
+    if (!reply) {
+      return;
+    }
 
     const ticketConfig = getConfig(interaction.guild.id);
     const collector = reply.createMessageComponentCollector({

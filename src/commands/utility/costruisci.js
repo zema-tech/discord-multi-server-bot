@@ -103,9 +103,9 @@ module.exports = {
       v.warnings.length > 0 ? `\n\n⚠️ Note automatiche:\n${v.warnings.slice(0, 5).map((w) => `• ${w}`).join('\n')}` : '';
     const embed = new EmbedBuilder()
       .setColor(0x5865f2)
-      .setTitle('🏗️ Struttura proposta dalla AI')
+      .setTitle('🏗️ Struttura proposta dalla AI ✨')
       .setDescription(`${describeBlueprint(v.blueprint)}${warningsLine}`.slice(0, 4000))
-      .setFooter({ text: 'Conferma entro 60 secondi • Non verrà cancellato nulla di esistente' })
+      .setFooter({ text: 'Conferma entro 60 secondi • Non verrà cancellato nulla di esistente'.slice(0, 200) })
       .setTimestamp();
 
     const uid = interaction.user.id;

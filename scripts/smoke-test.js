@@ -12,8 +12,12 @@
  *  (c2) NUOVI moduli DB attesi (reactionRoles, autoresponder, invites,
  *      tempvoice, stanze, levelRewards, analytics) + jobs/ticketAutoclose
  *      require-safe: roundtrip con chiavi `qatest_*` + cleanup verificato.
- *      Se un modulo non esiste ancora: WARNING (skip), non errore (lavori in corso).
- *      Regola duplicati-evento invariata (la gestisce il revisore).
+  *  (c3) NUOVI moduli DB attesi (shop, lotteria, rep, sfide, confessioni):
+  *      roundtrip con chiavi `qatest_*` + cleanup verificato (solo DB,
+  *      mai execute() di comandi, mai scritture su canali, mai soldi veri:
+  *      i pot/premi dei moduli sono contatori interni su chiavi qatest).
+  *      Se un modulo non esiste ancora: WARNING (skip), non errore (lavori in corso).
+  *      Regola duplicati-evento invariata (la gestisce il revisore).
  *  (e) extra QA: customId letterali duplicati, nomi evento duplicati.
  *
  * Uso: node scripts/smoke-test.js
@@ -500,6 +504,163 @@ try {
     fail(`analytics (qatest): ${e.message.split('\n')[0]}`);
   }
 
+  // ---- NUOVI moduli DB attesi (shop, lotteria, rep, sfide, confessioni) ----
+  // Solo DB + require-safe: mai execute() di comandi, mai scritture su canali,
+  // mai soldi veri (pot/premi = contatori interni su chiavi qatest_* isolate).
+  // Se un modulo non esiste ancora: WARNING (skip), non errore (lavori in corso).
+  // Se esiste ma l'API è incompleta: WARNING (WIP). Se il roundtrip è rotto: FAIL.
+  // Cleanup via scrubTestKeys/finally (chiave qatest_guild) + verifica finale.
+
+  // shop — catalogo ruoli { [guild]: { [roleId]: { price } } } (solo listino, nessun addebito)
+  try {
+    const fp = path.join(DB_DIR, 'shop.js');
+    if (!fs.existsSync(fp)) {
+      skipMissing('shop', 'src/database/shop.js');
+    } else {
+      delete require.cache[require.resolve(fp)];
+      const sh = require(fp);
+      if (sh.listItems(QGUILD).length !== 0) fail('shop: listItems nuovo server atteso []');
+      if (sh.getItem(QGUILD, QROLE) !== null) fail('shop: getItem(qatest) nuovo atteso null');
+      const it = sh.setItem(QGUILD, QROLE, 250);
+      if (!it || it.price !== 250) fail('shop: setItem(qatest,250) atteso price=250');
+      const got = sh.getItem(QGUILD, QROLE);
+      if (!got || got.price !== 250) fail('shop: getItem(qatest) non ritorna price=250');
+      if (!sh.listItems(QGUILD).some((e) => e.roleId === QROLE)) fail('shop: listItems non contiene qatest_role');
+      let threw = false;
+      try { sh.setItem(QGUILD, QROLE, 0); } catch { threw = true; }
+      if (!threw) fail('shop: setItem(price=0) dovrebbe lanciare (prezzo intero >= 1)');
+      if (sh.removeItem(QGUILD, QROLE) !== true) fail('shop: removeItem(qatest) atteso true');
+      if (sh.getItem(QGUILD, QROLE) !== null) fail('shop: dopo removeItem atteso null');
+    }
+  } catch (e) {
+    fail(`shop (qatest): ${e.message.split('\n')[0]}`);
+  }
+
+  // lotteria — pot/biglietti interni (non tocca economy, nessun channel, nessun draw qui)
+  try {
+    const fp = path.join(DB_DIR, 'lotteria.js');
+    if (!fs.existsSync(fp)) {
+      skipMissing('lotteria', 'src/database/lotteria.js');
+    } else {
+      delete require.cache[require.resolve(fp)];
+      const lo = require(fp);
+      lo.resetLottery(QGUILD); // stato pulito (solo chiave qatest)
+      const s0 = lo.getState(QGUILD);
+      if (!s0 || s0.pot !== 0) fail('lotteria: getState dopo reset atteso pot=0');
+      if (lo.validCount(0) !== null) fail('lotteria: validCount(0) atteso null');
+      lo.addTickets(QGUILD, QUSER, 2);
+      if (lo.totalTickets(QGUILD) < 2) fail('lotteria: totalTickets(qatest) atteso >=2');
+      const s1 = lo.getState(QGUILD);
+      if (!s1.entries || s1.entries[QUSER] !== 2) fail('lotteria: getState.entries senza 2 biglietti qatest_user');
+      if (s1.pot < 2 * s1.ticketPrice) fail('lotteria: pot(qatest) minore del costo dei 2 biglietti');
+      lo.resetLottery(QGUILD);
+      if (lo.totalTickets(QGUILD) !== 0) fail('lotteria: dopo resetLottery atteso 0 biglietti');
+    }
+  } catch (e) {
+    fail(`lotteria (qatest): ${e.message.split('\n')[0]}`);
+  }
+
+  // rep — reputazione +1 con cooldown 24h (solo DB, nessun channel)
+  try {
+    const fp = path.join(DB_DIR, 'rep.js');
+    if (!fs.existsSync(fp)) {
+      skipMissing('rep', 'src/database/rep.js');
+    } else {
+      delete require.cache[require.resolve(fp)];
+      const rp = require(fp);
+      const GIVER = `${QUSER}_giver`;
+      const NOW = 1700000000000;
+      const r0 = rp.getRep(QGUILD, QUSER);
+      if (!r0 || r0.count !== 0) fail('rep: getRep nuovo utente atteso count=0');
+      if (rp.canGive(QGUILD, GIVER, QUSER, NOW) !== true) fail('rep: canGive prima volta atteso true');
+      const after = rp.giveRep(QGUILD, GIVER, QUSER, NOW);
+      if (!after || after.count !== 1) fail('rep: giveRep atteso count=1');
+      if (rp.getLastGiven(QGUILD, GIVER, QUSER) !== NOW) fail('rep: getLastGiven(qatest) non ritorna il timestamp usato');
+      if (rp.canGive(QGUILD, GIVER, QUSER, NOW) !== false) fail('rep: canGive subito dopo atteso false (cooldown 24h)');
+      if (rp.canGive(QGUILD, GIVER, QUSER, NOW + rp.COOLDOWN) !== true) fail('rep: canGive dopo COOLDOWN atteso true');
+      if (!rp.getLeaderboard(QGUILD, 5).some((e) => e.id === QUSER)) fail('rep: getLeaderboard non contiene qatest_user');
+    }
+  } catch (e) {
+    fail(`rep (qatest): ${e.message.split('\n')[0]}`);
+  }
+
+  // sfide — sfida settimanale messaggi (solo DB: nessun premio economy accreditato qui)
+  try {
+    const fp = path.join(DB_DIR, 'sfide.js');
+    if (!fs.existsSync(fp)) {
+      skipMissing('sfide', 'src/database/sfide.js');
+    } else {
+      delete require.cache[require.resolve(fp)];
+      const sf = require(fp);
+      const NOW = 1700000000000;
+      sf.resetSfida(QGUILD, NOW); // ciclo pulito (solo chiave qatest)
+      const s0 = sf.getSfida(QGUILD, NOW);
+      if (!s0 || !s0.current || !s0.current.id) fail('sfide: getSfida(qatest) senza current.id');
+      const p1 = sf.addProgress(QGUILD, QUSER, NOW);
+      if (!p1 || p1.count !== 1 || p1.completed !== false) fail(`sfide: addProgress x1 atteso {count:1,completed:false}, ottenuto ${JSON.stringify(p1)}`);
+      if (sf.getProgress(QGUILD, QUSER, NOW) !== 1) fail('sfide: getProgress(qatest) atteso 1');
+      if (sf.isCompletata(QGUILD, QUSER, NOW) !== false) fail('sfide: isCompletata(qatest) atteso false dopo 1 progresso');
+      if (!sf.getMiniLeaderboard(QGUILD, 5, NOW).some((e) => e.id === QUSER)) fail('sfide: getMiniLeaderboard non contiene qatest_user');
+    }
+  } catch (e) {
+    fail(`sfide (qatest): ${e.message.split('\n')[0]}`);
+  }
+
+  // confessioni — config canale + cooldown anti-abuso in-memory (solo DB, nessuna
+  // scrittura su canali: setCanale memorizza solo un ID stringa su chiave qatest).
+  // Assente -> WARNING (skip). Presente ma API incompleta -> WARNING (WIP).
+  // Roundtrip rotto -> FAIL. Cleanup esplicito (disable) + scrubTestKeys/finally.
+  try {
+    const candidates = [
+      'src/database/confessioni.js',
+      'src/database/confessione.js',
+      'src/database/confessions.js',
+      'src/database/confession.js',
+      'src/utils/confessioni.js',
+    ];
+    const found = candidates.map((c) => path.join(ROOT, c)).find((f) => fs.existsSync(f));
+    if (!found) {
+      skipMissing('confessioni', 'src/database/confessioni.js (o varianti confessione/confessions)');
+    } else {
+      delete require.cache[require.resolve(found)];
+      const cf = require(found);
+      const tag = path.relative(ROOT, found);
+      if (!cf || (typeof cf !== 'object' && typeof cf !== 'function')) {
+        fail(`confessioni: export non valido (${tag})`);
+      } else {
+        const hasGet = typeof cf.getConfessioni === 'function';
+        const hasSet = typeof cf.setCanale === 'function';
+        const hasDis = typeof cf.disableConfessioni === 'function';
+        const hasWait = typeof cf.secondiAttesa === 'function';
+        const hasReg = typeof cf.registraConfessione === 'function';
+        if (!hasGet || !hasSet || !hasDis) {
+          warn(`confessioni: API incompleta in ${tag} (get=${hasGet ? 'ok' : '-'}/setCanale=${hasSet ? 'ok' : '-'}/disable=${hasDis ? 'ok' : '-'}; exports: ${cf && typeof cf === 'object' ? Object.keys(cf).sort().join(',') : typeof cf}) — skip (WIP)`);
+        } else {
+          const g0 = cf.getConfessioni(QGUILD);
+          if (!g0 || g0.channelId !== null) fail('confessioni: getConfessioni(qatest) nuovo atteso channelId=null');
+          cf.setCanale(QGUILD, QCHAN);
+          if (cf.getConfessioni(QGUILD).channelId !== QCHAN) fail('confessioni: setCanale/getConfessioni roundtrip fallito (qatest)');
+          cf.disableConfessioni(QGUILD);
+          if (cf.getConfessioni(QGUILD).channelId !== null) fail('confessioni: dopo disableConfessioni atteso channelId=null');
+          if (hasWait && hasReg) {
+            const NOW = 1700000000000;
+            if (typeof cf._resetCooldowns === 'function') cf._resetCooldowns();
+            if (cf.secondiAttesa(QUSER, NOW) !== 0) fail('confessioni: secondiAttesa prima volta atteso 0');
+            cf.registraConfessione(QUSER, NOW);
+            if (!(cf.secondiAttesa(QUSER, NOW) > 0)) fail('confessioni: secondiAttesa dopo registra atteso >0');
+            if (cf.secondiAttesa(QUSER, NOW + (cf.COOLDOWN_MS || 60000)) !== 0) fail('confessioni: secondiAttesa dopo COOLDOWN atteso 0');
+            if (typeof cf._resetCooldowns === 'function') cf._resetCooldowns();
+            if (cf.secondiAttesa(QUSER, NOW) !== 0) fail('confessioni: secondiAttesa dopo _resetCooldowns atteso 0');
+          } else {
+            warn(`confessioni: cooldown API assente in ${tag} (secondiAttesa/registraConfessione) — config sola verificata`);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    fail(`confessioni (qatest): ${e.message.split('\n')[0]}`);
+  }
+
   // ---- LOTTO dashboard+permessi+AI: customPerms (set/get/has/clear) ----
   // Candidati multipli: il modulo può vivere in database/ o utils/ con nomi
   // diversi a seconda dell'agente. Se assente: WARNING (skip, lavori in corso).
@@ -688,6 +849,60 @@ try {
     }
   } catch (e) {
     fail(`ticketAutoclose require-safe: ${e.message.split('\n')[0]}`);
+  }
+
+  // aiProviders — detection pura, nessuna rete
+  try {
+    const ap = require(path.join(ROOT, 'src', 'utils', 'aiProviders.js'));
+    if (typeof ap.complete !== 'function' || typeof ap.detectProvider !== 'function') {
+      fail('aiProviders: export complete/detectProvider mancanti');
+    } else {
+      if (ap.detectProvider({}).name !== 'pollinations') fail('aiProviders: env vuoto atteso pollinations');
+      if (ap.detectProvider({ OPENAI_API_KEY: 'sk-x' }).name !== 'openai') fail('aiProviders: OPENAI_API_KEY atteso openai');
+      if (ap.detectProvider({ AI_PROVIDER: 'groq', GROQ_API_KEY: 'k' }).name !== 'groq') fail('aiProviders: AI_PROVIDER=groq atteso groq');
+      let threw = false;
+      try { ap.detectProvider({ AI_PROVIDER: 'pippo' }); } catch (e2) { threw = !!e2.code; }
+      if (!threw) fail('aiProviders: provider ignoto dovrebbe lanciare con code');
+      const st = ap.activeProvider({});
+      if (!st || st.name !== 'pollinations') fail('aiProviders: activeProvider({}) atteso pollinations');
+    }
+  } catch (e) {
+    fail(`aiProviders: ${e.message.split('\n')[0]}`);
+  }
+
+  // codebase — indice + lettura sicura, solo letture
+  try {
+    const cb = require(path.join(ROOT, 'src', 'utils', 'codebase.js'));
+    const tree = cb.buildTree();
+    if (!tree || tree.total < 50 || tree.commands < 50) fail('codebase: buildTree con conteggi sospetti');
+    let blocked = 0;
+    for (const bad of ['../../.env', '/etc/passwd', 'src/../.env']) {
+      try { cb.readFile(bad); } catch { blocked += 1; }
+    }
+    if (blocked !== 3) fail('codebase: path traversal non bloccato');
+    const hits = cb.searchCode('cooldown', 3);
+    if (!Array.isArray(hits) || !hits.length) fail('codebase: searchCode(cooldown) vuoto');
+  } catch (e) {
+    fail(`codebase: ${e.message.split('\n')[0]}`);
+  }
+
+  // selfImprove — validazione e scheduling puri (mai runOnce qui: scriverebbe journal/file)
+  try {
+    const si = require(path.join(ROOT, 'src', 'jobs', 'selfImprove.js'));
+    for (const fn of ['runOnce', 'startSelfImprove', 'validateProposal', 'msUntilNext', 'lastRun']) {
+      if (typeof si[fn] !== 'function') fail(`selfImprove: export "${fn}" mancante`);
+    }
+    const day = new Date('2026-01-01T10:00:00').getTime();
+    if (si.msUntilNext('22:00', day) !== 12 * 3600 * 1000) fail('selfImprove: msUntilNext 12h errato');
+    const fc = new Map([['src/commands/fun/dice.js', 'const a = 1;\n']]);
+    const good = si.validateProposal({ file: 'src/commands/fun/dice.js', oldString: 'const a = 1;', newString: 'const a = 2;', reason: 't' }, fc);
+    if (!good.ok) fail('selfImprove: validateProposal rifiuta patch valida');
+    const evil = si.validateProposal({ file: 'src/commands/fun/dice.js', oldString: 'const a = 1;', newString: 'eval(x)', reason: 't' }, fc);
+    if (evil.ok) fail('selfImprove: validateProposal accetta eval()');
+    const out = si.validateProposal({ file: 'src/events/ready.js', oldString: 'x', newString: 'y', reason: 't' }, fc);
+    if (out.ok) fail('selfImprove: validateProposal accetta file fuori allowlist');
+  } catch (e) {
+    fail(`selfImprove: ${e.message.split('\n')[0]}`);
   }
 } finally {
   const touched = scrubTestKeys();

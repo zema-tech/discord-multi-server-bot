@@ -103,13 +103,13 @@ module.exports = {
 
         const embed = new EmbedBuilder()
           .setColor(0x57f287)
-          .setTitle(`📅 ${event.name}`)
+          .setTitle(`📅 ${event.name}`.slice(0, 256))
           .setDescription(
-            `${descrizione ? `${descrizione}\n\n` : ''}🕒 Inizio: <t:${Math.floor(start.getTime() / 1000)}:F> (<t:${Math.floor(start.getTime() / 1000)}:R>)\n` +
-              `${voice ? `🔊 Canale: ${voice}\n` : '🌐 Tipo: esterno\n'}` +
-              `🔗 [Apri evento](${event.url})`
+            `🎉 **Nuovo evento in arrivo!**\n\n${descrizione ? `📝 ${descrizione}\n\n` : ''}🕒 Inizio: <t:${Math.floor(start.getTime() / 1000)}:F> (<t:${Math.floor(start.getTime() / 1000)}:R>)\n` +
+              `${voice ? `🔊 Canale: ${voice}\n` : '🌐 Tipo: esterno 🌍\n'}` +
+              `🔗 [Apri evento e metti "Mi interessa"!](${event.url})`
           )
-          .setFooter({ text: `ID: ${event.id} • Creato da ${interaction.user.tag}` })
+          .setFooter({ text: `ID: ${event.id} • Creato da ${interaction.user.tag}`.slice(0, 200) })
           .setTimestamp();
         return interaction.reply({ embeds: [embed] });
       } catch (e) {
@@ -129,19 +129,21 @@ module.exports = {
       if (events.size === 0) {
         return interaction.reply('📅 Nessun evento programmato. Creane uno con `/evento crea`.');
       }
-      const sorted = [...events.values()].sort((a, b) => a.scheduledStartAt - b.scheduledStartAt).slice(0, 15);
+      const sorted = [...events.values()].sort((a, b) => a.scheduledStartAt - b.scheduledStartAt).slice(0, 10);
       const embed = new EmbedBuilder()
         .setColor(0x5865f2)
-        .setTitle(`📅 Eventi programmati (${events.size})`)
+        .setTitle(`📅 Eventi programmati (${events.size})`.slice(0, 256))
         .setDescription(
+          `✨ **${events.size} eventi in programma** — non mancare!\n\n` +
           sorted
             .map(
               (e) =>
-                `**${e.name}**\n🕒 <t:${Math.floor(e.scheduledStartTimestamp / 1000)}:F> (<t:${Math.floor(e.scheduledStartTimestamp / 1000)}:R>)\n🆔 \`${e.id}\` • [Apri](${e.url})`
+                `🎪 **${e.name}**${e.userCount ? ` (👥 ${e.userCount} interessati)` : ''}\n🕒 <t:${Math.floor(e.scheduledStartTimestamp / 1000)}:F> (<t:${Math.floor(e.scheduledStartTimestamp / 1000)}:R>)\n🆔 \`${e.id}\` • [Apri](${e.url})`
             )
             .join('\n\n')
-            .slice(0, 4000)
+            .slice(0, 3900)
         )
+        .setFooter({ text: events.size > 10 ? `Mostrati 10 di ${events.size} eventi` : interaction.guild.name.slice(0, 200) })
         .setTimestamp();
       return interaction.reply({ embeds: [embed] });
     }

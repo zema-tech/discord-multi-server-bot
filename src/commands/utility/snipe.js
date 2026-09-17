@@ -54,15 +54,15 @@ module.exports = {
       }
 
       const embed = new EmbedBuilder()
-        .setColor(0x5865f2)
-        .setTitle(`🎯 Snipe — #${target.name || 'canale'}`)
+        .setColor(hasAttachments ? 0xeb459e : 0x5865f2)
+        .setTitle(`🎯 Snipe — #${target.name || 'canale'}`.slice(0, 256))
+        .setDescription(sniped.content ? `💬 *"${String(sniped.content).slice(0, 3900)}"*` : '*(solo allegati 📎)*')
         .addFields(
-          { name: 'Autore', value: `\`${sniped.authorTag}\``, inline: true },
-          { name: 'Cancellato', value: `<t:${Math.floor(sniped.createdAt / 1000)}:R>`, inline: true }
+          { name: '👤 Autore', value: `\`${sniped.authorTag}\``, inline: true },
+          { name: '🕒 Cancellato', value: `<t:${Math.floor(sniped.createdAt / 1000)}:R>`, inline: true }
         )
+        .setFooter({ text: `#${target.name || 'canale'} • Contenuto eliminato`.slice(0, 200) })
         .setTimestamp();
-      if (sniped.content) embed.setDescription(String(sniped.content).slice(0, 4000));
-      else embed.setDescription('*(solo allegati)*');
       if (hasAttachments) {
         embed.addFields({
           name: `Allegati (${sniped.attachments.length})`,

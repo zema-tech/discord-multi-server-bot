@@ -19,10 +19,10 @@ const { buildTranscript } = require('../utils/transcript');
 
 function isSupport(member, config) {
   if (!member) return false;
-  if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
-  if (member.permissions.has(PermissionFlagsBits.ManageGuild)) return true;
-  if (member.permissions.has(PermissionFlagsBits.ManageChannels)) return true;
-  return (config.supportRoleIds || []).some((id) => member.roles.cache.has(id));
+  if (member.permissions?.has(PermissionFlagsBits.Administrator)) return true;
+  if (member.permissions?.has(PermissionFlagsBits.ManageGuild)) return true;
+  if (member.permissions?.has(PermissionFlagsBits.ManageChannels)) return true;
+  return (config.supportRoleIds || []).some((id) => member.roles?.cache?.has(id));
 }
 
 function typeLabel(key) {
@@ -112,22 +112,34 @@ async function createTicketInner(interaction, typeKey) {
   const config = getConfig(guild.id);
 
   if (!TICKET_TYPES[typeKey]) {
-    return interaction.reply({ content: '❌ Tipo di ticket non valido.', flags: MessageFlags.Ephemeral });
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: '❌ Tipo di ticket non valido.', flags: MessageFlags.Ephemeral }).catch(() => {});
+    }
+    return;
   }
   if (!config.categoryId) {
-    return interaction.reply({ content: '❌ Ticket non configurati. Uno staffer deve usare `/ticket setup`.', flags: MessageFlags.Ephemeral });
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: '❌ Ticket non configurati. Uno staffer deve usare `/ticket setup`.', flags: MessageFlags.Ephemeral }).catch(() => {});
+    }
+    return;
   }
   const open = getUserOpenTickets(guild.id, interaction.user.id);
   if (open.length >= (config.maxPerUser || 3)) {
-    return interaction.reply({
-      content: `❌ Hai già **${open.length}** ticket aperti (max ${config.maxPerUser}). Chiudine uno prima di aprirne un altro.`,
-      flags: MessageFlags.Ephemeral,
-    });
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({
+        content: `❌ Hai già **${open.length}** ticket aperti (max ${config.maxPerUser}). Chiudine uno prima di aprirne un altro.`,
+        flags: MessageFlags.Ephemeral,
+      }).catch(() => {});
+    }
+    return;
   }
 
   const category = await guild.channels.fetch(config.categoryId).catch(() => null);
   if (!category || category.type !== ChannelType.GuildCategory) {
-    return interaction.reply({ content: '❌ Categoria ticket non trovata. Riesegui `/ticket setup`.', flags: MessageFlags.Ephemeral });
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: '❌ Categoria ticket non trovata. Riesegui `/ticket setup`.', flags: MessageFlags.Ephemeral }).catch(() => {});
+    }
+    return;
   }
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -275,7 +287,7 @@ async function requireTicket(interaction) {
   }
   const ticket = getTicket(interaction.guild.id, interaction.channelId);
   if (!ticket) {
-    await interaction.reply({ content: '❌ Questo comando funziona solo dentro un canale ticket.', flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: '❌ Questo comando funziona solo dentro un canale ticket.', flags: MessageFlags.Ephemeral }).catch(() => {});
     return null;
   }
   return ticket;

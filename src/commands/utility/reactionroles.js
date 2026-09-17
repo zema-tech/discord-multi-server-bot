@@ -160,8 +160,10 @@ module.exports = {
 
       const embed = new EmbedBuilder()
         .setColor(0x5865f2)
-        .setTitle(panel.title)
-        .setDescription(panel.description)
+        .setTitle(panel.title.slice(0, 256))
+        .setDescription(`✨ **Scegli i tuoi ruoli dal menu qui sotto!**\n\n${panel.description}`.slice(0, 4000))
+        .addFields({ name: `🎭 Ruoli disponibili (${validOptions.length})`, value: validOptions.map((o) => `${o.emoji} <@&${o.roleId}> — *${o.label}*`.slice(0, 200)).join('\n').slice(0, 1024) })
+        .setFooter({ text: `${guild.name} • Seleziona dal menu per ottenere/rimuovere il ruolo`.slice(0, 200) })
         .setTimestamp();
 
       const menu = new StringSelectMenuBuilder()

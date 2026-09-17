@@ -15,17 +15,22 @@ module.exports = {
     if (target.id === interaction.user.id) return interaction.reply({ content: '❌ Non puoi pagare te stesso.', flags: MessageFlags.Ephemeral });
 
     const sender = getUser(interaction.guild.id, interaction.user.id);
+    const senderBalance = Number.isFinite(sender.balance) ? sender.balance : 0;
     // Saldo corrotto (NaN): blocca invece di regalare soldi dal nulla
     if (!Number.isFinite(sender.balance) || sender.balance < amount)
-      return interaction.reply({ content: `❌ Saldo insufficiente (hai **${Number.isFinite(sender.balance) ? sender.balance : 0}** 🪙).`, flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: `❌ Saldo insufficiente (hai **${senderBalance.toLocaleString('it-IT')}** 🪙).`, flags: MessageFlags.Ephemeral });
 
     addBalance(interaction.guild.id, interaction.user.id, -amount);
     addBalance(interaction.guild.id, target.id, amount);
 
     const embed = new EmbedBuilder()
-      .setColor(0x57f287)
+      .setColor(0xffd700)
       .setTitle('💸 Pagamento inviato')
-      .setDescription(`${interaction.user} ha inviato **${amount}** 🪙 a ${target}`)
+      .setThumbnail(interaction.user.displayAvatarURL())
+      .setDescription(
+        `${interaction.user} ➡️ ${target}\n💰 Importo: **${amount.toLocaleString('it-IT')}** 🪙\n👛 Il tuo nuovo saldo: **${(senderBalance - amount).toLocaleString('it-IT')}** 🪙`
+      )
+      .setFooter({ text: `Richiesto da ${interaction.user.tag}` })
       .setTimestamp();
     await interaction.reply({ embeds: [embed] });
   },

@@ -20,18 +20,27 @@ module.exports = {
     const user = interaction.options.getString('scelta');
     const bot = CHOICES[Math.floor(Math.random() * 3)];
     let result;
-    if (user === bot) result = '🤝 **Pareggio!**';
-    else if ((user === 'sasso' && bot === 'forbici') || (user === 'carta' && bot === 'sasso') || (user === 'forbici' && bot === 'carta')) result = '🎉 **Hai vinto!**';
-    else result = '🤖 **Il bot vince!**';
+    let color = 0x3498db;
+    if (user === bot) {
+      result = '🤝 **PAREGGIO!**';
+      color = 0xfee75c;
+    } else if ((user === 'sasso' && bot === 'forbici') || (user === 'carta' && bot === 'sasso') || (user === 'forbici' && bot === 'carta')) {
+      result = '🎉 **HAI VINTO!**';
+      color = 0x57f287;
+    } else {
+      result = '🤖 **IL BOT VINCE!**';
+      color = 0xed4245;
+    }
 
     const embed = new EmbedBuilder()
-      .setColor(0x5865f2)
+      .setColor(color)
       .setTitle('✊ Carta, Forbici, Sasso')
+      .setThumbnail(interaction.user.displayAvatarURL())
       .addFields(
-        { name: 'Tu', value: `${EMOJI[user]} ${user}`, inline: true },
-        { name: 'Bot', value: `${EMOJI[bot]} ${bot}`, inline: true },
-        { name: 'Risultato', value: result }
+        { name: '⚔️ Sfida', value: `${EMOJI[user]} **${user}**  **VS**  ${EMOJI[bot]} **${bot}**`, inline: false },
+        { name: '🏆 Risultato', value: result, inline: false }
       )
+      .setFooter({ text: `Richiesto da ${interaction.user.tag}` })
       .setTimestamp();
     await interaction.reply({ embeds: [embed] });
   },

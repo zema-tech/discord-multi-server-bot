@@ -7,6 +7,9 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
   cooldown: 10,
   async execute(interaction) {
+    if (!interaction.guild) {
+      return interaction.reply({ content: '❌ Usa questo comando dentro un server.', flags: MessageFlags.Ephemeral });
+    }
     if (!interaction.channel?.isTextBased?.() || typeof interaction.channel.clone !== 'function') {
       return interaction.reply({ content: '❌ Usa questo comando in un canale testuale del server.', flags: MessageFlags.Ephemeral });
     }    const row = new ActionRowBuilder().addComponents(

@@ -54,6 +54,9 @@ module.exports = {
     try {
       if (sub === 'nome') {
         const nome = interaction.options.getString('nome', true).trim().slice(0, 100);
+        if (!nome) {
+          return interaction.reply({ content: '❌ Nome non valido.', flags: MessageFlags.Ephemeral });
+        }
         await channel.setName(nome, `Rinominata da ${interaction.user.tag}`);
         return interaction.reply({ content: `✅ Vocale rinominata in **${nome}**.`, flags: MessageFlags.Ephemeral });
       }
@@ -98,7 +101,10 @@ module.exports = {
         return interaction.reply({ content: `✅ ${user} **disconnesso** dalla vocale.`, flags: MessageFlags.Ephemeral });
       }
     } catch {
-      return interaction.reply({ content: '❌ Errore: verifica i miei permessi sul canale vocale.', flags: MessageFlags.Ephemeral });
+      if (interaction.replied || interaction.deferred) {
+        return interaction.followUp({ content: '❌ Errore: verifica i miei permessi sul canale vocale.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      }
+      return interaction.reply({ content: '❌ Errore: verifica i miei permessi sul canale vocale.', flags: MessageFlags.Ephemeral }).catch(() => {});
     }
   },
 };

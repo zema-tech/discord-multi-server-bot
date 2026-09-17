@@ -18,7 +18,13 @@ module.exports = {
   async execute(interaction) {
     const img = MEMES[Math.floor(Math.random() * MEMES.length)];
     const cap = CAPTIONS[Math.floor(Math.random() * CAPTIONS.length)];
-    const embed = new EmbedBuilder().setColor(0x5865f2).setTitle(`😂 ${cap}`).setImage(img).setFooter({ text: `Richiesto da ${interaction.user.tag}` }).setTimestamp();
+    const embed = new EmbedBuilder()
+      .setColor(0x3498db)
+      .setTitle(`😂 ${cap}`.slice(0, 256))
+      .setThumbnail(interaction.user.displayAvatarURL())
+      .setImage(img)
+      .setFooter({ text: `Richiesto da ${interaction.user.tag}` })
+      .setTimestamp();
     await interaction.reply({ embeds: [embed] });
   },
 };

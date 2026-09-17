@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, MessageFlags, EmbedBuilder } = require('discord.js');
 const { getGuild, updateGuild } = require('../../database/guildConfig');
 
 module.exports = {
@@ -35,9 +35,18 @@ module.exports = {
     if (sub === 'mostra') {
       const c = getGuild(interaction.guild.id);
       const ch = (id) => (id ? `<#${id}>` : '—');
-      return interaction.reply(
-        `⚙️ **Configurazione**\n👋 Benvenuto: ${ch(c.welcomeChannelId)}\n💬 Messaggio: \`${c.welcomeMessage}\`\n👋 Addio: ${ch(c.goodbyeChannelId)}\n📝 Log: ${ch(c.logChannelId)}\n💡 Suggerimenti: ${ch(c.suggestChannelId)}\n🛡️ Automod: **${c.automod.enabled ? 'ON' : 'OFF'}** (spam:${c.automod.antiSpam ? 'on' : 'off'} link:${c.automod.antiLink ? 'on' : 'off'} invite:${c.automod.antiInvite ? 'on' : 'off'})`
-      );
+      const embed = new EmbedBuilder()
+        .setColor(0x5865f2)
+        .setTitle(`⚙️ Configurazione — ${interaction.guild.name}`.slice(0, 256))
+        .setDescription('✨ *Stato attuale dei moduli del bot*')
+        .addFields(
+          { name: '👋 Benvenuto', value: `${ch(c.welcomeChannelId)}\n💬 \`${String(c.welcomeMessage).slice(0, 200)}\``, inline: true },
+          { name: '👋 Addio / 📝 Log', value: `Addio: ${ch(c.goodbyeChannelId)}\nLog: ${ch(c.logChannelId)}`, inline: true },
+          { name: '💡 Suggerimenti / 🛡️ Automod', value: `Sugg.: ${ch(c.suggestChannelId)}\nAutomod: **${c.automod.enabled ? '🟢 ON' : '🔴 OFF'}** (spam:${c.automod.antiSpam ? 'on' : 'off'} link:${c.automod.antiLink ? 'on' : 'off'} invite:${c.automod.antiInvite ? 'on' : 'off'})`, inline: true }
+        )
+        .setFooter({ text: 'Usa /wizard per il setup guidato passo passo'.slice(0, 200) })
+        .setTimestamp();
+      return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     }
     if (sub === 'welcome') {
       const canale = interaction.options.getChannel('canale');
@@ -46,27 +55,27 @@ module.exports = {
       if (canale !== null) patch.welcomeChannelId = canale ? canale.id : null;
       if (msg) patch.welcomeMessage = msg.slice(0, 500);
       updateGuild(interaction.guild.id, patch);
-      return interaction.reply(`✅ Benvenuto aggiornato: canale ${canale || 'disattivato'}${msg ? `, messaggio: \`${msg}\`` : ''}`);
+      return interaction.reply({ content: `✅ Benvenuto aggiornato: canale ${canale || 'disattivato'}${msg ? `, messaggio: \`${msg.slice(0, 200)}\`` : ''}`, flags: MessageFlags.Ephemeral });
     }
     if (sub === 'goodbye') {
       const canale = interaction.options.getChannel('canale');
       updateGuild(interaction.guild.id, { goodbyeChannelId: canale ? canale.id : null });
-      return interaction.reply(`✅ Canale addio: ${canale || 'disattivato'}.`);
+      return interaction.reply({ content: `✅ Canale addio: ${canale || 'disattivato'}.`, flags: MessageFlags.Ephemeral });
     }
     if (sub === 'logs') {
       const canale = interaction.options.getChannel('canale');
       updateGuild(interaction.guild.id, { logChannelId: canale ? canale.id : null });
-      return interaction.reply(`✅ Canale log: ${canale || 'disattivato'}.`);
+      return interaction.reply({ content: `✅ Canale log: ${canale || 'disattivato'}.`, flags: MessageFlags.Ephemeral });
     }
     if (sub === 'suggest') {
       const canale = interaction.options.getChannel('canale');
       updateGuild(interaction.guild.id, { suggestChannelId: canale ? canale.id : null });
-      return interaction.reply(`✅ Canale suggerimenti: ${canale || 'disattivato'}.`);
+      return interaction.reply({ content: `✅ Canale suggerimenti: ${canale || 'disattivato'}.`, flags: MessageFlags.Ephemeral });
     }
     if (sub === 'automod') {
       const on = interaction.options.getBoolean('attiva');
       updateGuild(interaction.guild.id, { automod: { enabled: on } });
-      return interaction.reply(`🛡️ Automoderazione **${on ? 'attivata' : 'disattivata'}**.`);
+      return interaction.reply({ content: `🛡️ Automoderazione **${on ? 'attivata 🟢' : 'disattivata 🔴'}**.`, flags: MessageFlags.Ephemeral });
     }
   },
 };

@@ -68,6 +68,10 @@ module.exports = {
           const clone = await channel.clone({ reason: `Nuke | Mod: ${interaction.user.tag}` });
           await channel.delete(`Nuke | Mod: ${interaction.user.tag}`);
           await clone.send(`💥 Canale rigenerato da ${interaction.user}.`);
+          // Il canale originale è eliminato: update() fallirebbe, la reply via webhook funziona.
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ content: '💥 Canale rigenerato.', flags: MessageFlags.Ephemeral }).catch(() => {});
+          }
         } catch (e) {
           console.error(e);
           try {
@@ -89,6 +93,11 @@ module.exports = {
     const command = client.commands.get(interaction.commandName);
     if (!command) {
       console.error(`Comando non trovato: ${interaction.commandName}`);
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({ content: '❌ Comando non trovato.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      } else {
+        await interaction.reply({ content: '❌ Comando non trovato.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      }
       return;
     }
 
@@ -105,10 +114,16 @@ module.exports = {
           const hasRole = memberRoles ? roleIds.some((id) => memberRoles.has(id)) : false;
           if (!isAdmin && !hasRole) {
             const richiesti = roleIds.map((id) => `<@&${id}>`).join(' / ') || 'ruolo autorizzato';
-            return interaction.reply({
+            const denyMsg = {
               content: `❌ Non hai il permesso di usare \`/${command.data.name}\` (richiede ${richiesti}).`,
               flags: MessageFlags.Ephemeral,
-            }).catch(() => {});
+            };
+            if (interaction.replied || interaction.deferred) {
+              await interaction.followUp(denyMsg).catch(() => {});
+            } else {
+              await interaction.reply(denyMsg).catch(() => {});
+            }
+            return;
           }
         }
       }
@@ -127,10 +142,16 @@ module.exports = {
       const expirationTime = timestamps.get(interaction.user.id) + cooldownAmount;
       if (now < expirationTime) {
         const expiredTimestamp = Math.round(expirationTime / 1000);
-        return interaction.reply({
+        const waitMsg = {
           content: `⏳ Aspetta ancora <t:${expiredTimestamp}:R> prima di riusare \`/${command.data.name}\`.`,
           flags: MessageFlags.Ephemeral,
-        }).catch(() => {});
+        };
+        if (interaction.replied || interaction.deferred) {
+          await interaction.followUp(waitMsg).catch(() => {});
+        } else {
+          await interaction.reply(waitMsg).catch(() => {});
+        }
+        return;
       }
     }
     timestamps.set(interaction.user.id, now);
@@ -140,6 +161,8 @@ module.exports = {
       await command.execute(interaction, client);
     } catch (error) {
       console.error(`Errore eseguendo ${interaction.commandName}:`, error);
+      // L'esecuzione è fallita: non far pagare il cooldown per un errore.
+      timestamps.delete(interaction.user.id);
       const errorMsg = { content: "❌ Si è verificato un errore durante l'esecuzione del comando!", flags: MessageFlags.Ephemeral };
       try {
         if (interaction.replied || interaction.deferred) await interaction.followUp(errorMsg);

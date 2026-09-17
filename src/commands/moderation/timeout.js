@@ -12,9 +12,12 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
   cooldown: 5,
   async execute(interaction) {
+    if (!interaction.guild) {
+      return interaction.reply({ content: '❌ Usa questo comando dentro un server.', flags: MessageFlags.Ephemeral });
+    }
     const user = interaction.options.getUser('utente');
     const raw = interaction.options.getString('durata');
-    const reason = interaction.options.getString('motivo') || 'Nessun motivo specificato';
+    const reason = (interaction.options.getString('motivo') || 'Nessun motivo specificato').slice(0, 1024);
     const duration = ms(raw);
 
     if (!duration || duration < 5000 || duration > 28 * 24 * 3600 * 1000) {
@@ -22,6 +25,12 @@ module.exports = {
     }
     const member = await interaction.guild.members.fetch(user.id).catch(() => null);
     if (!member) return interaction.reply({ content: '❌ Utente non nel server.', flags: MessageFlags.Ephemeral });
+    if (user.id === interaction.user.id)
+      return interaction.reply({ content: '❌ Non puoi silenziare te stesso!', flags: MessageFlags.Ephemeral });
+    if (user.id === interaction.client.user.id)
+      return interaction.reply({ content: '❌ Non puoi silenziare me!', flags: MessageFlags.Ephemeral });
+    if (member.id === interaction.guild.ownerId && interaction.user.id !== interaction.guild.ownerId)
+      return interaction.reply({ content: '❌ Non puoi silenziare il proprietario del server.', flags: MessageFlags.Ephemeral });
     if (!member.moderatable)
       return interaction.reply({ content: '❌ Non posso moderare questo utente.', flags: MessageFlags.Ephemeral });
     if (!hierarchyAllows(interaction, member))

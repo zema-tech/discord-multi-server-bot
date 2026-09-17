@@ -13,8 +13,11 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
   cooldown: 5,
   async execute(interaction) {
+    if (!interaction.guild) {
+      return interaction.reply({ content: '❌ Usa questo comando dentro un server.', flags: MessageFlags.Ephemeral });
+    }
     const user = interaction.options.getUser('utente');
-    const reason = interaction.options.getString('motivo') || 'Nessun motivo specificato';
+    const reason = (interaction.options.getString('motivo') || 'Nessun motivo specificato').slice(0, 1024);
     const days = interaction.options.getInteger('giorni') ?? 0;
     const member = interaction.guild.members.cache.get(user.id) ?? await interaction.guild.members.fetch(user.id).catch(() => null);
 
@@ -23,6 +26,8 @@ module.exports = {
     if (user.id === interaction.client.user.id)
       return interaction.reply({ content: '❌ Non puoi bannare me!', flags: MessageFlags.Ephemeral });
     if (member) {
+      if (member.id === interaction.guild.ownerId && interaction.user.id !== interaction.guild.ownerId)
+        return interaction.reply({ content: '❌ Non puoi bannare il proprietario del server.', flags: MessageFlags.Ephemeral });
       if (!member.bannable)
         return interaction.reply({ content: '❌ Non ho i permessi per bannare questo utente.', flags: MessageFlags.Ephemeral });
       if (!hierarchyAllows(interaction, member))

@@ -9,7 +9,7 @@ module.exports = {
     console.log(`📦 Comandi: ${client.commands.size}`);
 
     const update = () =>
-      client.user.setActivity(`${client.guilds.cache.size} server | /help`, { type: ActivityType.Watching });
+      client.user.setActivity(`${client.guilds.cache.size} server | /help`, { type: ActivityType.Watching }).catch(() => {});
     update();
     setInterval(update, 10 * 60 * 1000).unref?.();
 
@@ -18,6 +18,13 @@ module.exports = {
       require('../jobs/ticketAutoclose').startTicketAutoclose(client);
     } catch (e) {
       console.error('ticketAutoclose:', e.message);
+    }
+
+    // SELF: auto-miglioramento notturno (attivo solo con SELF_IMPROVE=1).
+    try {
+      require('../jobs/selfImprove').startSelfImprove(client);
+    } catch (e) {
+      console.error('selfImprove:', e.message);
     }
   },
 };
