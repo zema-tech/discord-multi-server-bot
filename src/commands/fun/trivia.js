@@ -1,5 +1,15 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, ComponentType } = require('discord.js');
 
+// Tema premium condiviso, con fallback inline se il require fallisse.
+let T = null;
+try {
+  T = require('../../utils/theme');
+} catch {
+  T = null;
+}
+const COLORS = T?.COLORS ?? { primary: 0x3498db, success: 0x57f287, error: 0xed4245, warn: 0xfee75c };
+const trunc = typeof T?.truncate === 'function' ? T.truncate : (s, m) => String(s ?? '').slice(0, m);
+
 const LETTERE = ['🇦', '🇧', '🇨', '🇩'];
 
 // ~15 domande IT a tema generale / gaming / tech
@@ -38,23 +48,25 @@ module.exports = {
       row.addComponents(
         new ButtonBuilder()
           .setCustomId(`${prefix}:${i}`)
-          .setLabel(`${'ABCD'[i]}. ${testo}`.slice(0, 80))
+          .setLabel(`${'ABCD'[i]}. ${trunc(testo, 76)}`.slice(0, 80))
           .setStyle(ButtonStyle.Primary)
           .setEmoji(LETTERE[i])
       );
     });
 
     const embed = new EmbedBuilder()
-      .setColor(0x3498db)
+      .setColor(COLORS.primary)
       .setTitle('🧠 Trivia — hai 20 secondi!')
       .setThumbnail(interaction.user.displayAvatarURL())
-      .setDescription(`**${domanda.q}**\n\n${domanda.risposte.map((r, i) => `${LETTERE[i]} **${'ABCD'[i]}** — ${r}`).join('\n')}`)
+      .setDescription(`**${trunc(domanda.q, 1000)}**\n\n${domanda.risposte.map((r, i) => `${LETTERE[i]} **${'ABCD'[i]}** — ${trunc(r, 200)}`).join('\n').slice(0, 3800)}`)
       .addFields({ name: '🏆 Punteggio', value: 'Risposta corretta = **+1 punto** • sbagliata/scaduta = **0 punti**', inline: false })
-      .setFooter({ text: `Sfida di ${interaction.user.tag} • Rispondi con i bottoni` })
+      .setFooter({ text: `Sfida di ${trunc(interaction.user.tag, 100)} • Rispondi con i bottoni` })
       .setTimestamp();
 
     const reply = await interaction.reply({ embeds: [embed], components: [row], withResponse: true });
-    const message = reply.resource.message;
+    // FIX: withResponse in alcune versioni non popola resource.message → fallback fetchReply.
+    const message = reply?.resource?.message ?? await interaction.fetchReply().catch(() => null);
+    if (!message || typeof message.createMessageComponentCollector !== 'function') return;
 
     const collector = message.createMessageComponentCollector({
       componentType: ComponentType.Button,
@@ -66,10 +78,14 @@ module.exports = {
 
     collector.on('collect', async (i) => {
       if (i.user.id !== uid) {
-        return i.reply({ content: '❌ Questa partita è di un altro utente! Usa `/trivia` per la tua.', flags: MessageFlags.Ephemeral });
+        // FIX: catch su interaction scaduta (prima throw non gestito).
+        await i.reply({ content: '❌ Questa partita è di un altro utente! Usa `/trivia` per la tua.', flags: MessageFlags.Ephemeral }).catch(() => {});
+        return;
       }
       if (haRisposto) {
-        return i.reply({ content: '⏳ Hai già risposto a questa domanda.', flags: MessageFlags.Ephemeral });
+        // FIX: double-click race → effimero invece di throw su update già fatto.
+        await i.reply({ content: '⏳ Hai già risposto a questa domanda.', flags: MessageFlags.Ephemeral }).catch(() => {});
+        return;
       }
       haRisposto = true;
       const scelta = Number(i.customId.split(':').pop());
@@ -83,7 +99,7 @@ module.exports = {
         disabilitati.addComponents(
           new ButtonBuilder()
             .setCustomId(`${prefix}:${idx}:fin`)
-            .setLabel(`${'ABCD'[idx]}. ${testo}`.slice(0, 80))
+            .setLabel(`${'ABCD'[idx]}. ${trunc(testo, 76)}`.slice(0, 80))
             .setStyle(style)
             .setEmoji(LETTERE[idx])
             .setDisabled(true)
@@ -91,24 +107,30 @@ module.exports = {
       });
 
       const esito = new EmbedBuilder()
-        .setColor(vittoria ? 0x57f287 : 0xed4245)
+        .setColor(vittoria ? COLORS.success : COLORS.error)
         .setTitle(vittoria ? '🎉 Risposta corretta! +1 punto' : '❌ Risposta sbagliata! 0 punti')
         .setThumbnail(interaction.user.displayAvatarURL())
-        .setDescription(`**${domanda.q}**`)
+        .setDescription(`**${trunc(domanda.q, 1000)}**`)
         .addFields(
-          { name: '🫵 La tua risposta', value: `${LETTERE[scelta] || '❔'} **${'ABCD'[scelta] || '?'}** — ${domanda.risposte[scelta] || '*non valida*'}`, inline: false },
-          { name: '✅ Risposta giusta', value: `${LETTERE[domanda.corretta]} **${'ABCD'[domanda.corretta]}** — ${domanda.risposte[domanda.corretta]}`, inline: false },
+          { name: '🫵 La tua risposta', value: `${LETTERE[scelta] || '❔'} **${'ABCD'[scelta] || '?'}** — ${trunc(domanda.risposte[scelta] ?? '*non valida*', 200)}`, inline: false },
+          { name: '✅ Risposta giusta', value: `${LETTERE[domanda.corretta]} **${'ABCD'[domanda.corretta]}** — ${trunc(domanda.risposte[domanda.corretta], 200)}`, inline: false },
           { name: '🏆 Punteggio round', value: vittoria ? '**+1 punto** — cervellone! 🧠' : '**0 punti** — ritenta con `/trivia`! 💔', inline: false }
         )
-        .setFooter({ text: `Giocatore: ${interaction.user.tag}` })
+        .setFooter({ text: `Giocatore: ${trunc(interaction.user.tag, 100)}` })
         .setTimestamp();
 
-      await i.update({ embeds: [esito], components: [disabilitati] });
+      // FIX: update protetto (Unknown interaction se doppio click/timeout) + stop con cleanup.
+      try {
+        await i.update({ embeds: [esito], components: [disabilitati] });
+      } catch {
+        try { collector.stop('risposto'); } catch { /* ignora */ }
+        return;
+      }
       await i.followUp({
         content: vittoria ? '🏆 **Hai vinto! (+1 punto)** Complimenti, cervellone!' : '💔 **Hai perso! (0 punti)** Ritenta con `/trivia`.',
         flags: MessageFlags.Ephemeral,
-      });
-      collector.stop('risposto');
+      }).catch(() => {});
+      try { collector.stop('risposto'); } catch { /* ignora */ }
     });
 
     collector.on('end', async (_collected, reason) => {
@@ -118,23 +140,24 @@ module.exports = {
         disabilitati.addComponents(
           new ButtonBuilder()
             .setCustomId(`${prefix}:${idx}:fin`)
-            .setLabel(`${'ABCD'[idx]}. ${testo}`.slice(0, 80))
+            .setLabel(`${'ABCD'[idx]}. ${trunc(testo, 76)}`.slice(0, 80))
             .setStyle(idx === domanda.corretta ? ButtonStyle.Success : ButtonStyle.Secondary)
             .setEmoji(LETTERE[idx])
             .setDisabled(true)
         );
       });
       const scaduto = new EmbedBuilder()
-        .setColor(0xfee75c)
+        .setColor(COLORS.warn)
         .setTitle('⏰ Tempo scaduto! 0 punti')
         .setThumbnail(interaction.user.displayAvatarURL())
-        .setDescription(`**${domanda.q}**`)
+        .setDescription(`**${trunc(domanda.q, 1000)}**`)
         .addFields(
-          { name: '✅ Risposta giusta', value: `${LETTERE[domanda.corretta]} **${'ABCD'[domanda.corretta]}** — ${domanda.risposte[domanda.corretta]}`, inline: false },
+          { name: '✅ Risposta giusta', value: `${LETTERE[domanda.corretta]} **${'ABCD'[domanda.corretta]}** — ${trunc(domanda.risposte[domanda.corretta], 200)}`, inline: false },
           { name: '🏆 Punteggio round', value: '**0 punti** — riprova con `/trivia`!', inline: false }
         )
-        .setFooter({ text: `Giocatore: ${interaction.user.tag}` })
+        .setFooter({ text: `Giocatore: ${trunc(interaction.user.tag, 100)}` })
         .setTimestamp();
+      // FIX: bottoni disabilitati a timeout (cleanup) + edit protetto se msg cancellato.
       await interaction.editReply({ embeds: [scaduto], components: [disabilitati] }).catch(() => {});
     });
   },

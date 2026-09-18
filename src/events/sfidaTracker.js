@@ -10,7 +10,7 @@ module.exports = {
   name: Events.MessageCreate,
   async execute(message, client) {
     try {
-      if (!message.guild || message.author.bot) return;
+      if (!message.guild || message.author?.bot) return;
       const key = `${message.guild.id}:${message.author.id}`;
       const now = Date.now();
       const last = cooldown.get(key) || 0;

@@ -40,11 +40,14 @@ function canGive(guildId, giverId, receiverId, now = Date.now()) {
 
 // Assegna +1 rep. Presuppone i controlli (self/bot/cooldown) fatti dal comando.
 function giveRep(guildId, giverId, receiverId, now = Date.now()) {
+  if (!guildId || !receiverId) return { count: 0, lastGiven: {} };
+  const giver = typeof giverId === 'string' && giverId ? giverId : 'unknown';
+  const ts = Number.isFinite(now) ? now : Date.now();
   const db = load(FILE);
   if (!db[guildId]) db[guildId] = {};
   const current = db[guildId][receiverId] ? sanitize(db[guildId][receiverId]) : { count: 0, lastGiven: {} };
-  current.count += 1;
-  current.lastGiven[giverId] = now;
+  current.count = Math.min(current.count + 1, Number.MAX_SAFE_INTEGER);
+  current.lastGiven[giver] = ts;
   db[guildId][receiverId] = current;
   save(FILE, db);
   return current;

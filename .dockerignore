@@ -1,0 +1,25 @@
+# Escludi dal contesto di build: dipendenze, segreti, dati runtime, VCS.
+node_modules/
+npm-debug.log*
+
+.git/
+.gitignore
+
+# Segreti: il token passa via env_file (.env) nel compose, mai nell'immagine.
+.env
+!.env.example
+
+# Log e dati runtime (montati come volumi, vedi docker-compose.yml).
+*.log
+logs/
+data/
+backups/
+*.db*
+*.sqlite*
+
+# DB JSON di sviluppo (src/database/*.json): in container si usa
+# DB_BACKEND=sqlite con DB_SQLITE_PATH=./data/bot.db (volume persistente).
+src/database/*.json
+
+.DS_Store
+docs/

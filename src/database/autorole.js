@@ -9,8 +9,10 @@ const DEFAULTS = {
 };
 
 function getConfig(guildId) {
+  // guildId falsy: default in memoria senza save (niente record 'undefined').
+  if (!guildId) return { ...DEFAULTS, roleIds: [] };
   const db = load(FILE);
-  if (!db[guildId]) {
+  if (!db[guildId] || typeof db[guildId] !== 'object' || Array.isArray(db[guildId])) {
     db[guildId] = { ...DEFAULTS, roleIds: [] };
     save(FILE, db);
   }
@@ -21,10 +23,16 @@ function getConfig(guildId) {
 }
 
 function setConfig(guildId, patch) {
+  if (!guildId) throw new Error('guildId mancante.');
+  const safePatch = patch && typeof patch === 'object' && !Array.isArray(patch) ? patch : {};
   const db = load(FILE);
   const current = getConfig(guildId);
-  db[guildId] = { ...current, ...patch };
+  db[guildId] = { ...current, ...safePatch };
   if (!Array.isArray(db[guildId].roleIds)) db[guildId].roleIds = [];
+  else db[guildId].roleIds = db[guildId].roleIds.filter((r) => typeof r === 'string' && r);
+  const d = Math.floor(Number(db[guildId].delaySeconds));
+  db[guildId].delaySeconds = Number.isFinite(d) ? Math.min(Math.max(0, d), 3600) : DEFAULTS.delaySeconds;
+  db[guildId].enabled = db[guildId].enabled !== false;
   save(FILE, db);
   return db[guildId];
 }

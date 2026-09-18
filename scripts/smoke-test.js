@@ -25,9 +25,18 @@
  *      altrimenti warning), logger (LOG_DIR tmp + cleanup), i18n+locales
  *      (t fallback), backup (solo export check, MAI start), music
  *      require-safe anche senza dipendenze vocali (require vocale eager a
- *      top-level = FAIL con messaggio chiaro). Assente/API incompleta ->
- *      WARNING (skip, lavori in corso); presente ma rotto -> FAIL.
- *      Regola duplicati-evento invariata (la gestisce il revisore).
+  *      top-level = FAIL con messaggio chiaro). Assente/API incompleta ->
+  *      WARNING (skip, lavori in corso); presente ma rotto -> FAIL.
+  *      Regola duplicati-evento invariata (la gestisce il revisore).
+  *  (c5) LOTTO QA (questo file, dentro il try con cleanup qatest/w1test/gtest):
+  *      theme (contratto COLORS,ok,err,info,applyFooter,bar,medal,num,
+  *      truncate,paginate) + env (validateEnv: token mancante->errors,
+  *      completo->ok) + backup restore (export restoreBackup/
+  *      isValidBackupName, traversal rifiutato, roundtrip SOLO su dir tmp —
+  *      MAI restore veri su dati reali) + aiUsage (roundtrip con
+  *      snapshot/restore del contatore odierno) + music riuso (già in c4).
+  *      Assente/API incompleta -> WARNING (skip); presente ma rotto -> FAIL.
+  *      Regola duplicati-evento invariata (la gestisce il revisore).
  *  (e) extra QA: customId letterali duplicati, nomi evento duplicati.
  *
  * Uso: node scripts/smoke-test.js
@@ -203,7 +212,7 @@ const QUSER = 'qatest_user';
 const QCHAN = 'qatest_channel';
 
 function scrubTestKeys() {
-  // Rimuove ogni traccia qatest dai JSON noti + eventuali file lazy (suggest/giveaways).
+  // Rimuove ogni traccia qatest/w1test/gtest dai JSON noti + eventuali file lazy (suggest/giveaways).
   // Ritorna lista dei file toccati per il ripristino.
   const touched = [];
   let jsonDb;
@@ -224,28 +233,45 @@ function scrubTestKeys() {
     }
     if (!data || typeof data !== 'object') continue;
     let changed = false;
-    if (data[QGUILD] !== undefined) {
-      delete data[QGUILD];
-      changed = true;
+    for (const gk of [QGUILD, 'w1test_guild', 'gtest_guild', 'qatest', 'w1test', 'gtest']) {
+      if (data[gk] !== undefined) {
+        delete data[gk];
+        changed = true;
+      }
     }
-    if (data.counters && typeof data.counters === 'object' && data.counters[QGUILD] !== undefined) {
-      delete data.counters[QGUILD];
-      changed = true;
+    if (data.counters && typeof data.counters === 'object') {
+      for (const gk of [QGUILD, 'w1test_guild', 'gtest_guild']) {
+        if (data.counters[gk] !== undefined) {
+          delete data.counters[gk];
+          changed = true;
+        }
+      }
     }
-    // giveaways.json è indicizzato per messageId: rimuovi entry il cui guildId/channel è qatest
+    const isTestStr = (s) => typeof s === 'string' && /^(qatest|w1test|gtest)/.test(s);
+    // giveaways.json è indicizzato per messageId: rimuovi entry il cui guildId/channel è di test
     for (const k of Object.keys(data)) {
       const v = data[k];
-      if (v && typeof v === 'object' && (v.guildId === QGUILD || v.channelId === QCHAN || k.startsWith('qatest'))) {
+      if (isTestStr(k) || (v && typeof v === 'object' && (v.guildId === QGUILD || v.channelId === QCHAN || isTestStr(v.guildId) || isTestStr(v.channelId)))) {
         delete data[k];
         changed = true;
       }
     }
-    // tickets.json: dentro db[qatest] già rimosso sopra; pulisci anche ticket con channelId qatest
+    // tickets.json: dentro db[qatest] già rimosso sopra; pulisci anche ticket con channelId di test
     for (const gid of Object.keys(data)) {
       const g = data[gid];
-      if (g && typeof g === 'object' && g.tickets && typeof g.tickets === 'object' && g.tickets[QCHAN] !== undefined) {
-        delete g.tickets[QCHAN];
-        changed = true;
+      if (g && typeof g === 'object' && g.tickets && typeof g.tickets === 'object') {
+        for (const ck of [QCHAN, 'w1test_channel', 'gtest_channel']) {
+          if (g.tickets[ck] !== undefined) {
+            delete g.tickets[ck];
+            changed = true;
+          }
+        }
+        for (const tk of Object.keys(g.tickets)) {
+          if (/^(qatest|w1test|gtest)/.test(tk)) {
+            delete g.tickets[tk];
+            changed = true;
+          }
+        }
       }
     }
     if (changed) {
@@ -1367,10 +1393,217 @@ try {
   } catch (e) {
     fail(`music require-safe: ${e.message.split('\n')[0]}`);
   }
+
+  // ---- (c5) LOTTO QA: theme, env, backup-restore, aiUsage (music riuso c4) ----
+  // Policy: assente -> WARNING (skip, lavori in corso); API incompleta ->
+  // WARNING (WIP); presente ma roundtrip/require rotto -> FAIL. Mai
+  // execute() di comandi, mai start di job/timer, mai restore veri su dati
+  // reali (backup: SOLO dir tmp isolate). Cleanup qatest/w1test/gtest via
+  // scrubTestKeys/finally sotto. Regola duplicati-evento NON toccata.
+  console.log('---- (c5) Lotto QA (theme, env, backup-restore, aiUsage) ----');
+
+  // theme.js — contratto export completo + pure functions (paginate è async
+  // con I/O Discord: qui solo sync-check — export async, thenable, mai throw
+  // in sync — mai veri invii).
+  try {
+    const fp = path.join(ROOT, 'src', 'utils', 'theme.js');
+    if (!fs.existsSync(fp)) {
+      skipMissing('theme', 'src/utils/theme.js');
+    } else {
+      delete require.cache[require.resolve(fp)];
+      const th = require(fp);
+      const tag = 'src/utils/theme.js';
+      const need = ['COLORS', 'ok', 'err', 'info', 'applyFooter', 'bar', 'medal', 'num', 'truncate', 'paginate'];
+      const miss = need.filter((k) => th[k] === undefined);
+      if (miss.length) {
+        fail(`theme: export mancanti: ${miss.join(', ')} (${tag})`);
+      } else {
+        for (const c of ['primary', 'success', 'error']) {
+          if (typeof th.COLORS[c] !== 'number') fail(`theme: COLORS.${c} atteso numero in ${tag}`);
+        }
+        const { EmbedBuilder } = require('discord.js');
+        const col = (e) => { try { return e.toJSON().color; } catch { return undefined; } };
+        if (col(th.ok('t', 'd')) !== th.COLORS.success) fail('theme: ok() senza color success');
+        if (col(th.err('x')) !== th.COLORS.error) fail('theme: err() senza color error');
+        if (col(th.info('t', 'd')) !== th.COLORS.primary) fail('theme: info() senza color primary');
+        if (th.ok('x'.repeat(300), 'd').toJSON().title.length > 256) fail('theme: ok() non tronca il titolo a 256');
+        const e0 = new EmbedBuilder().setDescription('base');
+        if (th.applyFooter(e0, { user: { tag: 'QA' } }) !== e0) fail('theme: applyFooter deve ritornare lo stesso embed');
+        if (!JSON.stringify(e0.toJSON()).includes('QA')) fail('theme: applyFooter senza footer "Richiesto da QA"');
+        if (th.bar(5, 10, 10) !== '█'.repeat(5) + '░'.repeat(5)) fail('theme: bar(5,10,10) errata');
+        if (th.bar(1, 0) !== '░'.repeat(10)) fail('theme: bar(1,0) deve essere sicura su div0');
+        if (th.bar(-5, 10) !== '░'.repeat(10)) fail('theme: bar negativa deve clampare a 0');
+        if (th.medal(0) !== '🥇' || th.medal(1) !== '🥈' || th.medal(2) !== '🥉') fail('theme: medal podio errate');
+        if (!String(th.medal(5)).includes('6')) fail('theme: medal(5) atteso posizione 6');
+        if (typeof th.num(1234) !== 'string') fail('theme: num(1234) atteso stringa');
+        if (th.num(NaN) !== 'n/d') fail("theme: num(NaN) atteso 'n/d'");
+        if (th.truncate('abcdef', 3) !== 'abc') fail("theme: truncate('abcdef',3) atteso 'abc'");
+        if (th.truncate(123, 10) !== '123') fail('theme: truncate(123,10) deve tollerare non-stringhe');
+        if (th.paginate.constructor.name !== 'AsyncFunction') fail('theme: paginate atteso async function');
+        let p = null;
+        try {
+          p = th.paginate(null, []);
+        } catch (e) {
+          fail(`theme: paginate(null,[]) non deve lanciare in sync: ${e.message.split('\n')[0]}`);
+        }
+        if (p && typeof p.then === 'function') p.then(() => {}, () => {});
+        else if (p !== null) fail('theme: paginate(null,[]) atteso Promise/null, mai valore sync');
+      }
+    }
+  } catch (e) {
+    fail(`theme (contratto): ${e.message.split('\n')[0]}`);
+  }
+
+  // env.js — validateEnv: token mancante->errors, completo->ok (solo overrides, mai env reale).
+  try {
+    const fp = path.join(ROOT, 'src', 'utils', 'env.js');
+    if (!fs.existsSync(fp)) {
+      skipMissing('env', 'src/utils/env.js');
+    } else {
+      delete require.cache[require.resolve(fp)];
+      const ev = require(fp);
+      const tag = 'src/utils/env.js';
+      if (typeof ev.getEnv !== 'function' || typeof ev.validateEnv !== 'function') {
+        fail(`env: export getEnv/validateEnv mancanti in ${tag}`);
+      } else {
+        const bad = ev.validateEnv({ DISCORD_TOKEN: '' });
+        if (!bad || bad.ok !== false || !Array.isArray(bad.errors) || !bad.errors.length) {
+          fail('env: validateEnv(token mancante) atteso {ok:false, errors:[...]}');
+        }
+        const good = ev.validateEnv({ DISCORD_TOKEN: 'qatest-token-123', CLIENT_ID: '123' });
+        if (!good || good.ok !== true || (good.errors && good.errors.length)) {
+          fail(`env: validateEnv(completo) atteso {ok:true, errors:[]} in ${tag}, ottenuto ${JSON.stringify(good).slice(0, 120)}`);
+        }
+        const cfg = ev.getEnv({ DISCORD_TOKEN: 'qatest-token-123' });
+        if (!cfg || cfg.DISCORD_TOKEN !== 'qatest-token-123') fail('env: getEnv(overrides) non applica gli overrides');
+      }
+    }
+  } catch (e) {
+    fail(`env (validateEnv): ${e.message.split('\n')[0]}`);
+  }
+
+  // backup.js restore — MAI su dati reali: traversal rifiutato (puro) + roundtrip SOLO su dir tmp.
+  try {
+    const candidates = ['src/jobs/backup.js', 'src/utils/backup.js'];
+    const found = candidates.map((c) => path.join(ROOT, c)).find((f) => fs.existsSync(f));
+    if (!found) {
+      skipMissing('backup-restore', 'src/jobs/backup.js');
+    } else {
+      delete require.cache[require.resolve(found)];
+      const bk = require(found);
+      const tag = path.relative(ROOT, found);
+      if (typeof bk.restoreBackup !== 'function' || typeof bk.isValidBackupName !== 'function') {
+        warn(`backup-restore: export restoreBackup/isValidBackupName assenti in ${tag} (exports: ${Object.keys(bk).sort().join(',')}) — skip (WIP)`);
+      } else {
+        for (const evil of ['../x', '..', '/etc/passwd', '', 'a/b', '2026-13-99-9999x']) {
+          if (bk.isValidBackupName(evil)) fail(`backup: isValidBackupName accetta "${evil}" (traversal/malformato!)`);
+        }
+        if (!bk.isValidBackupName('2026-01-02-0300')) fail('backup: isValidBackupName rifiuta un nome valido YYYY-MM-DD-HHmm');
+        const tmpRoot = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'smoke-br-'));
+        const tmpDb = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'smoke-db-'));
+        try {
+          const r1 = bk.restoreBackup('../evil', { backupRoot: tmpRoot, dbDir: tmpDb });
+          if (!r1 || r1.ok !== false) fail('backup: restoreBackup(traversal) deve fallire con ok:false');
+          const r2 = bk.restoreBackup('2026-01-02-0300', { backupRoot: tmpRoot, dbDir: tmpDb });
+          if (!r2 || r2.ok !== false) fail('backup: restoreBackup(inesistente) atteso ok:false');
+          const name = '2026-02-03-0300';
+          fs.mkdirSync(path.join(tmpRoot, name), { recursive: true });
+          fs.writeFileSync(path.join(tmpRoot, name, 'qatest_restore.json'), JSON.stringify({ v: 'qatest' }));
+          const r3 = bk.restoreBackup(name, { backupRoot: tmpRoot, dbDir: tmpDb, now: 1700000000000 });
+          if (!r3 || r3.ok !== true || !r3.restored.includes('qatest_restore.json')) {
+            fail(`backup: restoreBackup roundtrip tmp fallito: ${JSON.stringify(r3).slice(0, 160)}`);
+          } else {
+            const back = JSON.parse(fs.readFileSync(path.join(tmpDb, 'qatest_restore.json'), 'utf8'));
+            if (back.v !== 'qatest') fail('backup: restore tmp non ripristina il contenuto');
+          }
+          if (fs.existsSync(path.join(DB_DIR, 'qatest_restore.json'))) {
+            fail('backup: restore ha scritto su dati reali (src/database/qatest_restore.json)!');
+          }
+        } finally {
+          fs.rmSync(tmpRoot, { recursive: true, force: true });
+          fs.rmSync(tmpDb, { recursive: true, force: true });
+        }
+        console.log(`backup-restore: export+traversal+roundtrip-tmp OK (${tag}) — mai toccati dati reali`);
+      }
+    }
+  } catch (e) {
+    fail(`backup-restore: ${e.message.split('\n')[0]}`);
+  }
+
+  // aiUsage.js — roundtrip con snapshot/restore del file reale (mai inquinare le metriche odierne).
+  try {
+    const fp = path.join(DB_DIR, 'aiUsage.js');
+    if (!fs.existsSync(fp)) {
+      skipMissing('aiUsage', 'src/database/aiUsage.js');
+    } else {
+      delete require.cache[require.resolve(fp)];
+      const au = require(fp);
+      const tag = 'src/database/aiUsage.js';
+      if (typeof au.todayCount !== 'function' || typeof au.countCall !== 'function' || typeof au.todayKey !== 'function') {
+        warn(`aiUsage: API incompleta in ${tag} (exports: ${Object.keys(au).sort().join(',')}) — skip (WIP)`);
+      } else {
+        const { dbFile } = require(path.join(DB_DIR, 'jsonDb.js'));
+        const f = dbFile('aiUsage');
+        const hadFile = fs.existsSync(f);
+        const rawBefore = hadFile ? fs.readFileSync(f, 'utf8') : null;
+        try {
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(au.todayKey())) fail('aiUsage: todayKey() non è YYYY-MM-DD');
+          const beforeCount = au.todayCount();
+          const after = au.countCall();
+          if (after !== beforeCount + 1) fail(`aiUsage: countCall atteso ${beforeCount + 1}, ottenuto ${after}`);
+          // Persistenza verificata via raw (load ha side-effect: crea il file se manca).
+          const rawMid = fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '';
+          if (!rawMid.includes(`"total": ${after}`) && !rawMid.includes(`"total":${after}`)) {
+            fail('aiUsage: countCall non persistito su file');
+          }
+        } finally {
+          try {
+            if (rawBefore === null) fs.rmSync(f, { force: true });
+            else fs.writeFileSync(f, rawBefore);
+          } catch (e) {
+            fail(`aiUsage: restore snapshot fallito: ${e.message.split('\n')[0]}`);
+          }
+        }
+        // Verifica restore SENZA chiamare au.* (load ricreerebbe il file se assente): solo fs.
+        try {
+          if (rawBefore === null) {
+            if (fs.existsSync(f)) {
+              const leftover = fs.readFileSync(f, 'utf8').trim();
+              if (leftover === '{}' || leftover === '') {
+                fs.rmSync(f, { force: true }); // side-effect di load(): file vuoto ricreato, rimuovi
+              } else {
+                fail('aiUsage: dopo il restore il file dovrebbe essere assente');
+              }
+            }
+          } else if (!fs.existsSync(f) || fs.readFileSync(f, 'utf8') !== rawBefore) {
+            fail('aiUsage: dopo il restore il file non è identico allo snapshot');
+          }
+        } catch (e) {
+          fail(`aiUsage: verifica restore: ${e.message.split('\n')[0]}`);
+        }
+      }
+    }
+  } catch (e) {
+    fail(`aiUsage (roundtrip): ${e.message.split('\n')[0]}`);
+  }
+
+  // music: require-safe già coperto in (c4) sopra — riuso, nessun duplicato.
+  try {
+    const musicDirs = ['src/commands/music', 'src/commands/musica']
+      .map((d) => path.join(ROOT, d))
+      .filter((d) => fs.existsSync(d));
+    if (!musicDirs.length) {
+      skipMissing('music (riuso)', 'src/commands/music');
+    } else {
+      console.log('music: require-safe già coperto in (c4) — riuso, nessun duplicato');
+    }
+  } catch (e) {
+    fail(`music riuso: ${e.message.split('\n')[0]}`);
+  }
 } finally {
   const touched = scrubTestKeys();
-  console.log(`Cleanup chiavi qatest: ${touched.length ? touched.join(', ') : 'nessun file sporcato (ok)'}`);
-  // Verifica: nessuna chiave qatest rimasta nei JSON
+  console.log(`Cleanup chiavi qatest/w1test/gtest: ${touched.length ? touched.join(', ') : 'nessun file sporcato (ok)'}`);
+  // Verifica: nessuna chiave qatest/w1test/gtest rimasta nei JSON
   try {
     const { load, dbFile } = require(path.join(DB_DIR, 'jsonDb.js'));
     const jsonNames = fs.readdirSync(DB_DIR).filter((f) => f.endsWith('.json')).map((f) => path.basename(f, '.json'));
@@ -1378,7 +1611,9 @@ try {
       const f = dbFile(name);
       if (!fs.existsSync(f)) continue;
       const raw = fs.readFileSync(f, 'utf8');
-      if (raw.includes('qatest')) fail(`Cleanup incompleto: ${rel(f)} contiene ancora "qatest"`);
+      for (const marker of ['qatest', 'w1test', 'gtest']) {
+        if (raw.includes(marker)) fail(`Cleanup incompleto: ${rel(f)} contiene ancora "${marker}"`);
+      }
       // sanity: JSON ancora valido
       try {
         load(f);

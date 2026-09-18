@@ -16,6 +16,15 @@ const {
   RoleSelectMenuBuilder, ButtonBuilder, ButtonStyle,
 } = require('discord.js');
 const { STEPS } = require('../../utils/wizardSteps');
+let theme;
+try {
+  theme = require('../../utils/theme');
+} catch {
+  theme = {
+    bar: (c, m, l = 5) => '▰'.repeat(Math.min(5, Math.max(0, c))) + '▱'.repeat(Math.max(0, 5 - Math.min(5, Math.max(0, c)))),
+    truncate: (s, m) => String(s ?? '').slice(0, m),
+  };
+}
 
 const STEP_TIME = 60000; // 60s per step
 const MAX_STEPS = 5;
@@ -59,11 +68,24 @@ function navRow(stepKey, opts = {}) {
 function collectDecision(msg, filter, onPick) {
   return new Promise((resolve) => {
     let done = false;
-    const col = msg.createMessageComponentCollector({ filter, time: STEP_TIME });
+    // FIX collector: msg può essere null (fetchReply fallita su ephemeral) o senza
+    // createMessageComponentCollector → prima lanciava TypeError non catturato e lo step
+    // restava appeso fino al timeout globale; ora ritorna subito timeout gestito.
+    if (!msg || typeof msg.createMessageComponentCollector !== 'function') {
+      resolve({ action: 'timeout' });
+      return;
+    }
+    let col;
+    try {
+      col = msg.createMessageComponentCollector({ filter, time: STEP_TIME });
+    } catch {
+      resolve({ action: 'timeout' });
+      return;
+    }
     const finish = (v) => {
       if (done) return;
       done = true;
-      col.stop('done');
+      try { col.stop('done'); } catch {}
       resolve(v);
     };
     col.on('collect', async (i) => {
@@ -97,7 +119,13 @@ function collectDecision(msg, filter, onPick) {
 async function runStep(interaction, step, idx, total) {
   const guild = interaction.guild;
   const key = step.key;
-  const progress = '▰'.repeat(idx + 1) + '▱'.repeat(total - idx - 1);
+  // Barra premium condivisa (fallback inline se theme.bar indisponibile).
+  let progress;
+  try {
+    progress = theme.bar(idx + 1, total, total);
+  } catch {
+    progress = '▰'.repeat(idx + 1) + '▱'.repeat(total - idx - 1);
+  }
   const header = () => `🧙 **Passo ${idx + 1}/${total} — ${step.label}**\n${progress}\n📍 Stato attuale: ${safeStatus(step, guild.id)}\n\n${step.ask}`;
 
   // ---- Automod: bottoni on/off ----
@@ -109,7 +137,8 @@ async function runStep(interaction, step, idx, total) {
       new ButtonBuilder().setCustomId('wizard_abort').setLabel('Annulla').setStyle(ButtonStyle.Danger).setEmoji('🛑')
     );
     await interaction.editReply({ content: `${header()}\n\nScegli con i bottoni qui sotto:`, components: [row] });
-    const msg = await interaction.fetchReply();
+    const msg = await interaction.fetchReply().catch(() => null);
+    if (!msg) return { action: 'timeout' };
     return collectDecision(msg, (i) => i.user.id === interaction.user.id, async (cid) => {
       if (cid === 'wizard_val:automod:on') return finishApply(step, guild, 'on');
       if (cid === 'wizard_val:automod:off') return finishApply(step, guild, 'off');
@@ -136,7 +165,8 @@ async function runStep(interaction, step, idx, total) {
       content: `${header()}\n\nScegli la soglia dal menu (oppure Disattiva/Salta):`,
       components: [sel, navRow(key, { off: true })],
     });
-    const msg = await interaction.fetchReply();
+    const msg = await interaction.fetchReply().catch(() => null);
+    if (!msg) return { action: 'timeout' };
     return collectDecision(msg, (i) => i.user.id === interaction.user.id, async (cid, i) => {
       if (cid === 'wizard_val:starboard') return finishApply(step, guild, i.values[0]);
       if (cid === `wizard_off:${key}`) return finishApply(step, guild, 'off');
@@ -170,7 +200,8 @@ async function runStep(interaction, step, idx, total) {
       return { content: header() + state, components: [cat, role, navRow(key, { go: true })] };
     };
     await interaction.editReply(render());
-    const msg = await interaction.fetchReply();
+    const msg = await interaction.fetchReply().catch(() => null);
+    if (!msg) return { action: 'timeout' };
     return collectDecision(msg, (i) => i.user.id === interaction.user.id, async (cid, i) => {
       if (cid === 'wizard_val:ticket_cat') {
         partial.categoryId = i.values[0];
@@ -256,15 +287,26 @@ module.exports = {
       components: [pickRow, pickBtns],
       flags: MessageFlags.Ephemeral,
     });
-    const pickMsg = await interaction.fetchReply();
+    const pickMsg = await interaction.fetchReply().catch(() => null);
 
     let selected = null;
+    // FIX collector fase 0: se fetchReply fallisce (ephemeral non recuperabile) o il collector
+    // non si crea, prima il comando lanciava; ora chiude con messaggio chiaro.
+    if (!pickMsg || typeof pickMsg.createMessageComponentCollector !== 'function') {
+      return interaction.editReply({ content: '❌ Impossibile avviare il wizard: riprova tra poco.', components: [] }).catch(() => {});
+    }
     const pickOutcome = await new Promise((resolve) => {
-      const col = pickMsg.createMessageComponentCollector({ filter, time: STEP_TIME });
+      let col;
+      try {
+        col = pickMsg.createMessageComponentCollector({ filter, time: STEP_TIME });
+      } catch {
+        resolve('error');
+        return;
+      }
       col.on('collect', async (i) => {
         try {
           if (i.customId === 'wizard_pick') {
-            selected = i.values;
+            if (Array.isArray(i.values)) selected = i.values;
             await i.deferUpdate().catch(() => {});
           } else if (i.customId === 'wizard_start') {
             await i.deferUpdate().catch(() => {});
@@ -286,8 +328,10 @@ module.exports = {
     if (pickOutcome !== 'start') {
       return interaction.editReply({ content: '⏱️ Tempo scaduto: wizard chiuso senza modifiche.', components: [] });
     }
-    let keys = (selected && selected.length ? selected : STEPS.slice(0, maxSel).map((s) => s.key))
-      .filter((k) => STEPS.some((s) => s.key === k))
+    // FIX: selected potrebbe contenere valori non-array o chiavi ignote (step rimossi);
+    // normalizza ad array di stringhe valide prima di procedere.
+    let keys = (Array.isArray(selected) && selected.length ? selected : STEPS.slice(0, maxSel).map((s) => s.key))
+      .filter((k) => typeof k === 'string' && STEPS.some((s) => s.key === k))
       .slice(0, MAX_STEPS);
     if (!keys.length) {
       return interaction.editReply({ content: '🛑 Nessuna voce selezionata: wizard chiuso.', components: [] });

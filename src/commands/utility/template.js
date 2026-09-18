@@ -9,6 +9,18 @@ const {
   ComponentType,
 } = require('discord.js');
 const { TEMPLATES, validateBlueprint, applyBlueprint, describeBlueprint } = require('../../utils/blueprints');
+let theme;
+try {
+  theme = require('../../utils/theme');
+} catch {
+  theme = {
+    COLORS: { primary: 0x5865f2, success: 0x57f287, warn: 0xfee75c, error: 0xed4245 },
+    err: (t) => new EmbedBuilder().setColor(0xed4245).setTitle('❌ Errore').setDescription(String(t).slice(0, 4000)).setTimestamp(),
+    applyFooter: (e, i) => { try { e.setFooter({ text: `Richiesto da ${i?.user?.tag ?? 'Utente'}` }); e.setTimestamp(); } catch {} return e; },
+    truncate: (s, m) => String(s ?? '').slice(0, m),
+  };
+}
+const { COLORS } = theme;
 
 const TEMPLATE_CHOICES = Object.keys(TEMPLATES);
 
@@ -17,10 +29,10 @@ function previewEmbed(key) {
   const v = validateBlueprint(t);
   const channelTotal = v.blueprint ? v.blueprint.categories.reduce((n, c) => n + c.channels.length, 0) : 0;
   return new EmbedBuilder()
-    .setColor(0x5865f2)
+    .setColor(COLORS.primary ?? 0x5865f2)
     .setTitle(`📐 Template ${t.label}`.slice(0, 256))
     .setDescription(
-      `✨ *${t.description}*\n\n${describeBlueprint(v.blueprint || t)}\n\n🎭 Ruoli: **${t.roles.length}** • 💬🔊 Canali: **${channelTotal}**`
+      `✨ *${theme.truncate(t.description, 500)}*\n\n${theme.truncate(describeBlueprint(v.blueprint || t), 3000)}\n\n🎭 Ruoli: **${t.roles.length}** • 💬🔊 Canali: **${channelTotal}**`
     )
     .setFooter({ text: 'Usa /template applica per creare questa struttura (non cancella nulla di esistente)'.slice(0, 200) })
     .setTimestamp();
@@ -83,30 +95,33 @@ module.exports = {
         return `${t.label} — \`${k}\`: ${t.description} (**${t.roles.length}** ruoli, **${ch}** canali)`;
       });
       const embed = new EmbedBuilder()
-        .setColor(0x5865f2)
+        .setColor(COLORS.primary ?? 0x5865f2)
         .setTitle('📐 Template disponibili')
-        .setDescription(`${lines.join('\n\n')}\n\n👁️ \`/template anteprima nome:<id>\` per vedere la struttura.`)
+        .setDescription(`${theme.truncate(lines.join('\n\n'), 3500)}\n\n👁️ \`/template anteprima nome:<id>\` per vedere la struttura.`)
         .setTimestamp();
+      theme.applyFooter(embed, interaction);
       return interaction.reply({ embeds: [embed] });
     }
 
     const nome = interaction.options.getString('nome');
     const tpl = TEMPLATES[nome];
     if (!tpl) {
-      return interaction.reply({ content: `❌ Template sconosciuto. Usa \`/template lista\`.`, flags: MessageFlags.Ephemeral });
+      return interaction.reply({ embeds: [theme.err('Template sconosciuto. Usa `/template lista`.')], flags: MessageFlags.Ephemeral });
     }
 
     if (sub === 'anteprima') {
-      return interaction.reply({ embeds: [previewEmbed(nome)] });
+      const prev = previewEmbed(nome);
+      theme.applyFooter(prev, interaction);
+      return interaction.reply({ embeds: [prev] });
     }
 
     // sub === 'applica'
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-      return interaction.reply({ content: '❌ Ti serve il permesso **Gestisci Server**.', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ embeds: [theme.err('Ti serve il permesso **Gestisci Server**.')], flags: MessageFlags.Ephemeral });
     }
     if (!botCanBuild(interaction.guild)) {
       return interaction.reply({
-        content: '❌ Mi servono i permessi **Gestisci Ruoli** e **Gestisci Canali** per applicare il template.',
+        embeds: [theme.err('Mi servono i permessi **Gestisci Ruoli** e **Gestisci Canali** per applicare il template.')],
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -121,7 +136,12 @@ module.exports = {
       components: [confirmRow(prefix)],
       withResponse: true,
     });
-    const message = reply.resource.message;
+    // FIX collector: reply.resource.message può essere undefined (versioni discord.js diverse);
+    // senza fallback il collector su undefined lanciava e il comando restava appeso senza riepilogo.
+    const message = reply?.resource?.message ?? reply?.message ?? await interaction.fetchReply().catch(() => null);
+    if (!message || typeof message.createMessageComponentCollector !== 'function') {
+      return interaction.followUp({ embeds: [theme.err('Impossibile aprire la conferma: riprova tra poco.')] }).catch(() => {});
+    }
 
     const collector = message.createMessageComponentCollector({
       componentType: ComponentType.Button,
@@ -159,10 +179,10 @@ module.exports = {
           ? `\n⚠️ Non riusciti (**${report.failed.length}**):\n${report.failed.slice(0, 10).map((f) => `• ${f.cosa}: ${f.errore}`).join('\n')}`
           : '\n✅ Tutto creato senza errori.';
       const done = new EmbedBuilder()
-        .setColor(report.failed.length ? 0xfee75c : 0x57f287)
+        .setColor(report.failed.length ? COLORS.warn ?? 0xfee75c : COLORS.success ?? 0x57f287)
         .setTitle(`✅ Template ${tpl.label} applicato`)
         .setDescription(`${okLines.join('\n')}${failLines}`.slice(0, 4000))
-        .setFooter({ text: `Richiesto da ${interaction.user.tag}` })
+        .setFooter({ text: `Richiesto da ${interaction.user.tag}`.slice(0, 200) })
         .setTimestamp();
       await interaction.editReply({ content: '', embeds: [done], components: [] });
     });

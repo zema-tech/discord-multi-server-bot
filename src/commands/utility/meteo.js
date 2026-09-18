@@ -1,4 +1,13 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
+let T;
+try {
+  T = require('../../utils/theme');
+} catch {
+  T = {
+    COLORS: { blue: 0x3498db },
+    truncate: (s, m) => String(s ?? '').slice(0, m),
+  };
+}
 
 const GEO_URL = 'https://geocoding-api.open-meteo.com/v1/search';
 const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
@@ -55,7 +64,9 @@ module.exports = {
     ),
   cooldown: 10,
   async execute(interaction) {
-    const citta = interaction.options.getString('citta', true).trim();
+    const rawCitta = interaction.options.getString('citta', true);
+    // Sanitizza: niente newline che romperebbero l'embed / menzioni multilinea.
+    const citta = String(rawCitta || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 100);
     const giorni = interaction.options.getInteger('giorni') ?? 2;
 
     if (!citta) {
@@ -76,7 +87,8 @@ module.exports = {
 
     const place = geo && geo.results && geo.results[0];
     if (!place) {
-      await interaction.editReply(`❌ Città **${citta}** non trovata. Controlla l'ortografia e riprova (es. \`/meteo citta:Milano\`).`);
+      const safe = T.truncate(citta, 100).replace(/[*_`~@]/g, '');
+      await interaction.editReply(`❌ Città **${safe}** non trovata. Controlla l'ortografia e riprova (es. \`/meteo citta:Milano\`).`);
       return;
     }
 
@@ -97,29 +109,36 @@ module.exports = {
       const daily = fc && fc.daily;
       if (!daily || !daily.time || !daily.time.length) throw new Error('daily vuoto');
 
-      const nome = [place.name, place.admin1, place.country].filter(Boolean).join(', ');
+      const nome = T.truncate([place.name, place.admin1, place.country].filter(Boolean).join(', '), 200) || T.truncate(citta, 100);
       const embed = new EmbedBuilder()
-        .setColor(0x38bdf8)
-        .setTitle(`🌤️ Meteo: ${nome}`)
-        .setFooter({ text: 'Dati gratuiti: Open-Meteo (senza chiave API)' })
+        .setColor(T.COLORS.blue ?? 0x38bdf8)
+        .setTitle(T.truncate(`🌤️ Meteo: ${nome}`, 256))
+        .setDescription(T.truncate(`📍 **${nome}** • 🔭 previsione **${daily.time.length} giorni**`, 4000))
+        .setFooter({ text: T.truncate('Dati gratuiti: Open-Meteo (senza chiave API)', 200) })
         .setTimestamp();
 
       for (let i = 0; i < daily.time.length; i += 1) {
         const info = weatherInfo(daily.time && daily.weathercode ? daily.weathercode[i] : undefined);
-        const data = new Date(`${daily.time[i]}T12:00:00`).toLocaleDateString('it-IT', {
-          weekday: 'short',
-          day: 'numeric',
-          month: 'short',
-        });
-        const tmax = daily.temperature_2m_max ? daily.temperature_2m_max[i] : '?';
-        const tmin = daily.temperature_2m_min ? daily.temperature_2m_min[i] : '?';
+        let data;
+        try {
+          data = new Date(`${daily.time[i]}T12:00:00`).toLocaleDateString('it-IT', {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'short',
+          });
+        } catch {
+          data = String(daily.time[i]);
+        }
+        // ?? (non ||): risposte parziali con null non devono stampare "null"/"undefined".
+        const tmax = daily.temperature_2m_max?.[i] ?? '?';
+        const tmin = daily.temperature_2m_min?.[i] ?? '?';
         const pp =
-          daily.precipitation_probability_max && daily.precipitation_probability_max[i] != null
+          daily.precipitation_probability_max?.[i] != null
             ? `${daily.precipitation_probability_max[i]}%`
             : '—';
         embed.addFields({
-          name: `${info.emoji} ${data} — ${info.label}`,
-          value: `🌡️ ${tmin}° / **${tmax}°C** · 🌧️ pioggia: ${pp}`,
+          name: T.truncate(`${info.emoji} ${data} — ${info.label}`, 256),
+          value: T.truncate(`🌡️ ${tmin}° / **${tmax}°C** · 🌧️ pioggia: ${pp}`, 1024),
           inline: false,
         });
       }

@@ -1,6 +1,34 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const ms = require('ms');
 
+// Theme condiviso con fallback inline se il require fallisse.
+let COLORS = { primary: 0x5865f2, success: 0x57f287 };
+let bar = (cur, max, len = 10) => {
+  const c = Number(cur);
+  const m = Number(max);
+  let ratio = 0;
+  if (Number.isFinite(c) && Number.isFinite(m) && m > 0) {
+    ratio = Math.max(0, Math.min(1, c / m));
+    if (!Number.isFinite(ratio)) ratio = 0;
+  }
+  const filled = Math.round(ratio * 10);
+  return '█'.repeat(filled) + '░'.repeat(10 - filled);
+};
+let num = (n) => (Number.isFinite(Number(n)) ? Number(n).toLocaleString('it-IT') : 'n/d');
+let truncate = (s, max) => {
+  const str = typeof s === 'string' ? s : String(s ?? '');
+  const m = Math.floor(Number(max));
+  if (!Number.isFinite(m) || m < 0) return str;
+  return str.length <= m ? str : str.slice(0, m);
+};
+try {
+  const theme = require('../../utils/theme');
+  if (theme?.COLORS) COLORS = theme.COLORS;
+  if (typeof theme?.bar === 'function') bar = theme.bar;
+  if (typeof theme?.num === 'function') num = theme.num;
+  if (typeof theme?.truncate === 'function') truncate = theme.truncate;
+} catch {}
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('poll')
@@ -25,18 +53,20 @@ module.exports = {
     }
 
     const emoji = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
-    const desc = options.map((o, i) => `${emoji[i]} **${o}**`).join('\n');
+    const desc = options.map((o, i) => `${emoji[i]} **${truncate(o, 100)}**`).join('\n');
     const endsAt = autoCloseMs ? Date.now() + autoCloseMs : null;
     const embed = new EmbedBuilder()
-      .setColor(0x5865f2)
-      .setTitle(`📊 ${question}`)
-      .setDescription(`🗳️ **Vota con le reazioni!**\n\n${desc}` + (endsAt ? `\n\n⏳ Chiude <t:${Math.floor(endsAt / 1000)}:R> • 🗳️ 0 voti finora` : ''))
-      .setFooter({ text: `Sondaggio di ${interaction.user.tag} • ${options.length} opzioni`.slice(0, 200) })
+      .setColor(COLORS.primary)
+      .setTitle(truncate(`📊 ${question}`, 256))
+      .setDescription(truncate(`🗳️ **Vota con le reazioni!**\n\n${desc}` + (endsAt ? `\n\n⏳ Chiude <t:${Math.floor(endsAt / 1000)}:R> • 🗳️ 0 voti finora` : ''), 4000))
+      .setFooter({ text: truncate(`Sondaggio di ${interaction.user.tag} • ${options.length} opzioni`, 200) })
       .setTimestamp();
     let message;
     try {
       const msg = await interaction.reply({ embeds: [embed], withResponse: true });
-      message = msg.resource.message;
+      // BUGFIX: resource.message può mancare -> fallback a fetchReply, altrimenti react crashava su undefined.
+      message = msg?.resource?.message ?? await interaction.fetchReply().catch(() => null);
+      if (!message) return;
     } catch {
       return;
     }
@@ -60,22 +90,23 @@ module.exports = {
             counts.push(r ? Math.max(0, r.count - 1) : 0); // -1 per togliere il voto del bot
           }
           const total = counts.reduce((a, b) => a + b, 0);
-          const max = Math.max(...counts);
+          const max = counts.length ? Math.max(...counts) : 0;
           const winnerIdx = counts.map((c, i) => (c === max && max > 0 ? i : -1)).filter((i) => i >= 0);
+          // BUGFIX poll senza voti: total 0 -> % 0 e barra vuota via theme.bar (niente NaN/div0).
           const pctBar = (c) => {
             const pct = total > 0 ? Math.round((c / total) * 100) : 0;
-            const filled = Math.round(pct / 10);
-            return `\`[${'█'.repeat(filled)}${'░'.repeat(10 - filled)}]\` ${pct}%`;
+            return `\`[${bar(c, total > 0 ? total : 1, 10)}]\` ${pct}%`;
           };
-          const lines = options.map((o, i) => `${emoji[i]} **${o}**: **${counts[i]}** voti\n${pctBar(counts[i])}`).join('\n');
-          const winnerLine = max <= 0 ? '😶 Nessun voto ricevuto.' : `🏆 **Vincitore${winnerIdx.length > 1 ? 'i' : ''}: ${winnerIdx.map((i) => `**${options[i]}**`).join(', ')}** (${max} voti) 🎉`;
+          const lines = options.map((o, i) => `${emoji[i]} **${truncate(o, 100)}**: **${num(counts[i])}** voti\n${pctBar(counts[i])}`).join('\n');
+          const winnerLine = max <= 0 ? '😶 Nessun voto ricevuto.' : `🏆 **Vincitore${winnerIdx.length > 1 ? 'i' : ''}: ${winnerIdx.map((i) => `**${truncate(options[i], 100)}**`).join(', ')}** (${num(max)} voti) 🎉`;
           const res = new EmbedBuilder()
-            .setColor(0x57f287)
-            .setTitle(`📊 Risultati: ${question}`.slice(0, 256))
-            .setDescription(`🗳️ **Totale voti: ${total}**\n\n${lines}\n\n${winnerLine}`.slice(0, 4000))
-            .setFooter({ text: `Sondaggio di ${interaction.user.tag}`.slice(0, 200) })
+            .setColor(COLORS.success)
+            .setTitle(truncate(`📊 Risultati: ${question}`, 256))
+            .setDescription(truncate(`🗳️ **Totale voti: ${num(total)}**\n\n${lines}\n\n${winnerLine}`, 4000))
+            .setFooter({ text: truncate(`Sondaggio di ${interaction.user.tag}`, 200) })
             .setTimestamp();
-          await fresh.reply({ embeds: [res] }).catch(() => message.channel.send({ embeds: [res] }).catch(() => {}));
+          // BUGFIX limiti: reply può fallire se il messaggio è stato cancellato -> fallback send nel canale.
+          await fresh.reply({ embeds: [res] }).catch(() => message.channel?.send({ embeds: [res] }).catch(() => {}));
         } catch (e) {
           console.error('poll end:', e.message);
         }

@@ -1,6 +1,60 @@
 const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, EmbedBuilder } = require('discord.js');
 const { listTriggers, addTrigger, removeTrigger, clearTriggers, MAX_TRIGGERS, MAX_RESPONSE } = require('../../database/autoresponder');
 
+let theme = null;
+try {
+  theme = require('../../utils/theme');
+} catch {
+  theme = null;
+}
+
+const truncate = theme?.truncate ?? ((s, max) => String(s ?? '').slice(0, max));
+
+function withFooter(embed, interaction) {
+  if (theme?.applyFooter) {
+    try {
+      theme.applyFooter(embed, interaction);
+    } catch {
+      // footer non critico
+    }
+    return embed;
+  }
+  try {
+    embed.setFooter({ text: `Richiesto da ${interaction?.user?.tag ?? interaction?.user?.username ?? 'Utente'}` });
+  } catch {
+    // ignora
+  }
+  return embed;
+}
+
+function errorEmbed(text, interaction) {
+  const e = theme?.err ? theme.err(text) : new EmbedBuilder().setColor(0xed4245).setTitle('❌ Errore').setDescription(String(text ?? '').slice(0, 4000)).setTimestamp();
+  return interaction ? withFooter(e, interaction) : e;
+}
+
+function successEmbed(title, description, interaction) {
+  let e;
+  if (theme?.ok) e = theme.ok(title, description);
+  else e = new EmbedBuilder().setColor(0x57f287).setTitle(String(title).slice(0, 256)).setDescription(String(description).slice(0, 4000)).setTimestamp();
+  return withFooter(e, interaction);
+}
+
+function infoEmbed(title, description, interaction) {
+  let e;
+  if (theme?.info) e = theme.info(title, description);
+  else e = new EmbedBuilder().setColor(0x5865f2).setTitle(String(title).slice(0, 256)).setDescription(String(description).slice(0, 4000)).setTimestamp();
+  return withFooter(e, interaction);
+}
+
+function hasManageMessages(interaction) {
+  const perms = interaction.memberPermissions ?? interaction.member?.permissions;
+  try {
+    return Boolean(perms?.has(PermissionFlagsBits.ManageMessages));
+  } catch {
+    return false;
+  }
+}
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('autoresponder')
@@ -39,15 +93,22 @@ module.exports = {
   cooldown: 3,
   async execute(interaction) {
     try {
-      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageMessages)) {
+      // FIX: senza guild, guildId=null inquinava il DB con chiave "null" (clearTriggers salvava db[null]=[]).
+      if (!interaction.guild && !interaction.guildId) {
         return interaction.reply({
-          content: '❌ Ti serve il permesso **Gestisci Messaggi** per usare questo comando.',
+          embeds: [errorEmbed('Usa questo comando dentro un server.', interaction)],
           flags: MessageFlags.Ephemeral,
-        });
+        }).catch(() => null);
+      }
+      if (!hasManageMessages(interaction)) {
+        return interaction.reply({
+          embeds: [errorEmbed('Ti serve il permesso **Gestisci Messaggi** per usare questo comando.', interaction)],
+          flags: MessageFlags.Ephemeral,
+        }).catch(() => null);
       }
 
       const sub = interaction.options.getSubcommand();
-      const guildId = interaction.guildId;
+      const guildId = interaction.guildId ?? interaction.guild?.id;
 
       if (sub === 'aggiungi') {
         const parola = interaction.options.getString('parola', true).trim();
@@ -55,70 +116,90 @@ module.exports = {
         const modalita = interaction.options.getString('modalita') || 'include';
 
         if (!parola) {
-          return interaction.reply({ content: '❌ La parola/pattern non può essere vuota.', flags: MessageFlags.Ephemeral });
+          return interaction.reply({ embeds: [errorEmbed('La parola/pattern non può essere vuota.', interaction)], flags: MessageFlags.Ephemeral }).catch(() => null);
         }
         if (risposta.length > MAX_RESPONSE) {
           return interaction.reply({
-            content: `❌ Risposta troppo lunga (max ${MAX_RESPONSE} caratteri).`,
+            embeds: [errorEmbed(`Risposta troppo lunga (max ${MAX_RESPONSE} caratteri).`, interaction)],
             flags: MessageFlags.Ephemeral,
-          });
+          }).catch(() => null);
         }
 
         const res = addTrigger(guildId, { match: parola, response: risposta, mode: modalita });
         if (!res.ok) {
-          return interaction.reply({ content: `❌ ${res.error}`, flags: MessageFlags.Ephemeral });
+          return interaction.reply({ embeds: [errorEmbed(res.error, interaction)], flags: MessageFlags.Ephemeral }).catch(() => null);
         }
         return interaction.reply({
-          content: `✅ Trigger aggiunto (ID \`${res.trigger.id}\`, modalità **${res.trigger.mode}**).\n🔑 \`${parola.slice(0, 200)}\`\n💬 ${risposta.slice(0, 300)}${risposta.length > 300 ? '…' : ''}`,
+          embeds: [successEmbed(
+            `✅ Trigger aggiunto — \`${res.trigger.id}\``,
+            `Modalità **${res.trigger.mode}**\n🔑 \`${truncate(parola, 200)}\`\n💬 ${truncate(risposta, 300)}${risposta.length > 300 ? '…' : ''}`,
+            interaction
+          )],
           flags: MessageFlags.Ephemeral,
-        });
+        }).catch(() => null);
       }
 
       if (sub === 'rimuovi') {
         const id = interaction.options.getString('id', true).trim();
+        if (!id) {
+          return interaction.reply({ embeds: [errorEmbed('ID non valido: usa `/autoresponder lista` per vedere gli ID.', interaction)], flags: MessageFlags.Ephemeral }).catch(() => null);
+        }
         const removed = removeTrigger(guildId, id);
         return interaction.reply({
-          content: removed ? `✅ Trigger \`${id}\` rimosso.` : `❌ Nessun trigger con ID \`${id}\`.`,
+          embeds: [removed
+            ? successEmbed('✅ Trigger rimosso', `Trigger \`${truncate(id, 100)}\` rimosso.`, interaction)
+            : errorEmbed(`Nessun trigger con ID \`${truncate(id, 100)}\`.`, interaction)],
           flags: MessageFlags.Ephemeral,
-        });
+        }).catch(() => null);
       }
 
       if (sub === 'lista') {
         const list = listTriggers(guildId);
         if (!list.length) {
           return interaction.reply({
-            content: '📭 Nessuna risposta automatica configurata. Usa `/autoresponder aggiungi`.',
+            embeds: [infoEmbed('📭 Auto-responder', 'Nessuna risposta automatica configurata. Usa `/autoresponder aggiungi`.', interaction)],
             flags: MessageFlags.Ephemeral,
-          });
+          }).catch(() => null);
         }
         const lines = list.slice(0, 20).map((t, i) => {
           const preview = t.response.length > 80 ? `${t.response.slice(0, 80)}…` : t.response;
           const modeEmoji = t.mode === 'regex' ? '🔣' : t.mode === 'exact' ? '🎯' : '🔍';
-          return `${modeEmoji} \`${t.id}\` • **${t.mode}** • ${i + 1}. 🔑 \`${String(t.match).slice(0, 100)}\` → ${preview}`;
+          return `${modeEmoji} \`${t.id}\` • **${t.mode}** • ${i + 1}. 🔑 \`${truncate(String(t.match), 100)}\` → ${preview}`;
         });
-        const embed = new EmbedBuilder()
-          .setColor(0x5865f2)
-          .setTitle(`📝 Auto-responder (${list.length}/${MAX_TRIGGERS})`.slice(0, 256))
-          .setDescription(lines.join('\n').slice(0, 4000) + (list.length > 20 ? `\n\n…e altri **${list.length - 20}** trigger.` : ''))
-          .setFooter({ text: '🔍 include = contiene • 🎯 exact = esatta • 🔣 regex = pattern'.slice(0, 200) })
-          .setTimestamp();
-        return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+        const embed = infoEmbed(
+          `📝 Auto-responder (${list.length}/${MAX_TRIGGERS})`,
+          truncate(lines.join('\n'), 4000) + (list.length > 20 ? `\n\n…e altri **${list.length - 20}** trigger.` : ''),
+          interaction
+        );
+        try {
+          embed.setFooter({ text: '🔍 include = contiene • 🎯 exact = esatta • 🔣 regex = pattern'.slice(0, 200) });
+        } catch {
+          // ignora
+        }
+        return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral }).catch(() => null);
       }
 
       // pulisci
       const count = clearTriggers(guildId);
       return interaction.reply({
-        content: count > 0 ? `🧹 Eliminati **${count}** trigger.` : '📭 Niente da eliminare: nessun trigger configurato.',
+        embeds: [count > 0
+          ? successEmbed('🧹 Auto-responder pulito', `Eliminati **${count}** trigger.`, interaction)
+          : infoEmbed('📭 Auto-responder', 'Niente da eliminare: nessun trigger configurato.', interaction)],
         flags: MessageFlags.Ephemeral,
-      });
+      }).catch(() => null);
     } catch (e) {
-      console.error('autoresponder:', e.message);
-      const payload = { content: '❌ Errore durante l’operazione.', flags: MessageFlags.Ephemeral };
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(payload).catch(() => {});
-      } else {
-        await interaction.reply(payload).catch(() => {});
+      console.error('autoresponder:', e?.message ?? e);
+      const payload = { embeds: [errorEmbed('Errore durante l’operazione.', interaction)], flags: MessageFlags.Ephemeral };
+      try {
+        if (interaction.replied || interaction.deferred) {
+          await interaction.followUp(payload).catch(() => {});
+        } else {
+          await interaction.reply(payload).catch(() => {});
+        }
+      } catch {
+        // mai lanciare
       }
+      return null;
     }
   },
 };

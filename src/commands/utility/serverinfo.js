@@ -1,10 +1,22 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const { t, getLang } = require('../../utils/i18n');
 
+// theme.js condiviso (fallback inline se il require fallisse).
+let theme;
+try {
+  theme = require('../../utils/theme');
+} catch {
+  theme = {
+    COLORS: { primary: 0x5865f2 },
+    applyFooter: (e) => { try { e.setTimestamp(); } catch {} return e; },
+    bar: (cur, max, len = 10) => { const c = Number(cur); const m = Number(max); let r = 0; if (Number.isFinite(c) && Number.isFinite(m) && m > 0) r = Math.min(1, Math.max(0, c / m)); const f = Math.round(r * len); return '█'.repeat(f) + '░'.repeat(len - f); },
+    num: (n) => { const v = Number(n); return Number.isFinite(v) ? v.toLocaleString('it-IT') : 'n/d'; },
+  };
+}
+const { COLORS, applyFooter, bar, num } = theme;
+
 function boostBar(count) {
-  const max = 14;
-  const filled = Math.max(0, Math.min(10, Math.round((Math.min(count, max) / max) * 10)));
-  return '█'.repeat(filled) + '░'.repeat(10 - filled);
+  return bar(count, 14, 10);
 }
 
 // NOTA i18n: nome/descrizione slash invariati (restano in IT per ora).
@@ -23,18 +35,26 @@ module.exports = {
     const emojiCount = g.emojis.cache.size;
     const stickerCount = g.stickers.cache.size;
     const boosts = g.premiumSubscriptionCount || 0;
-    const ts = Math.floor(g.createdTimestamp / 1000);
+    const ts = Math.floor((g.createdTimestamp || Date.now()) / 1000);
     const embed = new EmbedBuilder()
-      .setColor(0x5865f2)
-      .setTitle(`🏰 ${g.name}`)
-      .setDescription(t('serverinfo.description', lang, { tier: g.premiumTier, bar: boostBar(boosts), boosts, ownerId: g.ownerId, id: g.id }));
-    // Server senza icona: iconURL() è null e setThumbnail(null) lancia.
-    const icon = g.iconURL({ size: 256 });
-    if (icon) embed.setThumbnail(icon);
-    const banner = g.bannerURL ? g.bannerURL({ size: 1024 }) : null;
-    if (banner) embed.setImage(banner);
+      .setColor(COLORS.primary)
+      .setTitle(`🏰 ${g.name}`.slice(0, 256))
+      .setDescription(t('serverinfo.description', lang, { tier: g.premiumTier, bar: boostBar(boosts), boosts: num(boosts), ownerId: g.ownerId, id: g.id }));
+    // Server senza icona/banner: iconURL()/bannerURL() ritornano null -> mai setThumbnail/setImage(null).
+    try {
+      const icon = typeof g.iconURL === 'function' ? g.iconURL({ size: 256 }) : null;
+      if (icon) embed.setThumbnail(icon);
+    } catch {
+      // thumbnail non critica
+    }
+    try {
+      const banner = typeof g.bannerURL === 'function' ? g.bannerURL({ size: 1024 }) : null;
+      if (banner) embed.setImage(banner);
+    } catch {
+      // image non critica
+    }
     embed.addFields(
-        { name: t('serverinfo.fields.members', lang), value: t('serverinfo.values.members', lang, { count: g.memberCount }), inline: true },
+        { name: t('serverinfo.fields.members', lang), value: t('serverinfo.values.members', lang, { count: num(g.memberCount) }), inline: true },
         {
           name: t('serverinfo.fields.channels', lang),
           value: threads
@@ -42,13 +62,13 @@ module.exports = {
             : t('serverinfo.values.channels', lang, { text, voice, cats }),
           inline: true,
         },
-        { name: t('serverinfo.fields.roles', lang), value: t('serverinfo.values.roles', lang, { count: g.roles.cache.size }), inline: true },
-        { name: t('serverinfo.fields.emoji', lang), value: t('serverinfo.values.emoji', lang, { emoji: emojiCount, stickers: stickerCount }), inline: true },
-        { name: t('serverinfo.fields.boost', lang), value: t('serverinfo.values.boost', lang, { tier: g.premiumTier, boosts }), inline: true },
+        { name: t('serverinfo.fields.roles', lang), value: t('serverinfo.values.roles', lang, { count: num(g.roles.cache.size) }), inline: true },
+        { name: t('serverinfo.fields.emoji', lang), value: t('serverinfo.values.emoji', lang, { emoji: num(emojiCount), stickers: num(stickerCount) }), inline: true },
+        { name: t('serverinfo.fields.boost', lang), value: t('serverinfo.values.boost', lang, { tier: g.premiumTier, boosts: num(boosts) }), inline: true },
         { name: t('serverinfo.fields.created', lang), value: t('serverinfo.values.created', lang, { ts }), inline: true }
       )
-      .setFooter({ text: t('serverinfo.footer', lang, { name: g.name, id: g.id }).slice(0, 200) })
-      .setTimestamp();
+      .setFooter({ text: t('serverinfo.footer', lang, { name: g.name, id: g.id }).slice(0, 200) });
+    applyFooter(embed, interaction);
     await interaction.reply({ embeds: [embed] });
   },
 };

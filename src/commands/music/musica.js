@@ -1,4 +1,20 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
+
+// Tema premium condiviso, con fallback inline se il require fallisse.
+let T = null;
+try {
+  T = require('../../utils/theme');
+} catch {
+  T = null;
+}
+const COLORS = T?.COLORS ?? { primary: 0x5865f2, success: 0x57f287, error: 0xed4245, warn: 0xfee75c };
+const themeBar = typeof T?.bar === 'function' ? T.bar : null;
+const trunc = typeof T?.truncate === 'function' ? T.truncate : (s, m) => String(s ?? '').slice(0, m);
+const applyFooter = typeof T?.applyFooter === 'function' ? T.applyFooter : (e, i) => {
+  try { e.setFooter({ text: `Richiesto da ${i?.user?.tag ?? 'Utente'}` }); } catch { /* ignora */ }
+  try { e.setTimestamp(); } catch { /* ignora */ }
+  return e;
+};
 const {
   MUSIC_UNAVAILABLE_MESSAGE,
   getPlayer,
@@ -9,13 +25,15 @@ const {
   checkSameVoice,
   getQueryType,
   formatDuration,
+  isTrackTooLong,
+  cancelAutoLeave,
 } = require('../../utils/player');
 
 const QUERY_MAX = 200;
 const QUEUE_SHOWN = 10;
 
 function safeText(v, max) {
-  return String(v ?? '').slice(0, max);
+  return trunc(v, max);
 }
 
 async function replyEphemeral(interaction, content) {
@@ -47,6 +65,16 @@ function trackLine(track, index) {
 }
 
 function buildProgress(current, total, len = 12) {
+  // FIX: riusa theme.bar (sicura su div0/NaN) invece di duplicarla.
+  try {
+    if (themeBar) {
+      const s = themeBar(current, total, len);
+      if (typeof s === 'string' && s.length > 0) return `\`[${s}]\``;
+      return null;
+    }
+  } catch {
+    return null;
+  }
   if (!Number.isFinite(current) || !Number.isFinite(total) || total <= 0) return null;
   const ratio = Math.min(1, Math.max(0, current / total));
   const filled = Math.round(ratio * len);
@@ -70,13 +98,16 @@ function mapPlayError(e, query) {
   if (/no results|no_result|empty|not found|nessun risultato/i.test(msg)) {
     return `❌ Nessun risultato per **${safeText(query, 100)}**. Prova con un altro titolo o un link diretto.`;
   }
+  if (/extract|failed to (load|fetch|retrieve)|no stream|no_stream|ERR_NO_STREAM|stream.*(unavailable|failed)|sign in to confirm|age.?restrict|private video|video unavailable|deleted|region.?lock|copyright|not available/i.test(msg)) {
+    return `❌ Non riesco a estrarre l'audio per **${safeText(query, 100)}** (video non disponibile, privato, con restrizioni o fonte non supportata). Prova con un altro titolo o un link diretto.`;
+  }
   if (/connect|speak|permission|permessi|join/i.test(msg)) {
     return '❌ Non riesco a entrare nel vocale: verifica i permessi **Connetti** e **Parla**.';
   }
   if (/opus|ffmpeg|sodium|voice connection/i.test(msg)) {
     return '❌ Audio vocale non disponibile su questo host (dipendenze mancanti).';
   }
-  return `❌ Non riesco a riprodurre: ${safeText(msg, 180) || 'errore sconosciuto.'}`;
+  return `❌ Non riesco a riprodurre: ${safeText(msg, 180) || 'errore sconosciuto.'} Prova con un altro titolo o un link diretto.`;
 }
 
 module.exports = {
@@ -143,10 +174,10 @@ module.exports = {
         nodeOptions: {
           metadata: interaction,
           selfDeaf: true,
-          leaveOnEnd: true,
-          leaveOnEndCooldown: 300000,
-          leaveOnEmpty: true,
-          leaveOnEmptyCooldown: 300000,
+          // Leave gestito manualmente da ensureVoiceHandlers (src/utils/player.js):
+          // esce dopo 60s solo a coda finita E canale vuoto; a coda attiva resta.
+          leaveOnEnd: false,
+          leaveOnEmpty: false,
         },
         requestedBy: interaction.user,
       };
@@ -163,14 +194,21 @@ module.exports = {
 
       const track = res?.track;
       if (!track) {
-        return replyEphemeral(interaction, `❌ Nessun risultato per **${safeText(query, 100)}**.`);
+        return replyEphemeral(interaction, `❌ Nessun risultato per **${safeText(query, 100)}**. Prova con un altro titolo o un link diretto.`);
       }
       const queue = res.queue ?? getQueue(player, interaction.guild.id);
+      // Parte un brano: cancella un eventuale timer di auto-leave pendente.
+      try {
+        cancelAutoLeave(queue ?? interaction.guild.id);
+      } catch {
+        // ignora
+      }
+      const tooLong = isTrackTooLong(track.durationMS);
       const upcoming = queue ? getUpcomingTracks(queue) : [];
       const isCurrent = queue?.currentTrack?.title === track.title && upcoming.length === 0;
 
       const embed = new EmbedBuilder()
-        .setColor(0x57f287)
+        .setColor(COLORS.success)
         .setTitle(isCurrent ? '🎵 In riproduzione' : '➕ Aggiunto in coda')
         .setDescription(
           `[**${safeText(track.title, 120)}**](${track.url ?? 'https://discord.com/'})${track.author ? `\n👤 ${safeText(track.author, 80)}` : ''}`
@@ -191,6 +229,12 @@ module.exports = {
       const playlistCount = res?.searchResult?.playlist?.tracks?.length ?? 0;
       if (!isCurrent && playlistCount > 1) {
         embed.setFooter({ text: `Playlist: ${playlistCount} brani aggiunti • ${interaction.user.tag}`.slice(0, 200) });
+      }
+      if (tooLong) {
+        embed.addFields({
+          name: '⚠️ Brano molto lungo',
+          value: 'Supera le **2 ore**: la riproduzione potrebbe interrompersi o consumare molta banda.',
+        });
       }
       return replyEmbed(interaction, embed);
     }
@@ -219,7 +263,7 @@ module.exports = {
         // ignora
       }
       const embed = new EmbedBuilder()
-        .setColor(0x5865f2)
+        .setColor(COLORS.primary)
         .setTitle('📜 Coda di riproduzione')
         .setDescription(safeText(lines.join('\n'), 4000))
         .setFooter({
@@ -244,7 +288,7 @@ module.exports = {
         bar = null;
       }
       const embed = new EmbedBuilder()
-        .setColor(0xfee75c)
+        .setColor(COLORS.warn)
         .setTitle('🎶 Brano attuale')
         .setDescription(
           `[**${safeText(current.title, 120)}**](${current.url ?? 'https://discord.com/'})${current.author ? `\n👤 ${safeText(current.author, 80)}` : ''}${bar ? `\n${bar}` : ''}`
@@ -254,6 +298,7 @@ module.exports = {
           { name: '🔊 Volume', value: `${Number(queue.node?.volume ?? 100)}%`, inline: true },
           { name: '🙋 Richiesto da', value: `${current.requestedBy ?? '?'}`, inline: true }
         )
+        .setFooter({ text: `Richiesto da ${trunc(interaction.user.tag, 150)}` })
         .setTimestamp();
       setThumb(embed, current);
       return replyEmbed(interaction, embed);
@@ -274,11 +319,9 @@ module.exports = {
         ok = false;
       }
       if (!ok) return replyEphemeral(interaction, '❌ Non riesco a saltare il brano. Riprova.');
-      const next = queue.currentTrack;
-      return replyEphemeral(
-        interaction,
-        next ? `⏭️ Brano saltato. Ora: **${safeText(next.title, 100)}**.` : '⏭️ Brano saltato.'
-      );
+      // FIX: non annunciare currentTrack subito dopo skip (potrebbe essere ancora il vecchio:
+      // discord-player aggiorna in async) → messaggio senza titolo potenzialmente stale.
+      return replyEphemeral(interaction, '⏭️ Brano saltato.');
     }
 
     if (sub === 'stop') {
@@ -287,6 +330,11 @@ module.exports = {
           queue.node.stop();
         } catch {
           // ignora: prova comunque a eliminare la coda
+        }
+        try {
+          cancelAutoLeave(queue);
+        } catch {
+          // ignora
         }
         queue.delete();
       } catch {
@@ -342,3 +390,8 @@ module.exports = {
     return replyEphemeral(interaction, '❌ Sottocomando sconosciuto.');
   },
 };
+
+// Export extra per test logica pura (non tocca data/cooldown/execute:
+// toJSON e smoke test restano invariati).
+module.exports.mapPlayError = mapPlayError;
+module.exports.QUERY_MAX = QUERY_MAX;

@@ -1,5 +1,21 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
+let _theme = null;
+try {
+  _theme = require('../../utils/theme');
+} catch {
+  _theme = null;
+}
+const BLUE = _theme?.COLORS?.blue ?? 0x3498db;
+const applyFooter = _theme?.applyFooter ?? ((e, i) => {
+  try {
+    e.setFooter({ text: `Richiesto da ${i?.user?.tag ?? i?.user?.username ?? 'Utente'}` });
+    e.setTimestamp();
+  } catch { /* ignora */ }
+  return e;
+});
+const truncate = _theme?.truncate ?? ((s, m) => String(s ?? '').slice(0, m));
+
 const JOKES = [
   'Perché i programmatori confondono Halloween e Natale? Perché OCT 31 == DEC 25.',
   'Cosa fa un JavaScript developer quando ha freddo? Chiude le finestre.',
@@ -19,14 +35,17 @@ module.exports = {
   data: new SlashCommandBuilder().setName('joke').setDescription('Racconta una barzelletta'),
   cooldown: 3,
   async execute(interaction) {
+    if (!Array.isArray(JOKES) || JOKES.length === 0) {
+      await interaction.reply({ content: '❌ Nessuna barzelletta disponibile al momento.', ephemeral: true });
+      return;
+    }
     const joke = JOKES[Math.floor(Math.random() * JOKES.length)];
     const embed = new EmbedBuilder()
-      .setColor(0x3498db)
+      .setColor(BLUE)
       .setTitle('😂 Barzelletta del giorno')
       .setThumbnail(interaction.user.displayAvatarURL())
-      .setDescription(`_${joke}_`)
-      .setFooter({ text: `Richiesto da ${interaction.user.tag}` })
-      .setTimestamp();
+      .setDescription(truncate(`_${joke}_`, 4000));
+    applyFooter(embed, interaction);
     await interaction.reply({ embeds: [embed] });
   },
 };

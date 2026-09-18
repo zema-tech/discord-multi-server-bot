@@ -1,5 +1,21 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
+let _theme = null;
+try {
+  _theme = require('../../utils/theme');
+} catch {
+  _theme = null;
+}
+const BLUE = _theme?.COLORS?.blue ?? 0x3498db;
+const applyFooter = _theme?.applyFooter ?? ((e, i) => {
+  try {
+    e.setFooter({ text: `Richiesto da ${i?.user?.tag ?? i?.user?.username ?? 'Utente'}` });
+    e.setTimestamp();
+  } catch { /* ignora */ }
+  return e;
+});
+const truncate = _theme?.truncate ?? ((s, m) => String(s ?? '').slice(0, m));
+
 const MEMES = [
   'https://i.imgflip.com/30b1gx.jpg', 'https://i.imgflip.com/1bij.jpg', 'https://i.imgflip.com/26am.jpg',
   'https://i.imgflip.com/9ehk.jpg', 'https://i.imgflip.com/3si4.jpg', 'https://i.imgflip.com/2fm6x.jpg',
@@ -16,15 +32,20 @@ module.exports = {
   data: new SlashCommandBuilder().setName('meme').setDescription('Genera un meme casuale'),
   cooldown: 3,
   async execute(interaction) {
+    if (!Array.isArray(MEMES) || MEMES.length === 0) {
+      await interaction.reply({ content: '❌ Nessun meme disponibile al momento.', ephemeral: true });
+      return;
+    }
     const img = MEMES[Math.floor(Math.random() * MEMES.length)];
-    const cap = CAPTIONS[Math.floor(Math.random() * CAPTIONS.length)];
+    const cap = (Array.isArray(CAPTIONS) && CAPTIONS.length > 0)
+      ? CAPTIONS[Math.floor(Math.random() * CAPTIONS.length)]
+      : 'Meme del giorno';
     const embed = new EmbedBuilder()
-      .setColor(0x3498db)
-      .setTitle(`😂 ${cap}`.slice(0, 256))
+      .setColor(BLUE)
+      .setTitle(truncate(`😂 ${cap}`, 256))
       .setThumbnail(interaction.user.displayAvatarURL())
-      .setImage(img)
-      .setFooter({ text: `Richiesto da ${interaction.user.tag}` })
-      .setTimestamp();
+      .setImage(img);
+    applyFooter(embed, interaction);
     await interaction.reply({ embeds: [embed] });
   },
 };

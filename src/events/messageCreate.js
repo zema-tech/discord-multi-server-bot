@@ -42,7 +42,8 @@ module.exports = {
         if (res.leveledUp) {
           const text = `🎉 ${message.author} è salito al **livello ${res.level}**!`;
           const targetId = cfg.levelupChannelId || message.channelId;
-          const ch = message.guild.channels.cache.get(targetId);
+          const ch = message.guild.channels.cache.get(targetId)
+            ?? await message.guild.channels.fetch(targetId).catch(() => null);
           if (ch?.isTextBased()) ch.send(text).catch(() => {});
           // PEAK: assegna ruoli premio con level <= nuovo livello (per ruolo, mai crashare il flusso XP).
           try {

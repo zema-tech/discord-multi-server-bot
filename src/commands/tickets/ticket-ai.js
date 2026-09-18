@@ -10,8 +10,22 @@ const {
 const { askAI } = require('../../utils/ai');
 const { getTicket, getConfig } = require('../../database/tickets');
 
+let theme = null;
+try {
+  theme = require('../../utils/theme');
+} catch {
+  theme = null;
+}
+const COLORS = theme?.COLORS ?? { primary: 0x5865f2, success: 0x57f287, error: 0xed4245, warn: 0xfee75c };
+const themeErr = theme?.err ?? ((t) =>
+  new EmbedBuilder().setColor(COLORS.error).setTitle('❌ Errore').setDescription(String(t ?? '').slice(0, 4000)).setTimestamp()
+);
+const truncate = theme?.truncate ?? ((s, m) => String(s ?? '').slice(0, m));
+
 const MAX_HISTORY = 15;
 const MAX_DRAFT_CHARS = 1200;
+const MAX_HISTORY_CHARS_PER_MSG = 500;
+const MAX_HISTORY_TOTAL_CHARS = 6000;
 const COLLECTOR_MS = 60000;
 
 function getAIConfig(guildId) {
@@ -45,15 +59,16 @@ function isStaff(member, ticketConfig) {
 }
 
 function formatHistory(messages) {
-  return [...messages.values()]
+  const text = [...messages.values()]
     .reverse()
     .map((m) => {
       const autore = m.author ? m.author.username : 'Sconosciuto';
-      const contenuto = String(m.content || '').trim();
+      const contenuto = truncate(String(m.content || '').trim(), MAX_HISTORY_CHARS_PER_MSG);
       return contenuto ? `${autore}: ${contenuto}` : '';
     })
     .filter(Boolean)
     .join('\n');
+  return truncate(text, MAX_HISTORY_TOTAL_CHARS).trim();
 }
 
 module.exports = {
@@ -65,20 +80,20 @@ module.exports = {
   cooldown: 10,
   async execute(interaction) {
     if (!interaction.guild) {
-      return interaction.reply({ content: '❌ Usa questo comando dentro un server.', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ embeds: [themeErr('Usa questo comando dentro un server.')], flags: MessageFlags.Ephemeral });
     }
 
     const aiConfig = getAIConfig(interaction.guild.id);
     if (!aiConfig.ticketAI) {
-      return interaction.reply({ content: '❌ AI disabilitata per i ticket in questo server.', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ embeds: [themeErr('AI disabilitata per i ticket in questo server.')], flags: MessageFlags.Ephemeral });
     }
 
     const ticket = getTicket(interaction.guild.id, interaction.channelId);
     if (!ticket) {
-      return interaction.reply({ content: '❌ Usa questo comando dentro un canale ticket.', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ embeds: [themeErr('Usa questo comando dentro un canale ticket.')], flags: MessageFlags.Ephemeral });
     }
     if (ticket.status !== 'open') {
-      return interaction.reply({ content: '❌ Il ticket è chiuso.', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ embeds: [themeErr('Il ticket è chiuso.')], flags: MessageFlags.Ephemeral });
     }
 
     const sub = interaction.options.getSubcommand();
@@ -91,12 +106,12 @@ module.exports = {
     try {
       messages = await interaction.channel.messages.fetch({ limit: MAX_HISTORY });
     } catch {
-      return interaction.editReply('❌ Impossibile leggere i messaggi del ticket.').catch(() => {});
+      return interaction.editReply({ embeds: [themeErr('Impossibile leggere i messaggi del ticket.')] }).catch(() => {});
     }
 
     const conversazione = formatHistory(messages);
     if (!conversazione) {
-      return interaction.editReply('❌ Nessun messaggio di testo da analizzare nel ticket.').catch(() => {});
+      return interaction.editReply({ embeds: [themeErr('Nessun messaggio di testo da analizzare nel ticket.')] }).catch(() => {});
     }
 
     if (sub === 'riassumi') {
@@ -107,12 +122,16 @@ module.exports = {
           'Sei un assistente del team di supporto. Rispondi in italiano con esattamente 5 punti elenco brevi e chiari, tono professionale.'
         );
       } catch {
-        return interaction.editReply('⚠️ AI non disponibile, riprova più tardi.').catch(() => {});
+        return interaction.editReply({ embeds: [themeErr('AI non disponibile, riprova più tardi.')] }).catch(() => {});
+      }
+      riassunto = String(riassunto ?? '').trim();
+      if (!riassunto) {
+        return interaction.editReply({ embeds: [themeErr('AI non disponibile, riprova più tardi.')] }).catch(() => {});
       }
       const embed = new EmbedBuilder()
-        .setColor(0x5865f2)
-        .setTitle(`🎫 Riassunto ticket #${ticket.number}`)
-        .setDescription(riassunto.slice(0, 4096))
+        .setColor(COLORS.primary)
+        .setTitle(truncate(`🎫 Riassunto ticket #${ticket.number}`, 256))
+        .setDescription(truncate(riassunto, 4096))
         .setTimestamp();
       return interaction.editReply({ embeds: [embed] }).catch(() => {});
     }
@@ -125,11 +144,11 @@ module.exports = {
         `Sei un membro dello staff di supporto Discord. Scrivi in italiano una bozza di risposta professionale, cortese e risolutiva, max ${MAX_DRAFT_CHARS} caratteri. Solo il testo della risposta, senza intestazioni.`
       );
     } catch {
-      return interaction.editReply('⚠️ AI non disponibile, riprova più tardi.').catch(() => {});
+      return interaction.editReply({ embeds: [themeErr('AI non disponibile, riprova più tardi.')] }).catch(() => {});
     }
-    bozza = bozza.slice(0, MAX_DRAFT_CHARS).trim();
+    bozza = String(bozza ?? '').slice(0, MAX_DRAFT_CHARS).trim();
     if (!bozza) {
-      return interaction.editReply('⚠️ AI non disponibile, riprova più tardi.').catch(() => {});
+      return interaction.editReply({ embeds: [themeErr('AI non disponibile, riprova più tardi.')] }).catch(() => {});
     }
 
     const publishBtn = new ButtonBuilder()
@@ -140,32 +159,38 @@ module.exports = {
     const row = new ActionRowBuilder().addComponents(publishBtn);
 
     const embed = new EmbedBuilder()
-      .setColor(0x5865f2)
-      .setTitle(`✨ Bozza AI — ticket #${ticket.number}`)
+      .setColor(COLORS.primary)
+      .setTitle(truncate(`✨ Bozza AI — ticket #${ticket.number}`, 256))
       .setDescription(bozza)
       .setFooter({ text: 'Solo lo staff può pubblicarla • Scade tra 60s' })
       .setTimestamp();
 
     const reply = await interaction.editReply({ embeds: [embed], components: [row] }).catch(() => null);
-    if (!reply) {
+    if (!reply || typeof reply.createMessageComponentCollector !== 'function') {
       return;
     }
 
     const ticketConfig = getConfig(interaction.guild.id);
-    const collector = reply.createMessageComponentCollector({
-      filter: (i) => i.customId === 'ticketai_publish' && i.user.id === interaction.user.id,
-      time: COLLECTOR_MS,
-      max: 1,
-    });
+    let collector = null;
+    try {
+      collector = reply.createMessageComponentCollector({
+        filter: (i) => i.customId === 'ticketai_publish',
+        time: COLLECTOR_MS,
+        max: 1,
+      });
+    } catch {
+      return;
+    }
+    if (!collector) return;
 
     collector.on('collect', async (i) => {
       if (!isStaff(i.member, ticketConfig)) {
-        return i.reply({ content: '❌ Solo lo staff può pubblicare la bozza.', flags: MessageFlags.Ephemeral });
+        return i.reply({ embeds: [themeErr('Solo lo staff può pubblicare la bozza.')], flags: MessageFlags.Ephemeral });
       }
       try {
-        await interaction.channel.send(`📩 **Risposta dello staff** (bozza AI, pubblicata da ${i.user}):\n${bozza}`);
+        await interaction.channel.send(`📩 **Risposta dello staff** (bozza AI, pubblicata da ${i.user}):\n${bozza}`.slice(0, 2000));
       } catch {
-        return i.reply({ content: '❌ Non riesco a scrivere nel canale.', flags: MessageFlags.Ephemeral });
+        return i.reply({ embeds: [themeErr('Non riesco a scrivere nel canale.')], flags: MessageFlags.Ephemeral });
       }
       const disabled = new ActionRowBuilder().addComponents(publishBtn.setDisabled(true));
       await i.update({ content: '✅ Bozza pubblicata nel ticket.', embeds: [], components: [disabled] }).catch(() => {});

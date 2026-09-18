@@ -1,5 +1,14 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
+let _theme = null;
+try {
+  _theme = require('../../utils/theme');
+} catch {
+  _theme = null;
+}
+const BLUE = _theme?.COLORS?.blue ?? 0x3498db;
+const truncate = _theme?.truncate ?? ((s, m) => String(s ?? '').slice(0, m));
+
 const SEGNI = [
   { id: 'ariete', nome: 'Ariete', emoji: '♈' },
   { id: 'toro', nome: 'Toro', emoji: '♉' },
@@ -118,21 +127,25 @@ module.exports = {
   generaOroscopo,
   async execute(interaction) {
     const segnoId = interaction.options.getString('segno');
-    const segno = SEGNI.find((s) => s.id === segnoId) || SEGNI[0];
+    const segno = SEGNI.find((s) => s.id === segnoId);
+    if (!segno) {
+      await interaction.reply({ content: '❌ Segno zodiacale non valido. Scegline uno dalla lista.', ephemeral: true });
+      return;
+    }
     const oggi = dataLocale();
     const o = generaOroscopo(segno.id, oggi);
 
     const embed = new EmbedBuilder()
-      .setColor(0x9b59b6)
-      .setTitle(`${segno.emoji} Oroscopo di ${segno.nome} — oggi`)
+      .setColor(BLUE)
+      .setTitle(truncate(`${segno.emoji} Oroscopo di ${segno.nome} — oggi`, 256))
       .addFields(
-        { name: `❤️ Amore ${stelle(o.amore)}`, value: o.fraseAmore },
-        { name: `💼 Lavoro ${stelle(o.lavoro)}`, value: o.fraseLavoro },
-        { name: `🍀 Fortuna ${stelle(o.fortuna)}`, value: o.fraseFortuna },
+        { name: `❤️ Amore ${stelle(o.amore)}`, value: truncate(o.fraseAmore, 1024) },
+        { name: `💼 Lavoro ${stelle(o.lavoro)}`, value: truncate(o.fraseLavoro, 1024) },
+        { name: `🍀 Fortuna ${stelle(o.fortuna)}`, value: truncate(o.fraseFortuna, 1024) },
         { name: '🔢 Numero fortunato', value: String(o.numero), inline: true },
-        { name: '🎨 Colore fortunato', value: o.colore, inline: true }
+        { name: '🎨 Colore fortunato', value: truncate(o.colore, 1024), inline: true }
       )
-      .setFooter({ text: `Oroscopo del ${oggi} • Richiesto da ${interaction.user.username}` })
+      .setFooter({ text: truncate(`Oroscopo del ${oggi} • Richiesto da ${interaction.user.username}`, 2048) })
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed] });

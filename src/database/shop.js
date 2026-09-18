@@ -5,6 +5,8 @@ const FILE = dbFile('shop');
 // Formato: { [guildId]: { [roleId]: { price } } }
 
 function guildShop(guildId) {
+  // guildId falsy: mappa volatile senza save (niente record 'undefined').
+  if (!guildId) return {};
   const db = load(FILE);
   if (!db[guildId] || typeof db[guildId] !== 'object' || Array.isArray(db[guildId])) {
     db[guildId] = {};
@@ -14,6 +16,7 @@ function guildShop(guildId) {
 }
 
 function persist(guildId, items) {
+  if (!guildId) return;
   const db = load(FILE);
   db[guildId] = items;
   save(FILE, db);

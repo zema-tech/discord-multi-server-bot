@@ -1,5 +1,27 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 
+// theme.js con fallback inline: il file deve caricarsi anche se il require fallisce.
+let _theme = null;
+try {
+  _theme = require('../../utils/theme');
+} catch {
+  _theme = null;
+}
+const COLORS = (_theme && _theme.COLORS) || { primary: 0x5865f2 };
+const applyFooter =
+  (_theme && _theme.applyFooter) ||
+  ((embed, interaction) => {
+    try {
+      embed.setFooter({ text: `Richiesto da ${interaction?.user?.username ?? 'Utente'}` });
+    } catch {}
+    try {
+      embed.setTimestamp();
+    } catch {}
+    return embed;
+  });
+const truncate =
+  (_theme && _theme.truncate) || ((s, max) => String(s ?? '').slice(0, max));
+
 const MAX_PROMPT = 200;
 
 function getAIConfig(guildId) {
@@ -28,30 +50,38 @@ module.exports = {
   async execute(interaction) {
     const aiConfig = getAIConfig(interaction.guild?.id);
     if (!aiConfig.funAI) {
-      return interaction.reply({ content: '❌ AI disabilitata per le funzioni divertenti in questo server.', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ AI disabilitata per le funzioni divertenti in questo server.', flags: MessageFlags.Ephemeral }).catch(() => null);
     }
 
     const prompt = interaction.options.getString('prompt', true).trim();
     if (!prompt) {
-      return interaction.reply({ content: '❌ Il prompt non può essere vuoto.', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ Il prompt non può essere vuoto.', flags: MessageFlags.Ephemeral }).catch(() => null);
     }
     if (prompt.length > MAX_PROMPT) {
-      return interaction.reply({ content: `❌ Prompt troppo lungo (max ${MAX_PROMPT} caratteri).`, flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: `❌ Prompt troppo lungo (max ${MAX_PROMPT} caratteri).`, flags: MessageFlags.Ephemeral }).catch(() => null);
     }
 
-    await interaction.deferReply();
+    try {
+      await interaction.deferReply();
+    } catch {
+      return interaction.editReply('⚠️ Impossibile avviare la generazione, riprova.').catch(() => null);
+    }
 
     const seed = Math.floor(Math.random() * 1000000);
     const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&seed=${seed}`;
 
     const embed = new EmbedBuilder()
-      .setColor(0x2ecc71)
+      .setColor(COLORS.primary)
       .setTitle('🎨 Immagine generata')
-      .addFields({ name: '💭 Prompt', value: prompt.slice(0, 1024) })
+      .addFields({ name: '💭 Prompt', value: truncate(prompt, 1024) || '—' })
       .setImage(url)
-      .setFooter({ text: '⚠️ Immagine generata dall\u2019AI: può contenere errori o artefatti' })
       .setTimestamp();
+    applyFooter(embed, interaction);
+    try {
+      const base = embed.data?.footer?.text ?? '';
+      embed.setFooter({ text: truncate(`${base} • ⚠️ AI: può contenere artefatti`, 256) });
+    } catch {}
 
-    await interaction.editReply({ embeds: [embed] });
+    await interaction.editReply({ embeds: [embed] }).catch(() => null);
   },
 };

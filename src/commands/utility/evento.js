@@ -10,6 +10,29 @@ const {
 
 const ONE_YEAR_MS = 365 * 24 * 3600 * 1000;
 
+// Tema premium condiviso, con fallback inline se il require fallisse.
+let COLORS = { primary: 0x5865f2, success: 0x57f287, error: 0xed4245 };
+let applyFooter = (embed, interaction) => {
+  try {
+    embed.setFooter({ text: `Richiesto da ${interaction?.user?.tag ?? interaction?.user?.username ?? 'Utente'}`.slice(0, 200) });
+    embed.setTimestamp();
+  } catch { /* footer non critico */ }
+  return embed;
+};
+let truncate = (s, max) => String(s ?? '').slice(0, max);
+try {
+  const theme = require('../../utils/theme');
+  COLORS = theme.COLORS ?? COLORS;
+  applyFooter = theme.applyFooter ?? applyFooter;
+  truncate = theme.truncate ?? truncate;
+} catch { /* fallback inline sopra */ }
+
+/** Timestamp unix sicuro da un evento (scheduledStartTimestamp può essere null). */
+function eventTs(e) {
+  const ts = Math.floor(Number(e?.scheduledStartTimestamp) / 1000);
+  return Number.isFinite(ts) && ts > 0 ? ts : Math.floor(Date.now() / 1000);
+}
+
 /**
  * Parsea 'GG/MM/AAAA HH:MM' (ora locale del server/bot).
  * @returns {{ ok: true, date: Date } | { ok: false, error: string }}
@@ -70,6 +93,10 @@ module.exports = {
       if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageEvents)) {
         return interaction.reply({ content: '❌ Ti serve il permesso **Gestisci Eventi**.', flags: MessageFlags.Ephemeral });
       }
+      // BUGFIX: precheck permessi bot prima della chiamata API (errore chiaro subito).
+      if (!interaction.guild.members.me?.permissions.has(PermissionFlagsBits.ManageEvents)) {
+        return interaction.reply({ content: '❌ Non ho il permesso **Gestisci Eventi**: dammelo e riprova.', flags: MessageFlags.Ephemeral });
+      }
       const nome = interaction.options.getString('nome', true).trim();
       const dataRaw = interaction.options.getString('data-ora', true);
       const descrizione = interaction.options.getString('descrizione')?.trim().slice(0, 1000) || null;
@@ -101,16 +128,18 @@ module.exports = {
           reason: `Evento creato da ${interaction.user.tag}`,
         });
 
-        const embed = new EmbedBuilder()
-          .setColor(0x57f287)
-          .setTitle(`📅 ${event.name}`.slice(0, 256))
-          .setDescription(
-            `🎉 **Nuovo evento in arrivo!**\n\n${descrizione ? `📝 ${descrizione}\n\n` : ''}🕒 Inizio: <t:${Math.floor(start.getTime() / 1000)}:F> (<t:${Math.floor(start.getTime() / 1000)}:R>)\n` +
-              `${voice ? `🔊 Canale: ${voice}\n` : '🌐 Tipo: esterno 🌍\n'}` +
-              `🔗 [Apri evento e metti "Mi interessa"!](${event.url})`
-          )
-          .setFooter({ text: `ID: ${event.id} • Creato da ${interaction.user.tag}`.slice(0, 200) })
-          .setTimestamp();
+        const embed = applyFooter(
+          new EmbedBuilder()
+            .setColor(COLORS.success)
+            .setTitle(truncate(`📅 ${event.name}`, 256))
+            .setDescription(
+              `🎉 **Nuovo evento in arrivo!**\n\n${descrizione ? `📝 ${truncate(descrizione, 900)}\n\n` : ''}🕒 Inizio: <t:${Math.floor(start.getTime() / 1000)}:F> (<t:${Math.floor(start.getTime() / 1000)}:R>)\n` +
+                `${voice ? `🔊 Canale: ${voice}\n` : '🌐 Tipo: esterno 🌍\n'}` +
+                `🔗 [Apri evento e metti "Mi interessa"!](${event.url})`
+            )
+            .setFooter({ text: truncate(`ID: ${event.id} • Creato da ${interaction.user.tag}`, 200) }),
+          interaction
+        );
         return interaction.reply({ embeds: [embed] });
       } catch (e) {
         console.error('evento crea:', e.message);
@@ -129,28 +158,36 @@ module.exports = {
       if (events.size === 0) {
         return interaction.reply('📅 Nessun evento programmato. Creane uno con `/evento crea`.');
       }
-      const sorted = [...events.values()].sort((a, b) => a.scheduledStartAt - b.scheduledStartAt).slice(0, 10);
-      const embed = new EmbedBuilder()
-        .setColor(0x5865f2)
-        .setTitle(`📅 Eventi programmati (${events.size})`.slice(0, 256))
-        .setDescription(
-          `✨ **${events.size} eventi in programma** — non mancare!\n\n` +
-          sorted
-            .map(
-              (e) =>
-                `🎪 **${e.name}**${e.userCount ? ` (👥 ${e.userCount} interessati)` : ''}\n🕒 <t:${Math.floor(e.scheduledStartTimestamp / 1000)}:F> (<t:${Math.floor(e.scheduledStartTimestamp / 1000)}:R>)\n🆔 \`${e.id}\` • [Apri](${e.url})`
+      const sorted = [...events.values()].sort((a, b) => (a.scheduledStartTimestamp ?? Infinity) - (b.scheduledStartTimestamp ?? Infinity)).slice(0, 10);
+      const embed = applyFooter(
+        new EmbedBuilder()
+          .setColor(COLORS.primary)
+          .setTitle(truncate(`📅 Eventi programmati (${events.size})`, 256))
+          .setDescription(
+            truncate(
+              `✨ **${events.size} eventi in programma** — non mancare!\n\n` +
+              sorted
+                .map((e) => {
+                  const ts = eventTs(e);
+                  return `🎪 **${truncate(e.name, 100)}**${e.userCount ? ` (👥 ${e.userCount} interessati)` : ''}\n🕒 <t:${ts}:F> (<t:${ts}:R>)\n🆔 \`${e.id}\` • [Apri](${e.url})`;
+                })
+                .join('\n\n'),
+              3900
             )
-            .join('\n\n')
-            .slice(0, 3900)
-        )
-        .setFooter({ text: events.size > 10 ? `Mostrati 10 di ${events.size} eventi` : interaction.guild.name.slice(0, 200) })
-        .setTimestamp();
+          )
+          .setFooter({ text: truncate(events.size > 10 ? `Mostrati 10 di ${events.size} eventi` : interaction.guild.name, 200) }),
+        interaction
+      );
       return interaction.reply({ embeds: [embed] });
     }
 
     // sub === 'elimina'
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageEvents)) {
       return interaction.reply({ content: '❌ Ti serve il permesso **Gestisci Eventi**.', flags: MessageFlags.Ephemeral });
+    }
+    // BUGFIX: precheck permessi bot prima della chiamata API (errore chiaro subito).
+    if (!interaction.guild.members.me?.permissions.has(PermissionFlagsBits.ManageEvents)) {
+      return interaction.reply({ content: '❌ Non ho il permesso **Gestisci Eventi**: dammelo e riprova.', flags: MessageFlags.Ephemeral });
     }
     const id = interaction.options.getString('id', true).trim();
     const target = await interaction.guild.scheduledEvents.fetch(id).catch(() => null);

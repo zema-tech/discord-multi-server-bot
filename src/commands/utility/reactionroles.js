@@ -9,6 +9,20 @@ const {
 } = require('discord.js');
 const { getPanel, setPanel, addOption, removeOption, clear, MAX_OPTIONS } = require('../../database/reactionRoles');
 
+// Theme condiviso con fallback inline se il require fallisse.
+let COLORS = { primary: 0x5865f2 };
+let truncate = (s, max) => {
+  const str = typeof s === 'string' ? s : String(s ?? '');
+  const m = Math.floor(Number(max));
+  if (!Number.isFinite(m) || m < 0) return str;
+  return str.length <= m ? str : str.slice(0, m);
+};
+try {
+  const theme = require('../../utils/theme');
+  if (theme?.COLORS) COLORS = theme.COLORS;
+  if (typeof theme?.truncate === 'function') truncate = theme.truncate;
+} catch {}
+
 const CUSTOM_EMOJI_RE = /^<a?:[a-zA-Z0-9_]+:(\d+)>$/;
 
 function parseEmojiInput(raw) {
@@ -159,21 +173,21 @@ module.exports = {
       }
 
       const embed = new EmbedBuilder()
-        .setColor(0x5865f2)
-        .setTitle(panel.title.slice(0, 256))
-        .setDescription(`✨ **Scegli i tuoi ruoli dal menu qui sotto!**\n\n${panel.description}`.slice(0, 4000))
-        .addFields({ name: `🎭 Ruoli disponibili (${validOptions.length})`, value: validOptions.map((o) => `${o.emoji} <@&${o.roleId}> — *${o.label}*`.slice(0, 200)).join('\n').slice(0, 1024) })
-        .setFooter({ text: `${guild.name} • Seleziona dal menu per ottenere/rimuovere il ruolo`.slice(0, 200) })
+        .setColor(COLORS.primary)
+        .setTitle(truncate(panel.title, 256))
+        .setDescription(truncate(`✨ **Scegli i tuoi ruoli dal menu qui sotto!**\n\n${panel.description}`, 4000))
+        .addFields({ name: `🎭 Ruoli disponibili (${validOptions.length})`, value: truncate(validOptions.map((o) => `${o.emoji} <@&${o.roleId}> — *${truncate(o.label, 100)}*`).join('\n'), 1024) || '—' })
+        .setFooter({ text: truncate(`${guild.name} • Seleziona dal menu per ottenere/rimuovere il ruolo`, 200) })
         .setTimestamp();
 
+      // BUGFIX limiti: select Discord max 25 opzioni/valori -> clamp difensivo anche se MAX_OPTIONS cambiasse.
+      const menuOptions = validOptions.slice(0, 25).map((opt) => ({ label: truncate(opt.label, 100) || 'Ruolo', value: opt.roleId, emoji: opt.emoji }));
       const menu = new StringSelectMenuBuilder()
         .setCustomId('rr_select')
         .setPlaceholder('Seleziona un ruolo…')
         .setMinValues(1)
         .setMaxValues(1)
-        .addOptions(
-          validOptions.map((opt) => ({ label: opt.label.slice(0, 100), value: opt.roleId, emoji: opt.emoji }))
-        );
+        .addOptions(menuOptions);
 
       let message;
       try {

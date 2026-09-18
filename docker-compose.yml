@@ -1,0 +1,54 @@
+# discord-multi-server-bot — compose production.
+# Uso base:      docker compose up -d --build
+# Con dashboard: docker compose --profile dashboard up -d --build
+#
+# Persistenza: ./data (DB sqlite via DB_SQLITE_PATH=./data/bot.db),
+# ./logs (LOG_DIR=logs), ./backups (job backup).
+# NOTA: i JSON di src/database/*.json NON sono montati come volume perché
+# convivono con i moduli .js (montare la dir nasconderebbe il codice):
+# in Docker usare DB_BACKEND=sqlite (vedi .env.example).
+# Variabili richieste in .env: DISCORD_TOKEN, CLIENT_ID (+ DASHBOARD_* se dashboard).
+
+services:
+  bot:
+    build: .
+    image: discord-multi-server-bot:latest
+    container_name: discord-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      DB_BACKEND: ${DB_BACKEND:-sqlite}
+      DB_SQLITE_PATH: ${DB_SQLITE_PATH:-./data/bot.db}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_DIR: ${LOG_DIR:-logs}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./backups:/app/backups
+
+  # Variante con dashboard web pubblicata (profilo opzionale).
+  # Stesso build/env/volumi del servizio bot + porta pubblicata.
+  bot-dashboard:
+    build: .
+    image: discord-multi-server-bot:latest
+    container_name: discord-bot-dashboard
+    restart: unless-stopped
+    profiles:
+      - dashboard
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      DB_BACKEND: ${DB_BACKEND:-sqlite}
+      DB_SQLITE_PATH: ${DB_SQLITE_PATH:-./data/bot.db}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_DIR: ${LOG_DIR:-logs}
+      DASHBOARD_PORT: ${DASHBOARD_PORT:-3000}
+    ports:
+      - "${DASHBOARD_PORT:-3000}:${DASHBOARD_PORT:-3000}"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./backups:/app/backups

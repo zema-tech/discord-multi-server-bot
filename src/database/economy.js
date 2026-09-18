@@ -32,6 +32,7 @@ function getUser(guildId, userId) {
 }
 
 function updateUser(guildId, userId, data) {
+  if (!guildId || !userId) return { ...DEFAULTS };
   const db = load(FILE);
   if (!db[guildId]) db[guildId] = {};
   const current = db[guildId][userId] ? sanitize(db[guildId][userId]) : { ...DEFAULTS };
@@ -41,6 +42,7 @@ function updateUser(guildId, userId, data) {
 }
 
 function addBalance(guildId, userId, amount) {
+  if (!guildId || !userId) return { ...DEFAULTS };
   if (!Number.isFinite(amount)) amount = 0;
   const db = load(FILE);
   if (!db[guildId]) db[guildId] = {};

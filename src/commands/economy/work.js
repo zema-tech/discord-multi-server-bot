@@ -1,6 +1,18 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const { getUser, updateUser } = require('../../database/economy');
 
+// theme.js con fallback inline: mai crash se il require fallisce.
+let _T = null;
+try { _T = require('../../utils/theme'); } catch { _T = null; }
+const COLORS = _T?.COLORS ?? { gold: 0xffd700 };
+const applyFooter = _T?.applyFooter ?? ((embed, interaction) => {
+  try { embed.setFooter({ text: `Richiesto da ${interaction?.user?.tag ?? 'Utente'}` }); } catch { /* ignora */ }
+  try { embed.setTimestamp(); } catch { /* ignora */ }
+  return embed;
+});
+const num = _T?.num ?? ((n) => (Number.isFinite(Number(n)) ? Number(n).toLocaleString('it-IT') : 'n/d'));
+const truncate = _T?.truncate ?? ((s, m) => String(s ?? '').slice(0, m));
+
 const jobs = [
   { name: 'Programmatore', emoji: '💻', min: 50, max: 150 },
   { name: 'Pizzaiolo', emoji: '🍕', min: 30, max: 100 },
@@ -40,16 +52,14 @@ module.exports = {
       lastWork: now,
     });
 
-    const fmt = (n) => n.toLocaleString('it-IT');
-    const embed = new EmbedBuilder()
-      .setColor(0xffd700)
+    const fmt = (n) => num(n);
+    const embed = applyFooter(new EmbedBuilder()
+      .setColor(COLORS.gold)
       .setTitle('💼 Lavoro completato!')
       .setThumbnail(interaction.user.displayAvatarURL())
       .setDescription(
-        `${job.emoji} Hai lavorato come **${job.name}** e hai guadagnato **${fmt(earned)}** 🪙!\n👛 Nuovo saldo: **${fmt(newBalance)}** 🪙`
-      )
-      .setFooter({ text: `Richiesto da ${interaction.user.tag}` })
-      .setTimestamp();
+        truncate(`${job.emoji} Hai lavorato come **${job.name}** e hai guadagnato **${fmt(earned)}** 🪙!\n👛 Nuovo saldo: **${fmt(newBalance)}** 🪙`, 4000)
+      ), interaction);
 
     await interaction.reply({ embeds: [embed] });
   },

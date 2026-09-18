@@ -27,7 +27,8 @@ function makeId(existing) {
   return id;
 }
 
-function addTrigger(guildId, { match, response, mode = 'include', caseSensitive = false }) {
+function addTrigger(guildId, { match, response, mode = 'include', caseSensitive = false } = {}) {
+  if (!guildId) return { ok: false, error: 'Server non valido.' };
   const list = listTriggers(guildId);
 
   if (typeof match !== 'string' || !match.trim()) {

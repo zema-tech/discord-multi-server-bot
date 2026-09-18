@@ -1,6 +1,12 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } = require('discord.js');
 const { sendLog, hierarchyAllows } = require('../../utils/helpers');
 const { logCase } = require('../../database/cases');
+let theme = null;
+try { theme = require('../../utils/theme'); } catch { theme = null; }
+const COLORS = theme?.COLORS ?? { warn: 0xfee75c, error: 0xed4245 };
+const applyFooter = theme?.applyFooter ?? ((e) => e);
+const truncate = theme?.truncate ?? ((s, m) => String(s ?? '').slice(0, m));
+const errEmbed = theme?.err ?? ((t) => new EmbedBuilder().setColor(COLORS.error).setTitle('❌ Errore').setDescription(String(t ?? '')).setTimestamp());
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -12,41 +18,45 @@ module.exports = {
   cooldown: 5,
   async execute(interaction) {
     if (!interaction.guild) {
-      return interaction.reply({ content: '❌ Usa questo comando dentro un server.', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ embeds: [errEmbed('Usa questo comando dentro un server.')], flags: MessageFlags.Ephemeral }).catch(() => null);
     }
     const user = interaction.options.getUser('utente');
-    const reason = (interaction.options.getString('motivo') || 'Nessun motivo specificato').slice(0, 1024);
-    const member = await interaction.guild.members.fetch(user.id).catch(() => null);
-    if (!member) return interaction.reply({ content: '❌ Utente non trovato nel server.', flags: MessageFlags.Ephemeral });
+    if (!user) return interaction.reply({ embeds: [errEmbed('Utente non valido.')], flags: MessageFlags.Ephemeral }).catch(() => null);
+    const reason = truncate(interaction.options.getString('motivo') || 'Nessun motivo specificato', 512);
+    const member = interaction.guild.members.cache.get(user.id) ?? await interaction.guild.members.fetch(user.id).catch(() => null);
+    if (!member) return interaction.reply({ embeds: [errEmbed('Utente non trovato nel server.')], flags: MessageFlags.Ephemeral }).catch(() => null);
     if (user.id === interaction.user.id)
-      return interaction.reply({ content: '❌ Non puoi espellere te stesso!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ embeds: [errEmbed('Non puoi espellere te stesso!')], flags: MessageFlags.Ephemeral }).catch(() => null);
+    if (user.id === interaction.client.user.id)
+      return interaction.reply({ embeds: [errEmbed('Non puoi espellere me!')], flags: MessageFlags.Ephemeral }).catch(() => null);
     if (member.id === interaction.guild.ownerId && interaction.user.id !== interaction.guild.ownerId)
-      return interaction.reply({ content: '❌ Non puoi espellere il proprietario del server.', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ embeds: [errEmbed('Non puoi espellere il proprietario del server.')], flags: MessageFlags.Ephemeral }).catch(() => null);
     if (!member.kickable)
-      return interaction.reply({ content: '❌ Non ho i permessi per espellere questo utente.', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ embeds: [errEmbed('Non ho i permessi per espellere questo utente.')], flags: MessageFlags.Ephemeral }).catch(() => null);
     if (!hierarchyAllows(interaction, member))
-      return interaction.reply({ content: '❌ Ruolo uguale/superiore al tuo.', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ embeds: [errEmbed('Ruolo uguale/superiore al tuo.')], flags: MessageFlags.Ephemeral }).catch(() => null);
 
     try {
-      await member.kick(`${reason} | Mod: ${interaction.user.tag}`);
+      await member.kick(truncate(`${reason} | Mod: ${interaction.user.tag ?? interaction.user.username}`, 512));
       try { logCase(interaction.guild.id, { type: 'kick', userId: user.id, modId: interaction.user.id, reason }); } catch {}
       const embed = new EmbedBuilder()
-        .setColor(0xfee75c)
+        .setColor(COLORS.warn)
         .setTitle('👢 Utente espulso')
         .addFields(
-          { name: 'Utente', value: `${user.tag} (${user.id})`, inline: true },
-          { name: 'Moderatore', value: interaction.user.tag, inline: true },
-          { name: 'Motivo', value: reason }
+          { name: 'Utente', value: `${user.tag ?? user.username} (${user.id})`.slice(0, 1024), inline: true },
+          { name: 'Moderatore', value: `${interaction.user.tag ?? interaction.user.username}`.slice(0, 1024), inline: true },
+          { name: 'Motivo', value: truncate(reason, 1024) || 'Nessun motivo specificato' }
         )
         .setTimestamp();
-      await interaction.reply({ embeds: [embed] });
-      await sendLog(interaction.guild, { embeds: [embed] });
+      applyFooter(embed, interaction);
+      await interaction.reply({ embeds: [embed] }).catch(() => null);
+      try { await sendLog(interaction.guild, { embeds: [embed] }); } catch {}
     } catch (e) {
       console.error(e);
       if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({ content: '❌ Errore durante il kick.', flags: MessageFlags.Ephemeral }).catch(() => {});
+        await interaction.followUp({ embeds: [errEmbed('Errore durante il kick.')], flags: MessageFlags.Ephemeral }).catch(() => {});
       } else {
-        await interaction.reply({ content: '❌ Errore durante il kick.', flags: MessageFlags.Ephemeral }).catch(() => {});
+        await interaction.reply({ embeds: [errEmbed('Errore durante il kick.')], flags: MessageFlags.Ephemeral }).catch(() => {});
       }
     }
   },

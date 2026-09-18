@@ -1,6 +1,17 @@
 const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, EmbedBuilder } = require('discord.js');
 const { setReward, removeReward, listRewards } = require('../../database/levelRewards');
 
+// theme.js con fallback inline: mai crash se il require fallisce.
+let _T = null;
+try { _T = require('../../utils/theme'); } catch { _T = null; }
+const COLORS = _T?.COLORS ?? { purple: 0x9b59b6 };
+const applyFooter = _T?.applyFooter ?? ((embed, interaction) => {
+  try { embed.setFooter({ text: `Richiesto da ${interaction?.user?.tag ?? 'Utente'}` }); } catch { /* ignora */ }
+  try { embed.setTimestamp(); } catch { /* ignora */ }
+  return embed;
+});
+const truncate = _T?.truncate ?? ((s, m) => String(s ?? '').slice(0, m));
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('premi')
@@ -33,13 +44,11 @@ module.exports = {
       const MAX = 25;
       const righe = ordinati.slice(0, MAX).map((r) => `⭐ Livello **${r.level}** → <@&${r.roleId}>`);
       if (ordinati.length > MAX) righe.push(`…e altri **${ordinati.length - MAX}** premi.`);
-      const embed = new EmbedBuilder()
-        .setColor(0x9b59b6)
+      const embed = applyFooter(new EmbedBuilder()
+        .setColor(COLORS.purple)
         .setTitle('🏆 Premi livello')
         .setThumbnail(interaction.guild.iconURL() || interaction.user.displayAvatarURL())
-        .setDescription(righe.join('\n').slice(0, 4096))
-        .setFooter({ text: `Richiesto da ${interaction.user.tag}` })
-        .setTimestamp();
+        .setDescription(truncate(righe.join('\n'), 4096)), interaction);
       return interaction.reply({ embeds: [embed] });
     }
 
@@ -49,7 +58,12 @@ module.exports = {
     }
 
     if (sub === 'rimuovi') {
-      const existed = removeReward(guildId, livello);
+      let existed = false;
+      try {
+        existed = removeReward(guildId, livello);
+      } catch {
+        return interaction.reply({ content: '❌ Livello non valido: usa un numero tra 1 e 100.', flags: MessageFlags.Ephemeral });
+      }
       return interaction.reply({
         content: existed ? `✅ Premio per il livello **${livello}** rimosso.` : `ℹ️ Nessun premio configurato per il livello **${livello}**.`,
         flags: MessageFlags.Ephemeral,
@@ -58,6 +72,10 @@ module.exports = {
 
     // sub === 'imposta'
     const ruolo = interaction.options.getRole('ruolo');
+    // @everyone non assegnabile come premio (parità con shop.js validateSellable).
+    if (ruolo.id === interaction.guild.id) {
+      return interaction.reply({ content: '❌ Non puoi usare il ruolo @everyone come premio.', flags: MessageFlags.Ephemeral });
+    }
     if (!ruolo.editable) {
       return interaction.reply({
         content: '❌ Non posso gestire quel ruolo: è sopra il mio ruolo più alto o è un ruolo gestito. Sposta il mio ruolo più in alto nella gerarchia.',
@@ -67,7 +85,11 @@ module.exports = {
     if (ruolo.managed) {
       return interaction.reply({ content: '❌ Quel ruolo è gestito da un\'integrazione e non può essere assegnato.', flags: MessageFlags.Ephemeral });
     }
-    setReward(guildId, livello, ruolo.id);
+    try {
+      setReward(guildId, livello, ruolo.id);
+    } catch {
+      return interaction.reply({ content: '❌ Dati non validi: controlla livello (1-100) e ruolo.', flags: MessageFlags.Ephemeral });
+    }
     return interaction.reply({
       content: `✅ Dal livello **${livello}** gli utenti riceveranno ${ruolo}.`,
       flags: MessageFlags.Ephemeral,

@@ -5,8 +5,10 @@ const FILE = dbFile('levelRewards');
 // Formato: { [guildId]: { [level]: roleId } }
 
 function guildRewards(guildId) {
+  // guildId falsy: mappa volatile senza save (niente record 'undefined').
+  if (!guildId) return {};
   const db = load(FILE);
-  if (!db[guildId] || typeof db[guildId] !== 'object') {
+  if (!db[guildId] || typeof db[guildId] !== 'object' || Array.isArray(db[guildId])) {
     db[guildId] = {};
     save(FILE, db);
   }
@@ -14,6 +16,7 @@ function guildRewards(guildId) {
 }
 
 function persist(guildId, rewards) {
+  if (!guildId) return;
   const db = load(FILE);
   db[guildId] = rewards;
   save(FILE, db);
@@ -31,6 +34,7 @@ function getReward(guildId, level) {
 }
 
 function setReward(guildId, level, roleId) {
+  if (!guildId) throw new Error('guildId mancante.');
   const n = validLevel(level);
   if (n === null) throw new Error('Livello non valido (1-100).');
   if (typeof roleId !== 'string' || !roleId) throw new Error('roleId non valido.');

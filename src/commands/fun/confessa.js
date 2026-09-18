@@ -8,6 +8,15 @@ const {
 const { getConfessioni, setCanale, secondiAttesa, registraConfessione } = require('../../database/confessioni');
 const { getGuild } = require('../../database/guildConfig');
 
+let _theme = null;
+try {
+  _theme = require('../../utils/theme');
+} catch {
+  _theme = null;
+}
+const BLUE = _theme?.COLORS?.blue ?? 0x3498db;
+const truncate = _theme?.truncate ?? ((s, m) => String(s ?? '').slice(0, m));
+
 const MAX_LEN = 500;
 
 module.exports = {
@@ -44,6 +53,9 @@ module.exports = {
 
     // --- /confessa imposta (solo staff con ManageGuild) ---
     if (sub === 'imposta') {
+      if (!interaction.guild) {
+        return interaction.reply({ content: '❌ Usabile solo in un server.', flags: MessageFlags.Ephemeral });
+      }
       if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
         return interaction.reply({
           content: '❌ Solo chi ha il permesso **Gestione server** può impostare il canale delle confessioni.',
@@ -71,6 +83,9 @@ module.exports = {
 
     // --- /confessa invia (anonimo, anti-abuso) ---
     if (sub === 'invia') {
+      if (!interaction.guild) {
+        return interaction.reply({ content: '❌ Usabile solo in un server.', flags: MessageFlags.Ephemeral });
+      }
       const testo = (interaction.options.getString('testo') || '').trim();
       if (!testo) {
         return interaction.reply({ content: '❌ La confessione non può essere vuota.', flags: MessageFlags.Ephemeral });
@@ -130,16 +145,16 @@ module.exports = {
         });
       }
 
-      // Embed anonima: nessun autore, nessun riferimento all'utente.
+      // Embed anonima: nessun autore, nessun footer "Richiesto da" (anonimato reale).
       const embed = new EmbedBuilder()
-        .setColor(0x2b2d31)
+        .setColor(BLUE)
         .setTitle('🤫 Confessione anonima')
-        .setDescription(testo.slice(0, MAX_LEN))
-        .setFooter({ text: 'Inviata in forma anonima • Il team di moderazione può visionare i log' })
+        .setDescription(truncate(testo, MAX_LEN))
+        .setFooter({ text: 'Inviata in forma anonima' })
         .setTimestamp();
 
       try {
-        await canale.send({ embeds: [embed] });
+        await canale.send({ embeds: [embed], allowedMentions: { parse: [] } });
       } catch {
         return interaction.reply({
           content: '❌ Non sono riuscito a pubblicare la confessione (permessi mancanti?). Riprova più tardi.',

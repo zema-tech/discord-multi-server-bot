@@ -1,27 +1,50 @@
 const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const { getTemp } = require('../../database/tempvoice');
+let theme;
+try {
+  theme = require('../../utils/theme');
+} catch {
+  const { EmbedBuilder: EB } = require('discord.js');
+  theme = {
+    ok: (t, d) => new EB().setColor(0x57f287).setTitle(String(t).slice(0, 256)).setDescription(String(d).slice(0, 4000)).setTimestamp(),
+    err: (t) => new EB().setColor(0xed4245).setTitle('❌ Errore').setDescription(String(t).slice(0, 4000)).setTimestamp(),
+  };
+}
 
 function isStaff(member) {
   return member?.permissions?.has(PermissionFlagsBits.ManageChannels) ?? false;
 }
 
 async function resolveTempChannel(interaction) {
+  const fail = (text) => interaction.reply({ embeds: [theme.err(text)], flags: MessageFlags.Ephemeral });
   const voiceChannel = interaction.member?.voice?.channel;
   if (!voiceChannel) {
-    await interaction.reply({ content: '❌ Devi essere dentro la tua **vocale temporanea** per usare questo comando.', flags: MessageFlags.Ephemeral });
+    await fail('Devi essere dentro la tua **vocale temporanea** per usare questo comando.');
     return null;
   }
-  const temp = getTemp(interaction.guild.id, voiceChannel.id);
+  // FIX owner: ricontrolla il canale live (quello in cache può essere eliminato/rinominato)
+  // e valida il record temp: ownerId mancante o canale non più registrato → nega con messaggio chiaro
+  // invece di lasciare passare/fallire in modo ambiguo.
+  const live = await interaction.guild.channels.fetch(voiceChannel.id).catch(() => null);
+  if (!live) {
+    await fail('Questa vocale non esiste più. Creane una nuova entrando nella lobby.');
+    return null;
+  }
+  const temp = getTemp(interaction.guild.id, live.id);
   if (!temp) {
-    await interaction.reply({ content: '❌ Questo canale non è una **vocale temporanea**.', flags: MessageFlags.Ephemeral });
+    await fail('Questo canale non è una **vocale temporanea**.');
+    return null;
+  }
+  if (!temp.ownerId) {
+    await fail('Proprietario della vocale non registrato: chiedi allo staff di intervenire.');
     return null;
   }
   const allowed = temp.ownerId === interaction.user.id || isStaff(interaction.member);
   if (!allowed) {
-    await interaction.reply({ content: '❌ Solo il **proprietario** della vocale o lo staff può gestirla.', flags: MessageFlags.Ephemeral });
+    await fail('Solo il **proprietario** della vocale o lo staff può gestirla.');
     return null;
   }
-  return voiceChannel;
+  return live;
 }
 
 module.exports = {
@@ -45,29 +68,28 @@ module.exports = {
   cooldown: 3,
   async execute(interaction) {
     if (!interaction.guild) {
-      return interaction.reply({ content: '❌ Usa questo comando dentro un server.', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ embeds: [theme.err('Usa questo comando dentro un server.')], flags: MessageFlags.Ephemeral });
     }
     const sub = interaction.options.getSubcommand();
     const channel = await resolveTempChannel(interaction);
     if (!channel) return;
 
+    const done = (text) => interaction.reply({ embeds: [theme.ok('🔊 Vocale temporanea', text)], flags: MessageFlags.Ephemeral });
+    const fail = (text) => interaction.reply({ embeds: [theme.err(text)], flags: MessageFlags.Ephemeral });
     try {
       if (sub === 'nome') {
         const nome = interaction.options.getString('nome', true).trim().slice(0, 100);
         if (!nome) {
-          return interaction.reply({ content: '❌ Nome non valido.', flags: MessageFlags.Ephemeral });
+          return fail('Nome non valido.');
         }
         await channel.setName(nome, `Rinominata da ${interaction.user.tag}`);
-        return interaction.reply({ content: `✅ Vocale rinominata in **${nome}**.`, flags: MessageFlags.Ephemeral });
+        return done(`Vocale rinominata in **${nome}**.`);
       }
 
       if (sub === 'limite') {
         const numero = interaction.options.getInteger('numero', true);
         await channel.setUserLimit(numero, `Limite impostato da ${interaction.user.tag}`);
-        return interaction.reply({
-          content: numero === 0 ? '✅ Limite **rimosso** (ingressi illimitati).' : `✅ Limite impostato a **${numero}** utenti.`,
-          flags: MessageFlags.Ephemeral,
-        });
+        return done(numero === 0 ? 'Limite **rimosso** (ingressi illimitati).' : `Limite impostato a **${numero}** utenti.`);
       }
 
       if (sub === 'blocca') {
@@ -76,7 +98,7 @@ module.exports = {
           { Connect: false },
           { reason: `Bloccata da ${interaction.user.tag}` }
         );
-        return interaction.reply({ content: '🔒 Vocale **bloccata**: nessuno può più entrare.', flags: MessageFlags.Ephemeral });
+        return done('Vocale **bloccata** 🔒: nessuno può più entrare.');
       }
 
       if (sub === 'sblocca') {
@@ -85,26 +107,26 @@ module.exports = {
           { Connect: null },
           { reason: `Sbloccata da ${interaction.user.tag}` }
         );
-        return interaction.reply({ content: '🔓 Vocale **sbloccata**: tutti possono entrare.', flags: MessageFlags.Ephemeral });
+        return done('Vocale **sbloccata** 🔓: tutti possono entrare.');
       }
 
       if (sub === 'kick') {
         const user = interaction.options.getUser('utente', true);
         if (user.id === interaction.user.id) {
-          return interaction.reply({ content: '❌ Non puoi disconnettere te stesso.', flags: MessageFlags.Ephemeral });
+          return fail('Non puoi disconnettere te stesso.');
         }
         const target = await interaction.guild.members.fetch(user.id).catch(() => null);
         if (!target?.voice?.channel || target.voice.channel.id !== channel.id) {
-          return interaction.reply({ content: `❌ ${user} non è in questa vocale.`, flags: MessageFlags.Ephemeral });
+          return fail(`${user} non è in questa vocale.`);
         }
         await target.voice.disconnect(`Espulso da ${interaction.user.tag}`);
-        return interaction.reply({ content: `✅ ${user} **disconnesso** dalla vocale.`, flags: MessageFlags.Ephemeral });
+        return done(`${user} **disconnesso** dalla vocale.`);
       }
     } catch {
       if (interaction.replied || interaction.deferred) {
-        return interaction.followUp({ content: '❌ Errore: verifica i miei permessi sul canale vocale.', flags: MessageFlags.Ephemeral }).catch(() => {});
+        return interaction.followUp({ embeds: [theme.err('Verifica i miei permessi sul canale vocale.')], flags: MessageFlags.Ephemeral }).catch(() => {});
       }
-      return interaction.reply({ content: '❌ Errore: verifica i miei permessi sul canale vocale.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      return interaction.reply({ embeds: [theme.err('Verifica i miei permessi sul canale vocale.')], flags: MessageFlags.Ephemeral }).catch(() => {});
     }
   },
 };

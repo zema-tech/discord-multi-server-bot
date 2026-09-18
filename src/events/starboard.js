@@ -39,6 +39,8 @@ module.exports = {
 
       const cfg = getStarboard(message.guild.id);
       if (!cfg.channelId) return;
+      // Mai ripostare i messaggi che sono già nella starboard (loop di repost).
+      if (message.channelId === cfg.channelId) return;
       if (!emojiCorrisponde(reaction.emoji, cfg.emoji)) return;
 
       const count = reaction.count || 0;
@@ -46,6 +48,8 @@ module.exports = {
 
       const chiave = `${message.guild.id}:${message.id}`;
       if (postatiInMemoria.has(chiave) || isPosted(message.guild.id, message.id)) return;
+      // Evita crescita illimitata del Set: il DB (isPosted) resta il layer persistente.
+      if (postatiInMemoria.size > 5000) postatiInMemoria.clear();
       // Marca subito per evitare race su reazioni simultanee
       postatiInMemoria.add(chiave);
 

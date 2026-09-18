@@ -12,7 +12,10 @@ function num(v, fallback = 0) {
 }
 
 function newSfida(now = Date.now()) {
-  return { id: now.toString(36), tipo: TIPO, obiettivo: OBIETTIVO, inizio: now };
+  // Suffisso random: due reset nello stesso ms avrebbero lo stesso id e il
+  // rilevamento 'reset scattato' in addProgress fallirebbe (doppio conteggio).
+  const rnd = Math.random().toString(36).slice(2, 8);
+  return { id: `${now.toString(36)}-${rnd}`, tipo: TIPO, obiettivo: OBIETTIVO, inizio: now };
 }
 
 function sanitize(stored = {}) {
@@ -30,6 +33,8 @@ function sanitize(stored = {}) {
 // Restituisce la sfida attiva della guild, rigenerandola se scaduta (>7gg) o mancante.
 // Il salvataggio avviene solo quando serve (prima creazione o reset).
 function getSfida(guildId, now = Date.now()) {
+  // guildId falsy: stato volatile senza save (niente record 'undefined').
+  if (!guildId) return { current: newSfida(Number.isFinite(now) ? now : Date.now()), progress: {}, completati: [] };
   const db = load(FILE);
   let entry = db[guildId] ? sanitize(db[guildId]) : { current: null, progress: {}, completati: [] };
   if (!entry.current || !Number.isFinite(entry.current.inizio) || now - entry.current.inizio >= DURATA) {
@@ -43,6 +48,7 @@ function getSfida(guildId, now = Date.now()) {
 
 // Forza un reset manuale (nuovo ciclo settimanale).
 function resetSfida(guildId, now = Date.now()) {
+  if (!guildId) throw new Error('guildId mancante.');
   const db = load(FILE);
   const entry = { current: newSfida(now), progress: {}, completati: [] };
   if (!db[guildId]) db[guildId] = {};

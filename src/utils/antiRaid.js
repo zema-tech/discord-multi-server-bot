@@ -8,17 +8,26 @@
 
 const WINDOW_MS = 30 * 1000;
 const THRESHOLD = 8;
+// Tetto anti-memoria: dentro la finestra non serve tenere più di N timestamp.
+const MAX_TRACKED = 500;
 
 // guildId -> timestamp[] (ms) dei join recenti
 const joins = new Map();
 
+// Timestamp valido o fallback a Date.now(): un NaN avvelenerebbe la finestra
+// (NaN non viene mai potato dal filtro e resta in memoria per sempre).
+function asNow(now) {
+  return Number.isFinite(now) ? now : Date.now();
+}
+
 function prune(guildId, now) {
   const list = joins.get(guildId);
   if (!list) return [];
-  const fresh = list.filter((t) => now - t < WINDOW_MS);
+  const ts = asNow(now);
+  const fresh = list.filter((t) => Number.isFinite(t) && ts - t < WINDOW_MS);
   if (fresh.length === 0) joins.delete(guildId);
-  else joins.set(guildId, fresh);
-  return fresh;
+  else joins.set(guildId, fresh.length > MAX_TRACKED ? fresh.slice(-MAX_TRACKED) : fresh);
+  return fresh.length > MAX_TRACKED ? fresh.slice(-MAX_TRACKED) : fresh;
 }
 
 /**
@@ -30,7 +39,7 @@ function prune(guildId, now) {
 function registerJoin(guildId, now = Date.now()) {
   if (!guildId) return { count: 0, alert: false };
   const fresh = prune(guildId, now);
-  fresh.push(now);
+  fresh.push(asNow(now));
   joins.set(guildId, fresh);
   return { count: fresh.length, alert: fresh.length >= THRESHOLD };
 }
@@ -51,4 +60,9 @@ function reset(guildId) {
   if (guildId) joins.delete(guildId);
 }
 
-module.exports = { registerJoin, isRaidLevel, reset, WINDOW_MS, THRESHOLD };
+/** Dimentica lo storico join di TUTTE le guild (shutdown/test, anti-leak). */
+function resetAll() {
+  joins.clear();
+}
+
+module.exports = { registerJoin, isRaidLevel, reset, resetAll, WINDOW_MS, THRESHOLD };

@@ -19,6 +19,8 @@ function sanitizeCfg(raw = {}) {
 }
 
 function getStarboard(guildId) {
+  // guildId falsy: default in memoria senza save (niente record 'undefined').
+  if (!guildId) return { ...DEFAULTS, posted: {} };
   const db = load(FILE);
   if (!db[guildId]) {
     db[guildId] = { ...DEFAULTS, posted: {} };
@@ -35,6 +37,7 @@ function getStarboard(guildId) {
 }
 
 function setStarboard(guildId, patch) {
+  if (!guildId) throw new Error('guildId mancante.');
   const db = load(FILE);
   const current = getStarboard(guildId);
   db[guildId] = { ...current, ...sanitizeCfg({ ...current, ...patch }), posted: current.posted };
@@ -43,6 +46,7 @@ function setStarboard(guildId, patch) {
 }
 
 function disableStarboard(guildId) {
+  if (!guildId) throw new Error('guildId mancante.');
   const db = load(FILE);
   const current = getStarboard(guildId);
   db[guildId] = { ...current, channelId: null };
@@ -56,6 +60,7 @@ function isPosted(guildId, messageId) {
 }
 
 function markPosted(guildId, messageId, starboardMessageId) {
+  if (!guildId || !messageId) return;
   const db = load(FILE);
   if (!db[guildId]) db[guildId] = { ...DEFAULTS, posted: {} };
   if (!db[guildId].posted || typeof db[guildId].posted !== 'object') db[guildId].posted = {};

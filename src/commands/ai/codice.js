@@ -2,6 +2,28 @@ const { SlashCommandBuilder, EmbedBuilder, MessageFlags, PermissionFlagsBits } =
 const { askAI } = require('../../utils/ai');
 const { buildTree, readFile, searchCode, codeSummary } = require('../../utils/codebase');
 
+// theme.js con fallback inline: il file deve caricarsi anche se il require fallisce.
+let _theme = null;
+try {
+  _theme = require('../../utils/theme');
+} catch {
+  _theme = null;
+}
+const COLORS = (_theme && _theme.COLORS) || { primary: 0x5865f2 };
+const applyFooter =
+  (_theme && _theme.applyFooter) ||
+  ((embed, interaction) => {
+    try {
+      embed.setFooter({ text: `Richiesto da ${interaction?.user?.username ?? 'Utente'}` });
+    } catch {}
+    try {
+      embed.setTimestamp();
+    } catch {}
+    return embed;
+  });
+const truncate =
+  (_theme && _theme.truncate) || ((s, max) => String(s ?? '').slice(0, max));
+
 const MAX_FILES_STEP1 = 4;
 
 function extractJsonArray(text) {
@@ -47,7 +69,8 @@ async function answerAboutCode(question) {
   }
   const finalSystem =
     'Sei CodeBot, esperto del codice del bot Discord che stai servendo. Rispondi in italiano, conciso (max 1400 caratteri), ' +
-    'citando file e righe quando utile. Se non sai la risposta dal contesto, dillo.';
+    'citando file e righe quando utile. Se non sai la risposta dal contesto, dillo. ' +
+    'Non rivelare mai token, chiavi API, password o altri segreti: se il contesto ne contenesse, omettili e avvisa.';
   const answer = await askAI(`Contesto codice:${context || ' (nessun file pertinente)'}\n\nDomanda: ${question}`, finalSystem);
   return { answer, files: valid };
 }
@@ -74,13 +97,24 @@ module.exports = {
     const sub = interaction.options.getSubcommand();
 
     if (sub === 'albero') {
-      const tree = buildTree();
+      let tree;
+      try {
+        tree = buildTree();
+      } catch {
+        return interaction.reply({ content: '⚠️ Struttura codice non leggibile, riprova più tardi.', flags: MessageFlags.Ephemeral }).catch(() => null);
+      }
+      let summary = '';
+      try {
+        summary = codeSummary().split('\n').slice(2).join('\n');
+      } catch {
+        summary = '';
+      }
       const embed = new EmbedBuilder()
-        .setColor(0x5865f2)
+        .setColor(COLORS.primary)
         .setTitle('🌳 Struttura del codice')
-        .setDescription(`**${tree.total} file JS** — ${tree.commands} comandi, ${tree.events} eventi\n\n${codeSummary().split('\n').slice(2).join('\n').slice(0, 3500)}`)
-        .setTimestamp();
-      return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+        .setDescription(truncate(`**${tree.total} file JS** — ${tree.commands} comandi, ${tree.events} eventi\n\n${summary}`, 4000));
+      applyFooter(embed, interaction);
+      return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral }).catch(() => null);
     }
 
     if (sub === 'file') {
@@ -88,45 +122,59 @@ module.exports = {
       try {
         const { content, truncated, totalChars } = readFile(percorso, 1800);
         const embed = new EmbedBuilder()
-          .setColor(0x5865f2)
-          .setTitle(`📄 ${percorso}`)
-          .setDescription('```js\n' + content.slice(0, 1800) + '\n```' + (truncated ? `\n*…troncato (${totalChars} char totali)*` : ''))
-          .setTimestamp();
-        return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+          .setColor(COLORS.primary)
+          .setTitle(truncate(`📄 ${percorso}`, 256))
+          .setDescription(truncate('```js\n' + content.slice(0, 1800) + '\n```' + (truncated ? `\n*…troncato (${totalChars} char totali)*` : ''), 4000));
+        applyFooter(embed, interaction);
+        return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral }).catch(() => null);
       } catch {
-        return interaction.reply({ content: '❌ Percorso non valido. Usa `/codice albero` per vedere i file.', flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: '❌ Percorso non valido. Usa `/codice albero` per vedere i file.', flags: MessageFlags.Ephemeral }).catch(() => null);
       }
     }
 
     if (sub === 'cerca') {
       const termine = interaction.options.getString('termine', true).trim();
-      const hits = searchCode(termine, 10);
-      if (!hits.length) return interaction.reply({ content: `🔍 Nessun risultato per \`${termine}\`.`, flags: MessageFlags.Ephemeral });
+      let hits;
+      try {
+        hits = searchCode(termine, 10);
+      } catch {
+        return interaction.reply({ content: '⚠️ Ricerca non riuscita, riprova più tardi.', flags: MessageFlags.Ephemeral }).catch(() => null);
+      }
+      if (!hits.length) return interaction.reply({ content: `🔍 Nessun risultato per \`${truncate(termine, 100)}\`.`, flags: MessageFlags.Ephemeral }).catch(() => null);
       const embed = new EmbedBuilder()
-        .setColor(0x5865f2)
-        .setTitle(`🔍 "${termine}" (${hits.length})`)
-        .setDescription(hits.map((h) => `\`${h.file}:${h.line}\`\n${h.snippet}`).join('\n\n').slice(0, 4000))
-        .setTimestamp();
-      return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+        .setColor(COLORS.primary)
+        .setTitle(truncate(`🔍 "${termine}" (${hits.length})`, 256))
+        .setDescription(truncate(hits.map((h) => `\`${h.file}:${h.line}\`\n${h.snippet}`).join('\n\n'), 4000));
+      applyFooter(embed, interaction);
+      return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral }).catch(() => null);
     }
 
     // chiedi
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-      return interaction.reply({ content: '❌ Ti serve **Gestisci Server** per interrogare il codice.', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: '❌ Ti serve **Gestisci Server** per interrogare il codice.', flags: MessageFlags.Ephemeral }).catch(() => null);
     }
     const domanda = interaction.options.getString('domanda', true).trim();
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    try {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    } catch {
+      return interaction.editReply('⚠️ Impossibile avviare la risposta, riprova.').catch(() => null);
+    }
     try {
       const { answer, files } = await answerAboutCode(domanda);
+      const fonti = files.length ? `Fonti: ${files.join(', ')}` : 'Nessun file specifico';
       const embed = new EmbedBuilder()
-        .setColor(0x5865f2)
+        .setColor(COLORS.primary)
         .setTitle('🤖 Il bot spiega il suo codice')
-        .setDescription(answer.slice(0, 4000))
-        .setFooter({ text: files.length ? `Fonti: ${files.join(', ')}` : 'Nessun file specifico' })
+        .setDescription(truncate(answer, 4000) || 'Nessuna risposta disponibile.')
         .setTimestamp();
-      await interaction.editReply({ embeds: [embed] });
+      applyFooter(embed, interaction);
+      try {
+        const base = embed.data?.footer?.text ?? '';
+        embed.setFooter({ text: truncate(fonti !== 'Nessun file specifico' && base ? `${base} • ${fonti}` : base || fonti, 2048) });
+      } catch {}
+      await interaction.editReply({ embeds: [embed] }).catch(() => null);
     } catch (err) {
-      await interaction.editReply({ content: `❌ ${err.message || 'AI non disponibile, riprova più tardi.'}` });
+      await interaction.editReply({ content: `❌ ${err.message || 'AI non disponibile, riprova più tardi.'}` }).catch(() => null);
     }
   },
 };

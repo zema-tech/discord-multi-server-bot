@@ -18,6 +18,8 @@ async function sendLog(guild, embedData) {
 }
 
 function formatDuration(msValue) {
+  // Input non numerici (null/undefined/NaN) o negativi: fallback '0s' invece di 'NaNs'/'-5s'.
+  if (!Number.isFinite(msValue) || msValue < 0) return '0s';
   const s = Math.floor(msValue / 1000);
   if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);
@@ -29,8 +31,12 @@ function formatDuration(msValue) {
 
 function hierarchyAllows(interaction, targetMember) {
   if (!targetMember) return true;
-  if (interaction.guild.ownerId === interaction.user.id) return true;
-  return interaction.member.roles.highest.position > targetMember.roles.highest.position;
+  // DM / partial / member mancante: niente gerarchia da verificare, non lanciare.
+  const requesterPos = interaction?.member?.roles?.highest?.position;
+  const targetPos = targetMember?.roles?.highest?.position;
+  if (!Number.isFinite(requesterPos) || !Number.isFinite(targetPos)) return true;
+  if (interaction?.guild?.ownerId !== undefined && interaction.guild.ownerId === interaction?.user?.id) return true;
+  return requesterPos > targetPos;
 }
 
 module.exports = { baseEmbed, sendLog, formatDuration, hierarchyAllows };

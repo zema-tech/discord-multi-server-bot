@@ -11,6 +11,8 @@ const COOLDOWN_MS = 60_000;
 const lastUse = new Map(); // userId -> timestamp ms
 
 function getConfessioni(guildId) {
+  // guildId falsy: default in memoria senza save (niente record 'undefined').
+  if (!guildId) return { ...DEFAULTS };
   const db = load(FILE);
   if (!db[guildId] || typeof db[guildId] !== 'object') {
     db[guildId] = { ...DEFAULTS };
@@ -23,6 +25,7 @@ function getConfessioni(guildId) {
 }
 
 function setCanale(guildId, channelId) {
+  if (!guildId) throw new Error('guildId mancante.');
   const db = load(FILE);
   db[guildId] = { channelId: typeof channelId === 'string' && channelId ? channelId : null };
   save(FILE, db);

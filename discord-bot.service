@@ -1,0 +1,31 @@
+# discord-bot.service — unit systemd per VPS (alternativa a PM2/Docker).
+#
+# Installazione (adatta utente e percorso alla tua macchina):
+#   sudo cp discord-bot.service /etc/systemd/system/discord-bot.service
+#   # .env con DISCORD_TOKEN e CLIENT_ID nella WorkingDirectory
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now discord-bot
+#   systemctl status discord-bot
+#   journalctl -u discord-bot -f
+#
+# NOTA: se Node è via nvm, punta ExecStart al binario reale,
+# es. /home/bot/.nvm/versions/node/v20.x.x/bin/node (which node).
+
+[Unit]
+Description=Discord Multi-Server Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bot
+WorkingDirectory=/opt/discord-bot
+EnvironmentFile=/opt/discord-bot/.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node /opt/discord-bot/src/index.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

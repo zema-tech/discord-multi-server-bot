@@ -33,6 +33,8 @@ function sanitize(state = {}) {
 }
 
 function getState(guildId) {
+  // guildId falsy: default in memoria senza save (niente record 'undefined').
+  if (!guildId) return defaultState();
   const db = load(FILE);
   if (!db[guildId] || typeof db[guildId] !== 'object' || Array.isArray(db[guildId])) {
     db[guildId] = defaultState();
@@ -42,6 +44,7 @@ function getState(guildId) {
 }
 
 function persist(guildId, state) {
+  if (!guildId) return defaultState();
   const db = load(FILE);
   db[guildId] = sanitize(state);
   save(FILE, db);

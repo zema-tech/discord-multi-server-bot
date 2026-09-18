@@ -1,5 +1,12 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } = require('discord.js');
 const { CASE_TYPES, getCase, getUserCases, addNote, removeCase, searchCases } = require('../../database/cases');
+let theme = null;
+try { theme = require('../../utils/theme'); } catch { theme = null; }
+const COLORS = theme?.COLORS ?? { primary: 0x5865f2, success: 0x57f287, error: 0xed4245 };
+const applyFooter = theme?.applyFooter ?? ((e) => e);
+const truncate = theme?.truncate ?? ((s, m) => String(s ?? '').slice(0, m));
+const errEmbed = theme?.err ?? ((t) => new EmbedBuilder().setColor(COLORS.error).setTitle('❌ Errore').setDescription(String(t ?? '')).setTimestamp());
+const okEmbed = theme?.ok ?? ((t, d) => new EmbedBuilder().setColor(COLORS.success).setTitle(String(t)).setDescription(String(d ?? '')).setTimestamp());
 
 const TYPE_EMOJI = { warn: '⚠️', kick: '👢', ban: '🚫', timeout: '⏱️', unban: '✅', note: '📝', mute: '🔇' };
 
@@ -7,23 +14,32 @@ function typeChoices() {
   return CASE_TYPES.map((t) => ({ name: t, value: t }));
 }
 
-function caseLine(c) {
-  const emoji = TYPE_EMOJI[c.type] || '📌';
-  return `**#${c.id}** ${emoji} \`${c.type}\` — ${c.reason}\n<@${c.modId}> • <t:${Math.floor(c.at / 1000)}:R>`;
+function fmtTime(at, style) {
+  const ms = Number(at);
+  if (!Number.isFinite(ms) || ms <= 0) return 'n/d';
+  return `<t:${Math.floor(ms / 1000)}:${style}>`;
 }
 
-function detailEmbed(c) {
+function caseLine(c) {
   const emoji = TYPE_EMOJI[c.type] || '📌';
-  return new EmbedBuilder()
-    .setColor(0x5865f2)
-    .setTitle(`${emoji} Caso #${c.id} — ${c.type}`)
+  const reason = truncate(c.reason || 'Nessun motivo specificato', 120);
+  return `**#${c.id}** ${emoji} \`${c.type}\` — ${reason}\n<@${c.modId}> • ${fmtTime(c.at, 'R')}`;
+}
+
+function detailEmbed(c, interaction) {
+  const emoji = TYPE_EMOJI[c.type] || '📌';
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.primary)
+    .setTitle(`${emoji} Caso #${c.id} — ${c.type}`.slice(0, 256))
     .addFields(
       { name: 'Utente', value: `<@${c.userId}> (${c.userId})`, inline: true },
       { name: 'Moderatore', value: `<@${c.modId}>`, inline: true },
-      { name: 'Motivo', value: (c.reason || 'Nessun motivo specificato').slice(0, 1024) },
-      { name: 'Data', value: `<t:${Math.floor(c.at / 1000)}:F>`, inline: true }
+      { name: 'Data', value: fmtTime(c.at, 'F'), inline: true },
+      { name: 'Motivo', value: truncate(c.reason || 'Nessun motivo specificato', 1024) || 'Nessun motivo specificato' }
     )
-    .setTimestamp(c.at);
+    .setTimestamp(Number.isFinite(Number(c.at)) ? Number(c.at) : Date.now());
+  if (interaction) applyFooter(embed, interaction);
+  return embed;
 }
 
 module.exports = {
@@ -54,52 +70,57 @@ module.exports = {
   cooldown: 3,
   async execute(interaction) {
     if (!interaction.guild) {
-      return interaction.reply({ content: '❌ Usa questo comando dentro un server.', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ embeds: [errEmbed('Usa questo comando dentro un server.')], flags: MessageFlags.Ephemeral }).catch(() => null);
     }
     const sub = interaction.options.getSubcommand();
+    const ephemeral = (payload) => interaction.reply({ ...payload, flags: MessageFlags.Ephemeral }).catch(() => null);
 
     if (sub === 'vedi') {
       const c = getCase(interaction.guild.id, interaction.options.getString('id'));
-      if (!c) return interaction.reply({ content: '❌ Caso non trovato.', flags: MessageFlags.Ephemeral });
-      return interaction.reply({ embeds: [detailEmbed(c)], flags: MessageFlags.Ephemeral });
+      if (!c) return ephemeral({ embeds: [errEmbed('Caso non trovato.')] });
+      return ephemeral({ embeds: [detailEmbed(c, interaction)] });
     }
 
     if (sub === 'utente') {
       const user = interaction.options.getUser('utente');
+      if (!user) return ephemeral({ embeds: [errEmbed('Utente non valido.')] });
       const tipo = interaction.options.getString('tipo');
       const all = tipo
         ? searchCases(interaction.guild.id, { userId: user.id, type: tipo, limit: 100 })
         : getUserCases(interaction.guild.id, user.id, 100);
       if (!all.length) {
-        return interaction.reply({ content: `✅ ${user.tag} non ha casi${tipo ? ` di tipo \`${tipo}\`` : ''} registrati.`, flags: MessageFlags.Ephemeral });
+        return ephemeral({ embeds: [okEmbed('✅ Nessun caso', `${user.tag ?? user.username} non ha casi${tipo ? ` di tipo \`${tipo}\`` : ''} registrati.`)] });
       }
       const shown = all.slice(0, 10);
       const rest = all.length - shown.length;
       const embed = new EmbedBuilder()
-        .setColor(0x5865f2)
-        .setTitle(`📋 Storico di ${user.tag} (${all.length})`)
-        .setDescription(shown.map(caseLine).join('\n\n').slice(0, 4000) + (rest > 0 ? `\n\n…e altri ${rest}.` : ''))
+        .setColor(COLORS.primary)
+        .setTitle(`📋 Storico di ${user.tag ?? user.username} (${all.length})`.slice(0, 256))
+        .setDescription((shown.map(caseLine).join('\n\n') + (rest > 0 ? `\n\n…e altri ${rest}.` : '')).slice(0, 4000))
         .setTimestamp();
-      return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+      applyFooter(embed, interaction);
+      return ephemeral({ embeds: [embed] });
     }
 
     if (sub === 'nota') {
       const user = interaction.options.getUser('utente');
-      const testo = interaction.options.getString('testo').slice(0, 1024);
+      if (!user) return ephemeral({ embeds: [errEmbed('Utente non valido.')] });
+      const testo = truncate(interaction.options.getString('testo') || '', 1024);
+      if (!testo) return ephemeral({ embeds: [errEmbed('Testo della nota mancante.')] });
       const c = addNote(interaction.guild.id, { userId: user.id, modId: interaction.user.id, reason: testo });
-      if (!c) return interaction.reply({ content: '❌ Impossibile salvare la nota.', flags: MessageFlags.Ephemeral });
-      return interaction.reply({ content: `📝 Nota salvata per ${user.tag} come caso \`#${c.id}\`.`, flags: MessageFlags.Ephemeral });
+      if (!c) return ephemeral({ embeds: [errEmbed('Impossibile salvare la nota.')] });
+      return ephemeral({ embeds: [okEmbed('📝 Nota salvata', `Nota per ${user.tag ?? user.username} salvata come caso \`#${c.id}\`.`)] });
     }
 
     if (sub === 'elimina') {
       if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-        return interaction.reply({ content: '❌ Serve il permesso `ManageGuild` per eliminare un caso.', flags: MessageFlags.Ephemeral });
+        return ephemeral({ embeds: [errEmbed('Serve il permesso `ManageGuild` per eliminare un caso.')] });
       }
       const id = interaction.options.getString('id');
       const ok = removeCase(interaction.guild.id, id);
-      return interaction.reply({ content: ok ? `🗑️ Caso \`#${id}\` eliminato.` : `❌ Caso \`#${id}\` non trovato.`, flags: MessageFlags.Ephemeral });
+      return ephemeral({ embeds: [ok ? okEmbed('🗑️ Caso eliminato', `Caso \`#${id}\` eliminato.`) : errEmbed(`Caso \`#${id}\` non trovato.`)] });
     }
 
-    return interaction.reply({ content: '❌ Sottocomando sconosciuto.', flags: MessageFlags.Ephemeral });
+    return ephemeral({ embeds: [errEmbed('Sottocomando sconosciuto.')] });
   },
 };

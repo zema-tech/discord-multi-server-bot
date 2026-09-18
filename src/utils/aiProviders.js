@@ -10,10 +10,15 @@
  * Senza chiavi: Pollinations gratuito (nessuna configurazione).
  *
  * Errori lanciati hanno sempre `err.code` tra:
- *   empty|auth|rate|timeout|network|http — mappati in italiano da utils/ai.js
+ *   empty|emptyResponse|auth|rate|timeout|network|http — mappati in italiano da utils/ai.js
+ * (`empty` = prompt vuoto, `emptyResponse` = AI ha restituito risposta vuota).
  */
 
 const TIMEOUT_MS = 25000;
+
+// Cap system prompt: Pollinations lo passa in query-string (?system=...) quindi un
+// system gigante genera URL enormi (414/fetch failed). Vale per tutti i provider.
+const SYSTEM_MAX_CHARS = 2000;
 
 const PROVIDER_DEFS = {
   openai: {
@@ -150,7 +155,7 @@ function normalizeMessages(messages, system) {
     if (role === 'system') sys.push(content);
     else out.push({ role: role === 'assistant' ? 'assistant' : 'user', content });
   }
-  return { system: sys.filter(Boolean).join('\n'), messages: out };
+  return { system: sys.filter(Boolean).join('\n').slice(0, SYSTEM_MAX_CHARS), messages: out };
 }
 
 async function completeOpenAI(provider, system, messages, maxTokens) {
@@ -169,7 +174,7 @@ async function completeOpenAI(provider, system, messages, maxTokens) {
   if (!res.ok) throw mapHttpError(res, provider.label);
   const data = await res.json().catch(() => ({}));
   const text = data?.choices?.[0]?.message?.content || data?.choices?.[0]?.text || '';
-  if (!String(text).trim()) throw errWith('empty', "L'AI ha restituito una risposta vuota, riprova.");
+  if (!String(text).trim()) throw errWith('emptyResponse', "L'AI ha restituito una risposta vuota, riprova.");
   return String(text).trim();
 }
 
@@ -184,7 +189,7 @@ async function completeAnthropic(provider, system, messages, maxTokens) {
   if (!res.ok) throw mapHttpError(res, provider.label);
   const data = await res.json().catch(() => ({}));
   const text = Array.isArray(data?.content) ? data.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n') : '';
-  if (!text.trim()) throw errWith('empty', "L'AI ha restituito una risposta vuota, riprova.");
+  if (!text.trim()) throw errWith('emptyResponse', "L'AI ha restituito una risposta vuota, riprova.");
   return text.trim();
 }
 
@@ -198,7 +203,7 @@ async function completeGemini(provider, system, messages, maxTokens) {
   const data = await res.json().catch(() => ({}));
   const parts = data?.candidates?.[0]?.content?.parts || [];
   const text = parts.filter((p) => typeof p.text === 'string').map((p) => p.text).join('\n');
-  if (!text.trim()) throw errWith('empty', "L'AI ha restituito una risposta vuota, riprova.");
+  if (!text.trim()) throw errWith('emptyResponse', "L'AI ha restituito una risposta vuota, riprova.");
   return text.trim();
 }
 
@@ -215,7 +220,7 @@ async function completePollinations(provider, system, messages, maxTokens) {
   if (!res.ok) throw errWith('http', `AI non disponibile (HTTP ${res.status}), riprova più tardi.`);
   const raw = await res.text();
   const text = extractLooseText(raw).trim();
-  if (!text) throw errWith('empty', "L'AI ha restituito una risposta vuota, riprova.");
+  if (!text) throw errWith('emptyResponse', "L'AI ha restituito una risposta vuota, riprova.");
   return text;
 }
 
@@ -270,7 +275,7 @@ async function complete({ messages, system = '', maxTokens = 800, env = process.
         default: return await completePollinations(provider, sys, msgs, maxTokens);
       }
     } catch (err) {
-      if (err && (err.code === 'empty' || err.code === 'auth' || err.code === 'rate' || err.code === 'http')) throw err;
+      if (err && (err.code === 'empty' || err.code === 'emptyResponse' || err.code === 'auth' || err.code === 'rate' || err.code === 'http')) throw err;
       lastError = err;
       const retryable = isTimeoutError(err) || isNetworkError(err);
       if (retryable && attempt === 1) continue;

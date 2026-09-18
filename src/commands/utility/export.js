@@ -1,17 +1,27 @@
 // export.js — /export con sottocomandi (un solo file = un solo comando per il loader):
-//   /export server       → bundle JSON guild-scoped dei dati del server (allegato)
-//   /export backup-ora   → esegue subito il backup notturno e mostra il report
-//   /export backup-lista → ultime 7 cartelle di backup con data/dimensione
+//   /export server          → bundle JSON guild-scoped dei dati del server (allegato)
+//   /export backup-ora      → esegue subito il backup notturno e mostra il report
+//   /export backup-lista    → ultime 7 cartelle di backup con data/dimensione
+//   /export backup-ripristina nome → ripristina un backup con doppia conferma
 // Scelta documentata: i sottocomandi evitano collisioni con gli altri agenti
 // (nessun nuovo file /backup separato) e restano sotto un unico permesso ManageGuild.
 
-const { SlashCommandBuilder, AttachmentBuilder, EmbedBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, AttachmentBuilder, EmbedBuilder, MessageFlags, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..', '..');
 const DB_DIR = path.join(ROOT, 'src', 'database');
 const MAX_ATTACHMENT = 8 * 1024 * 1024; // limite Discord senza boost
+
+// Tema premium condiviso, con fallback inline se il require fallisse.
+let COLORS = { primary: 0x5865f2, success: 0x57f287, error: 0xed4245, warn: 0xfee75c };
+let truncate = (s, max) => String(s ?? '').slice(0, max);
+try {
+  const theme = require('../../utils/theme');
+  COLORS = theme.COLORS ?? COLORS;
+  truncate = theme.truncate ?? truncate;
+} catch { /* fallback inline sopra */ }
 
 function fmtSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -20,7 +30,9 @@ function fmtSize(bytes) {
 }
 
 function fmtDateIT(ts) {
-  return `<t:${Math.floor(ts / 1000)}:f>`;
+  // BUGFIX: journal corrotto/incompleto (at mancante) → fallback a ora, mai "<t:NaN:f>".
+  const n = Number(ts);
+  return `<t:${Math.floor((Number.isFinite(n) ? n : Date.now()) / 1000)}:f>`;
 }
 
 /** Bundle guild-scoped: per ogni *.json, solo la fetta della guild se presente, altrimenti l'intero file (config globali). */
@@ -85,16 +97,19 @@ async function handleBackupNow(interaction) {
   const { runBackupNow } = require('../../jobs/backup');
   const res = runBackupNow();
   const embed = new EmbedBuilder()
-    .setColor(res.ok ? 0x57f287 : 0xed4245)
+    .setColor(res.ok ? COLORS.success : COLORS.error)
     .setTitle(res.ok ? '✅ Backup completato' : '❌ Backup fallito')
     .setDescription(
+      truncate(
       (res.dir ? `**Cartella:** \`${path.basename(res.dir)}\`\n` : '') +
       `**File copiati:** ${res.files.length}\n` +
       (res.pruned?.length ? `**Prune:** eliminate ${res.pruned.length} cartelle vecchie\n` : '') +
       (res.error ? `**Errore:** ${res.error}\n` : '') +
-      (res.ok && res.files.length ? `\`${res.files.slice(0, 20).join('`, `')}\`${res.files.length > 20 ? ` …(+${res.files.length - 20})` : ''}` : '')
+      (res.ok && res.files.length ? `\`${res.files.slice(0, 20).join('`, `')}\`${res.files.length > 20 ? ` …(+${res.files.length - 20})` : ''}` : ''),
+      4000
+      )
     )
-    .setTimestamp(res.at);
+    .setTimestamp(Number.isFinite(Number(res.at)) ? Number(res.at) : Date.now());
   await interaction.editReply({ embeds: [embed] });
 }
 
@@ -103,7 +118,7 @@ async function handleBackupList(interaction) {
   const items = listBackups().slice(0, 7);
   const last = readJournal();
   const embed = new EmbedBuilder()
-    .setColor(0x5865f2)
+    .setColor(COLORS.primary)
     .setTitle('💾 Backup — ultime 7 cartelle')
     .setTimestamp();
   if (!items.length) {
@@ -120,6 +135,125 @@ async function handleBackupList(interaction) {
   await interaction.editReply({ embeds: [embed] });
 }
 
+function confirmRow(prefix) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`${prefix}:si`).setLabel('Ripristina').setStyle(ButtonStyle.Danger).setEmoji('⚠️'),
+    new ButtonBuilder().setCustomId(`${prefix}:no`).setLabel('Annulla').setStyle(ButtonStyle.Secondary).setEmoji('✖️')
+  );
+}
+
+function disabledRow(prefix) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`${prefix}:si:fin`).setLabel('Ripristina').setStyle(ButtonStyle.Danger).setDisabled(true),
+    new ButtonBuilder().setCustomId(`${prefix}:no:fin`).setLabel('Annulla').setStyle(ButtonStyle.Secondary).setDisabled(true)
+  );
+}
+
+/** Conta i JSON ripristinabili in una cartella di backup (skip tmp/corrupt/illegeggibili). */
+function countRestorable(dir) {
+  let names = [];
+  try {
+    names = fs.readdirSync(dir).filter((f) => f.endsWith('.json'));
+  } catch {
+    return { count: 0, names: [] };
+  }
+  const ok = names.filter((f) => {
+    if (f.endsWith('.tmp') || f.includes('.corrupt-')) return false;
+    try {
+      JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8') || '{}');
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  return { count: ok.length, names: ok };
+}
+
+async function handleBackupRestore(interaction) {
+  const { listBackups, restoreBackup, isValidBackupName } = require('../../jobs/backup');
+  const nome = (interaction.options.getString('nome', true) || '').trim();
+
+  if (!isValidBackupName(nome)) {
+    return interaction.editReply(
+      `❌ Nome non valido: \`${nome.slice(0, 60)}\`.\n` +
+      'Usa il formato `YYYY-MM-DD-HHmm` (vedi `/export backup-lista`).'
+    );
+  }
+  const found = listBackups().find((b) => b.name === nome);
+  if (!found) {
+    return interaction.editReply(
+      `❌ Backup \`${nome}\` non trovato in \`backups/\`.\n` +
+      'Controlla il nome con `/export backup-lista`.'
+    );
+  }
+  const { count, names } = countRestorable(found.dir);
+  if (!count) {
+    return interaction.editReply(`❌ Il backup \`${nome}\` non contiene file ripristinabili.`);
+  }
+
+  const uid = interaction.user.id;
+  const nonce = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
+  const prefix = `restore:${uid}:${nonce}`;
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.warn)
+    .setTitle(`⚠️ Ripristinare il backup \`${truncate(nome, 40)}\`?`)
+    .setDescription(
+      `**Verranno sovrascritti ${count} file** in \`src/database/\`:\n` +
+      `\`${names.slice(0, 20).join('`, `')}\`${count > 20 ? ` …(+${count - 20})` : ''}\n\n` +
+      '✅ Prima del ripristino viene creato **automaticamente un backup di sicurezza** ' +
+      '`pre-restore-<data-ora>` dello stato corrente, così potrai tornare indietro.\n' +
+      '✅ **Nessun restart necessario**: i moduli rileggono i JSON da disco a ogni accesso.'
+    )
+    .setFooter({ text: 'Conferma entro 60 secondi • Solo chi ha avviato il comando può confermare' })
+    .setTimestamp();
+  const reply = await interaction.editReply({
+    embeds: [embed],
+    components: [confirmRow(prefix)],
+  });
+
+  const collector = reply.createMessageComponentCollector({
+    componentType: ComponentType.Button,
+    time: 60_000,
+    filter: (b) => b.customId.startsWith(prefix),
+  });
+
+  collector.on('collect', async (b) => {
+    if (b.user.id !== uid) {
+      return b.reply({ content: '❌ Solo chi ha avviato il comando può confermare.', flags: MessageFlags.Ephemeral });
+    }
+    if (b.customId === `${prefix}:no`) {
+      collector.stop('annullato');
+      return b.update({ content: '✅ Ripristino annullato, nessuna modifica applicata.', embeds: [], components: [] });
+    }
+    collector.stop('confermato');
+    await b.deferUpdate();
+    const res = restoreBackup(nome);
+    const done = new EmbedBuilder()
+      .setColor(res.ok ? COLORS.success : COLORS.error)
+      .setTitle(res.ok ? `✅ Backup \`${truncate(nome, 40)}\` ripristinato` : '❌ Ripristino fallito')
+      .setDescription(
+        truncate(
+          (res.safetyDir ? `**Backup di sicurezza:** \`${path.basename(res.safetyDir)}\`\n` : '') +
+          `**File ripristinati:** ${res.restored.length}\n` +
+          (res.restored.length ? `\`${res.restored.slice(0, 20).join('`, `')}\`${res.restored.length > 20 ? ` …(+${res.restored.length - 20})` : ''}\n` : '') +
+          (res.skipped.length ? `**Saltati (tmp/corrupt):** ${res.skipped.length} — \`${res.skipped.slice(0, 10).join('`, `')}\`\n` : '') +
+          (res.error ? `**Errore:** ${res.error}\n` : '') +
+          '\n✅ Nessun restart necessario: i moduli rileggono i JSON da disco a ogni accesso.',
+          4000
+        )
+      )
+      .setTimestamp();
+    await interaction.editReply({ embeds: [done], components: [] });
+  });
+
+  collector.on('end', async (_collected, reason) => {
+    if (reason === 'confermato' || reason === 'annullato') return;
+    await interaction
+      .editReply({ content: '⏰ Tempo scaduto: nessuna modifica applicata.', components: [disabledRow(prefix)] })
+      .catch(() => {});
+  });
+}
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('export')
@@ -127,6 +261,13 @@ module.exports = {
     .addSubcommand((s) => s.setName('server').setDescription('Scarica un JSON con tutti i dati di questo server'))
     .addSubcommand((s) => s.setName('backup-ora').setDescription('Esegui subito il backup del database'))
     .addSubcommand((s) => s.setName('backup-lista').setDescription('Mostra gli ultimi 7 backup con data e dimensione'))
+    .addSubcommand((s) =>
+      s.setName('backup-ripristina')
+        .setDescription('Ripristina un backup precedente (chiede conferma)')
+        .addStringOption((o) =>
+          o.setName('nome').setDescription('Cartella backup YYYY-MM-DD-HHmm (vedi /export backup-lista)').setRequired(true)
+        )
+    )
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
   cooldown: 30,
   async execute(interaction) {
@@ -142,6 +283,7 @@ module.exports = {
       if (sub === 'server') return await handleServer(interaction);
       if (sub === 'backup-ora') return await handleBackupNow(interaction);
       if (sub === 'backup-lista') return await handleBackupList(interaction);
+      if (sub === 'backup-ripristina') return await handleBackupRestore(interaction);
       return interaction.editReply({ content: '❌ Sottocomando sconosciuto.' });
     } catch (err) {
       await interaction.editReply({ content: `❌ Errore: ${err.message}` });

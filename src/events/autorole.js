@@ -5,8 +5,9 @@ module.exports = {
   name: Events.GuildMemberAdd,
   async execute(member, client) {
     try {
-      // Salta i bot
-      if (member.user.bot) return;
+      // Salta i bot (user può mancare sui GuildMember parziali: partials attivi in index.js)
+      if (member?.user?.bot) return;
+      if (!member?.guild) return;
       const cfg = getConfig(member.guild.id);
       if (!cfg.enabled) return;
       if (!Array.isArray(cfg.roleIds) || cfg.roleIds.length === 0) return;

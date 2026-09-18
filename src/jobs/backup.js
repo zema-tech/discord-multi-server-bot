@@ -189,6 +189,131 @@ function runBackupNow(opts = {}) {
   }
 }
 
+/**
+ * Nome cartella di backup valido? Solo `YYYY-MM-DD-HHmm`: niente slash,
+ * niente `..`, quindi nessun traversal possibile — resta sempre dentro backups/.
+ */
+function isValidBackupName(name) {
+  return typeof name === 'string' && DIR_RE.test(name);
+}
+
+/** Copia atomica (tmp+rename) dopo aver validato che il contenuto sia JSON. */
+function copyJsonValidated(srcFile, destFile) {
+  const text = fs.readFileSync(srcFile, 'utf8');
+  JSON.parse(text || '{}'); // lancia se corrotto → il chiamante lo marca come skipped
+  const tmp = `${destFile}.tmp`;
+  fs.writeFileSync(tmp, text);
+  fs.renameSync(tmp, destFile);
+}
+
+/**
+ * Ripristina un backup in `src/database/*.json`. MAI lancia eccezioni:
+ * gli errori finiscono nel report ({ ok:false, error }).
+ *
+ * Passi: valida il nome (solo `YYYY-MM-DD-HHmm`, anti-traversal, solo dentro
+ * backups/) → crea PRIMA un backup di sicurezza `pre-restore-<ts>` dello stato
+ * corrente → copia indietro solo i file esistenti nel backup (skip tmp/corrupt
+ * e JSON non validi).
+ *
+ * Opzioni (per test): { now, backupRoot, dbDir }.
+ * Ritorna { ok, dir, safetyDir, restored[], skipped[], error }.
+ */
+function restoreBackup(dirName, opts = {}) {
+  const backupRoot = opts.backupRoot || BACKUP_ROOT;
+  const dbDir = opts.dbDir || DB_DIR;
+  const now = opts.now ?? Date.now();
+  const report = { ok: false, dir: null, safetyDir: null, restored: [], skipped: [], error: null };
+
+  try {
+    if (!isValidBackupName(dirName)) {
+      report.error = `nome backup non valido: "${dirName}" (atteso YYYY-MM-DD-HHmm, solo dentro backups/)`;
+      return report;
+    }
+    const root = path.resolve(backupRoot);
+    const src = path.resolve(root, dirName);
+    // Doppia cintura anti-traversal: il path risolto deve restare dentro backups/.
+    if (src !== path.join(root, dirName) || !src.startsWith(root + path.sep)) {
+      report.error = 'percorso backup fuori da backups/: operazione rifiutata.';
+      return report;
+    }
+    let st = null;
+    try {
+      st = fs.statSync(src);
+    } catch {
+      st = null;
+    }
+    if (!st || !st.isDirectory()) {
+      report.error = `backup "${dirName}" non trovato in backups/ (vedi /export backup-lista).`;
+      return report;
+    }
+
+    // 1. Backup di sicurezza dello stato corrente, PRIMA di sovrascrivere.
+    const safetyName = `pre-restore-${dirNameFor(now)}`;
+    const safetyDest = path.join(root, safetyName);
+    try {
+      fs.mkdirSync(safetyDest, { recursive: true });
+    } catch (e) {
+      report.error = `backup di sicurezza non creabile: ${e.message}`;
+      return report;
+    }
+    report.safetyDir = safetyDest;
+    let current = [];
+    try {
+      current = fs.readdirSync(dbDir).filter((f) => f.endsWith('.json'));
+    } catch (e) {
+      report.error = `cartella database non leggibile: ${e.message}`;
+      return report;
+    }
+    for (const file of current) {
+      if (file.endsWith('.tmp') || file.includes('.corrupt-')) continue;
+      try {
+        copyJsonValidated(path.join(dbDir, file), path.join(safetyDest, file));
+      } catch (e) {
+        console.error(`[backup] safety ${file}:`, e.message);
+      }
+    }
+
+    // 2. Copia indietro solo i file esistenti nel backup.
+    let entries = [];
+    try {
+      entries = fs.readdirSync(src).filter((f) => f.endsWith('.json'));
+    } catch (e) {
+      report.error = `cartella backup non leggibile: ${e.message}`;
+      return report;
+    }
+    try {
+      fs.mkdirSync(dbDir, { recursive: true });
+    } catch (e) {
+      report.error = `cartella database non scrivibile: ${e.message}`;
+      return report;
+    }
+    for (const file of entries) {
+      if (file.endsWith('.tmp') || file.includes('.corrupt-')) {
+        report.skipped.push(file);
+        continue;
+      }
+      try {
+        copyJsonValidated(path.join(src, file), path.join(dbDir, file));
+        report.restored.push(file);
+      } catch (e) {
+        console.error(`[backup] restore ${file}:`, e.message);
+        report.skipped.push(file);
+      }
+    }
+
+    report.dir = src;
+    report.ok = report.restored.length > 0;
+    if (!report.ok) report.error = 'nessun file ripristinato (backup vuoto o file corrotti?)';
+    else console.log(`[backup] restore ${dirName}: ${report.restored.length} ripristinati, ${report.skipped.length} saltati (safety: ${safetyName}).`);
+    return report;
+  } catch (e) {
+    report.ok = false;
+    report.error = e.message;
+    console.error('[backup] restore errore:', e.message);
+    return report;
+  }
+}
+
 let started = false;
 /** Avvia il backup notturno ore 03:00 (setTimeout + setInterval 24h, entrambi unref). */
 function startBackup() {
@@ -213,6 +338,8 @@ function startBackup() {
 module.exports = {
   startBackup,
   runBackupNow,
+  restoreBackup,
+  isValidBackupName,
   listBackups,
   pruneBackups,
   readJournal,

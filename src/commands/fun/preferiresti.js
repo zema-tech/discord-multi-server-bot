@@ -8,6 +8,24 @@ const {
   ComponentType,
 } = require('discord.js');
 
+// Tema premium condiviso, con fallback inline se il require fallisse.
+let T = null;
+try {
+  T = require('../../utils/theme');
+} catch {
+  T = null;
+}
+const COLORS = T?.COLORS ?? { primary: 0x5865f2, success: 0x57f287, error: 0xed4245 };
+const themeBar = typeof T?.bar === 'function'
+  ? T.bar
+  : (cur, max, len = 10) => {
+      const m = Number(max) > 0 ? Number(cur) / Number(max) : 0;
+      const r = Math.min(1, Math.max(0, m || 0));
+      const f = Math.round(r * len);
+      return '█'.repeat(f) + '░'.repeat(len - f);
+    };
+const trunc = typeof T?.truncate === 'function' ? T.truncate : (s, m) => String(s ?? '').slice(0, m);
+
 // 24 dilemmi IT: ogni utente vota A o B con i bottoni.
 const DILEMMI = [
   { a: 'Avere WiFi ovunque ma lentissimo', b: 'Avere WiFi velocissimo ma solo a casa' },
@@ -49,19 +67,21 @@ module.exports = {
     const prefix = `preferiresti:${uid}:${nonce}`;
 
     const row = () => new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`${prefix}:a`).setLabel(`🅰️ ${dilemma.a}`.slice(0, 80)).setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(`${prefix}:b`).setLabel(`🅱️ ${dilemma.b}`.slice(0, 80)).setStyle(ButtonStyle.Danger)
+      new ButtonBuilder().setCustomId(`${prefix}:a`).setLabel(`🅰️ ${trunc(dilemma.a, 76)}`.slice(0, 80)).setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`${prefix}:b`).setLabel(`🅱️ ${trunc(dilemma.b, 76)}`.slice(0, 80)).setStyle(ButtonStyle.Danger)
     );
 
     const embed = new EmbedBuilder()
-      .setColor(0x5865f2)
+      .setColor(COLORS.primary)
       .setTitle('🤔 Preferiresti...? — hai 60 secondi per votare!')
-      .setDescription(`🅰️ **${dilemma.a}**\n\n🆚\n\n🅱️ **${dilemma.b}**\n\nVota con i bottoni qui sotto! (Puoi cambiare voto.)`)
-      .setFooter({ text: `Dilemma di ${interaction.user.tag} • Possono votare tutti` })
+      .setDescription(`🅰️ **${trunc(dilemma.a, 500)}**\n\n🆚\n\n🅱️ **${trunc(dilemma.b, 500)}**\n\nVota con i bottoni qui sotto! (Puoi cambiare voto.)`)
+      .setFooter({ text: `Dilemma di ${trunc(interaction.user.tag, 100)} • Possono votare tutti` })
       .setTimestamp();
 
     const reply = await interaction.reply({ embeds: [embed], components: [row()], withResponse: true });
-    const message = reply.resource.message;
+    // FIX: withResponse in alcune versioni non popola resource.message → fallback fetchReply.
+    const message = reply?.resource?.message ?? await interaction.fetchReply().catch(() => null);
+    if (!message || typeof message.createMessageComponentCollector !== 'function') return;
 
     const voti = new Map(); // userId -> 'a' | 'b'
 
@@ -74,12 +94,15 @@ module.exports = {
     collector.on('collect', async (i) => {
       const scelta = i.customId.split(':').pop();
       if (scelta !== 'a' && scelta !== 'b') {
-        return i.reply({ content: '❌ Voto non valido.', flags: MessageFlags.Ephemeral });
+        // FIX: reply effimera non awaitata senza catch → crash su interaction scaduta.
+        await i.reply({ content: '❌ Voto non valido.', flags: MessageFlags.Ephemeral }).catch(() => {});
+        return;
       }
       voti.set(i.user.id, scelta);
       const etichetta = scelta === 'a' ? dilemma.a : dilemma.b;
+      // FIX: catch su double-click/race (Unknown interaction) invece di throw.
       await i.reply({
-        content: `✅ Hai votato **${scelta.toUpperCase()} — ${etichetta}**. Puoi cambiare idea premendo l\u2019altro bottone!`,
+        content: `✅ Hai votato **${scelta.toUpperCase()} — ${trunc(etichetta, 150)}**. Puoi cambiare idea premendo l\u2019altro bottone!`,
         flags: MessageFlags.Ephemeral,
       }).catch(() => {});
     });
@@ -90,27 +113,31 @@ module.exports = {
       const tot = totA + totB;
       const percA = tot === 0 ? 0 : Math.round((totA / tot) * 100);
       const percB = tot === 0 ? 0 : 100 - percA;
-      const barra = (p) => '🟩'.repeat(Math.round(p / 10)) + '⬜'.repeat(10 - Math.round(p / 10));
+      // Barre premium da theme.js (sicure su div0), una per opzione.
+      const barraA = themeBar(totA, tot);
+      const barraB = themeBar(totB, tot);
 
       const vincitore = tot === 0 ? 'Nessun voto: il dilemma resta irrisolto! 😅' : totA === totB
         ? '🤝 Pareggio perfetto! Il dilemma divide il server a metà.'
         : totA > totB ? `🏆 Vince **A — ${dilemma.a}**!` : `🏆 Vince **B — ${dilemma.b}**!`;
 
       const risultati = new EmbedBuilder()
-        .setColor(0x57f287)
+        .setColor(COLORS.success)
         .setTitle('📊 Risultati — Preferiresti...?')
         .setDescription(
-          `🅰️ **${dilemma.a}**\n${barra(percA)} **${percA}%** (${totA} voti)\n\n` +
-          `🅱️ **${dilemma.b}**\n${barra(percB)} **${percB}%** (${totB} voti)\n\n${vincitore}`
+          `🅰️ **${trunc(dilemma.a, 500)}**\n\`${barraA}\` **${percA}%** (${totA} voti)\n\n` +
+          `🅱️ **${trunc(dilemma.b, 500)}**\n\`${barraB}\` **${percB}%** (${totB} voti)\n\n${vincitore}`
         )
-        .setFooter({ text: `Dilemma di ${interaction.user.tag} • ${tot} voti totali` })
+        .setFooter({ text: `Dilemma di ${trunc(interaction.user.tag, 80)} • ${tot} voti totali` })
         .setTimestamp();
 
       const disabilitati = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`${prefix}:a:fin`).setLabel(`🅰️ ${dilemma.a} (${totA})`.slice(0, 80)).setStyle(ButtonStyle.Primary).setDisabled(true),
-        new ButtonBuilder().setCustomId(`${prefix}:b:fin`).setLabel(`🅱️ ${dilemma.b} (${totB})`.slice(0, 80)).setStyle(ButtonStyle.Danger).setDisabled(true)
+        new ButtonBuilder().setCustomId(`${prefix}:a:fin`).setLabel(`🅰️ ${trunc(dilemma.a, 70)} (${totA})`.slice(0, 80)).setStyle(ButtonStyle.Primary).setDisabled(true),
+        new ButtonBuilder().setCustomId(`${prefix}:b:fin`).setLabel(`🅱️ ${trunc(dilemma.b, 70)} (${totB})`.slice(0, 80)).setStyle(ButtonStyle.Danger).setDisabled(true)
       );
 
+      // FIX: cleanup collector + bottoni disabilitati a timeout, edit protetto se msg cancellato.
+      try { collector.stop('finito'); } catch { /* ignora */ }
       await interaction.editReply({ embeds: [risultati], components: [disabilitati] }).catch(() => {});
     });
   },

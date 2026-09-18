@@ -2,6 +2,18 @@ const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } =
 const { getUser, addBalance } = require('../../database/economy');
 const { getItem, setItem, removeItem, listItems } = require('../../database/shop');
 
+// theme.js con fallback inline: mai crash se il require fallisce.
+let _T = null;
+try { _T = require('../../utils/theme'); } catch { _T = null; }
+const COLORS = _T?.COLORS ?? { gold: 0xffd700, success: 0x57f287, primary: 0x5865f2 };
+const applyFooter = _T?.applyFooter ?? ((embed, interaction) => {
+  try { embed.setFooter({ text: `Richiesto da ${interaction?.user?.tag ?? 'Utente'}` }); } catch { /* ignora */ }
+  try { embed.setTimestamp(); } catch { /* ignora */ }
+  return embed;
+});
+const num = _T?.num ?? ((n) => (Number.isFinite(Number(n)) ? Number(n).toLocaleString('it-IT') : 'n/d'));
+const truncate = _T?.truncate ?? ((s, m) => String(s ?? '').slice(0, m));
+
 function noPerm() {
   return { content: '❌ Ti serve il permesso **Gestisci ruoli** per usare questo comando.', flags: MessageFlags.Ephemeral };
 }
@@ -44,12 +56,14 @@ module.exports = {
       if (!items.length) {
         return interaction.reply({ content: '📭 Nessun ruolo in vendita. Torna più tardi!', flags: MessageFlags.Ephemeral });
       }
-      const embed = new EmbedBuilder()
-        .setColor(0xf1c40f)
+      // Slice anti-limite 4096 char: con tanti ruoli la description esploderebbe.
+      const MAX = 25;
+      const righe = items.slice(0, MAX).map((i) => `<@&${i.roleId}> — **${num(i.price)}** 🪙`);
+      if (items.length > MAX) righe.push(`…e altri **${num(items.length - MAX)}** ruoli.`);
+      const embed = applyFooter(new EmbedBuilder()
+        .setColor(COLORS.gold)
         .setTitle('🛒 Negozio ruoli')
-        .setDescription(items.map((i) => `<@&${i.roleId}> — **${i.price}** 🪙`).join('\n'))
-        .setFooter({ text: 'Usa /shop compra per acquistare un ruolo' })
-        .setTimestamp();
+        .setDescription(truncate(righe.join('\n'), 4096)), interaction);
       return interaction.reply({ embeds: [embed] });
     }
 
@@ -70,7 +84,7 @@ module.exports = {
       const user = getUser(guildId, interaction.user.id);
       if (!Number.isFinite(user.balance) || user.balance < item.price) {
         return interaction.reply({
-          content: `❌ Saldo insufficiente: ${role} costa **${item.price}** 🪙 (hai **${Number.isFinite(user.balance) ? user.balance : 0}** 🪙).`,
+          content: `❌ Saldo insufficiente: ${role} costa **${num(item.price)}** 🪙 (hai **${num(user.balance)}** 🪙).`,
           flags: MessageFlags.Ephemeral,
         });
       }
@@ -84,11 +98,10 @@ module.exports = {
         return interaction.reply({ content: '❌ Non sono riuscito ad assegnarti il ruolo. Sei stato rimborsato.', flags: MessageFlags.Ephemeral });
       }
 
-      const embed = new EmbedBuilder()
-        .setColor(0x57f287)
+      const embed = applyFooter(new EmbedBuilder()
+        .setColor(COLORS.success)
         .setTitle('🛒 Acquisto completato!')
-        .setDescription(`${interaction.user} ha acquistato ${role} per **${item.price}** 🪙`)
-        .setTimestamp();
+        .setDescription(`${interaction.user} ha acquistato ${role} per **${num(item.price)}** 🪙`), interaction);
       return interaction.reply({ embeds: [embed] });
     }
 
@@ -111,7 +124,12 @@ module.exports = {
     const invalid = validateSellable(role, interaction.guild);
     if (invalid) return interaction.reply({ content: invalid, flags: MessageFlags.Ephemeral });
     const price = interaction.options.getInteger('prezzo');
-    setItem(guildId, role.id, price);
-    return interaction.reply({ content: `✅ ${role} ora in vendita a **${price}** 🪙.`, flags: MessageFlags.Ephemeral });
+    // setItem lancia su prezzo/roleId non validi: senza try/catch crasherebbe il comando.
+    try {
+      setItem(guildId, role.id, price);
+    } catch {
+      return interaction.reply({ content: '❌ Prezzo non valido: usa un intero ≥ 1.', flags: MessageFlags.Ephemeral });
+    }
+    return interaction.reply({ content: `✅ ${role} ora in vendita a **${num(price)}** 🪙.`, flags: MessageFlags.Ephemeral });
   },
 };

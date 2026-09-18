@@ -1,6 +1,16 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { t, getLang } = require('../../utils/i18n');
 
+// theme.js condiviso (blu fun, slice sicuri). Fallback inline se il require fallisse.
+let T = null;
+try {
+  T = require('../../utils/theme');
+} catch {
+  T = null;
+}
+const COLORS = T?.COLORS ?? { blue: 0x3498db };
+const truncate = T?.truncate ?? ((s, m) => String(s ?? '').slice(0, m));
+
 // NOTA i18n: nome/descrizione slash invariati (restano in IT per ora).
 // Le risposte sono in src/locales/{it,en}.js -> eightball.answers (20 voci).
 function pickAnswers(lang) {
@@ -26,16 +36,22 @@ module.exports = {
     const risposte = pickAnswers(lang);
     const risposta = risposte[Math.floor(Math.random() * risposte.length)];
 
+    // FIX: domanda di soli spazi passava il vecchio `|| fallback` (truthy) e
+    // produceva un field quasi-vuoto. Trim + fallback esplicito.
+    const q = typeof domanda === 'string' ? domanda.trim() : '';
+    const qVal = q ? truncate(q, 1024) : t('eightball.noQuestion', lang);
+
     const embed = new EmbedBuilder()
-      .setColor(0x3498db)
-      .setTitle(t('eightball.title', lang))
+      .setColor(COLORS.blue)
+      .setTitle(truncate(t('eightball.title', lang), 256))
       .setThumbnail(interaction.user.displayAvatarURL())
       .addFields(
-        // Limite field Discord 1024 char: domande lunghe crasherebbero l'invio.
-        { name: t('eightball.question', lang), value: String(domanda || '').slice(0, 1024) || t('eightball.noQuestion', lang) },
-        { name: t('eightball.answer', lang), value: t('eightball.answerValue', lang, { answer: risposta }) }
+        { name: truncate(t('eightball.question', lang), 256), value: qVal },
+        // FIX: anche la risposta è troncata a 1024 (limite field Discord).
+        { name: truncate(t('eightball.answer', lang), 256), value: truncate(t('eightball.answerValue', lang, { answer: risposta }), 1024) }
       )
-      .setFooter({ text: t('common.requestedBy', lang, { tag: interaction.user.tag }) })
+      // Footer i18n (equivale a applyFooter, ma preserva EN).
+      .setFooter({ text: truncate(t('common.requestedBy', lang, { tag: interaction.user.tag }), 2048) })
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed] });

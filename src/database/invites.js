@@ -29,6 +29,8 @@ function blankGuild() {
 
 /** Carica (creando se assente) il blocco della guild; ritorna { db, data }. */
 function loadGuild(guildId) {
+  // guildId falsy: blocco volatile senza save (niente record 'undefined').
+  if (!guildId) return { db: load(FILE), data: blankGuild() };
   const db = load(FILE);
   if (!db[guildId]) {
     db[guildId] = blankGuild();
@@ -81,7 +83,7 @@ function setCache(guildId, cache) {
 
 /** Inserisce/aggiorna un singolo invito (evento InviteCreate). */
 function upsertInvite(guildId, code, { uses = 0, inviterId = null } = {}) {
-  if (!code) return null;
+  if (!guildId || !code) return null;
   const { db, data } = loadGuild(String(guildId));
   const prev = data.cache[String(code)] || {};
   const n = Number(uses);
@@ -96,7 +98,7 @@ function upsertInvite(guildId, code, { uses = 0, inviterId = null } = {}) {
 
 /** Rimuove un invito dalla cache (evento InviteDelete). Ritorna true se esisteva. */
 function removeInvite(guildId, code) {
-  if (!code) return false;
+  if (!guildId || !code) return false;
   const { db, data } = loadGuild(String(guildId));
   if (!data.cache[String(code)]) return false;
   delete data.cache[String(code)];
@@ -126,6 +128,8 @@ function getUserStats(data, userId) {
  * Ritorna l'inviterId registrato.
  */
 function recordJoin(guildId, inviterId, userId) {
+  // userId mancante: niente chiave 'undefined' in invitedBy.
+  if (!guildId || !userId) return inviterId ? String(inviterId) : null;
   const { db, data } = loadGuild(String(guildId));
   const inv = inviterId ? String(inviterId) : null;
   const uid = String(userId);
@@ -144,6 +148,7 @@ function recordJoin(guildId, inviterId, userId) {
  * Ritorna l'inviterId a cui è stata attribuita l'uscita (o null).
  */
 function recordLeave(guildId, userId) {
+  if (!guildId || !userId) return null;
   const { db, data } = loadGuild(String(guildId));
   const uid = String(userId);
   const inv = data.invitedBy[uid] || null;

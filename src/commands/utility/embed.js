@@ -15,9 +15,18 @@ const {
 } = require('discord.js');
 
 const MODAL_ID = 'embed_builder';
-const BLURPLE = 0x5865f2;
 const HEX_RE = /^#?[0-9a-fA-F]{6}$/;
 const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp)(\?.*)?$/i;
+
+// Tema premium condiviso, con fallback inline se il require fallisse.
+let COLORS = { primary: 0x5865f2 };
+let truncate = (s, max) => String(s ?? '').slice(0, max);
+try {
+  const theme = require('../../utils/theme');
+  COLORS = theme.COLORS ?? COLORS;
+  truncate = theme.truncate ?? truncate;
+} catch { /* fallback inline sopra */ }
+const BLURPLE = COLORS.primary;
 
 function buildRow(uid, disabled) {
   return new ActionRowBuilder().addComponents(
@@ -176,10 +185,10 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(colore)
-      .setTitle(titolo.slice(0, 256))
+      .setTitle(truncate(titolo, 256))
       .setDescription(descrizione.slice(0, 4096))
-      .setAuthor({ name: `✨ ${interaction.guild.name}`.slice(0, 256) })
-      .setFooter({ text: (footerRaw || `Creato da ${interaction.user.tag}`).slice(0, 200) })
+      .setAuthor({ name: truncate(`✨ ${interaction.guild.name}`, 256) })
+      .setFooter({ text: truncate(footerRaw || `Creato da ${interaction.user.tag}`, 200) })
       .setTimestamp();
     if (immagine) embed.setImage(immagine);
 
@@ -199,7 +208,16 @@ module.exports = {
     } catch {
       return;
     }
-    const message = preview.resource.message;
+    // BUGFIX: le forme di risposta variano tra versioni di discord.js
+    // (resource.message vs fetchReply): fallback per non crashare mai qui.
+    const message = preview?.resource?.message ?? await modalInteraction.fetchReply().catch(() => null);
+    if (!message || typeof message.createMessageComponentCollector !== 'function') {
+      await modalInteraction.followUp({
+        content: '❌ Anteprima non disponibile (risposta Discord illeggibile). Rilancia `/embed crea` e riprova.',
+        flags: MessageFlags.Ephemeral,
+      }).catch(() => {});
+      return;
+    }
 
     const collector = message.createMessageComponentCollector({
       componentType: ComponentType.Button,

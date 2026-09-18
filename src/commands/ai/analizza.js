@@ -10,6 +10,28 @@ const levels = require('../../database/levels');
 const tickets = require('../../database/tickets');
 const economy = require('../../database/economy');
 
+// theme.js con fallback inline: il file deve caricarsi anche se il require fallisce.
+let _theme = null;
+try {
+  _theme = require('../../utils/theme');
+} catch {
+  _theme = null;
+}
+const COLORS = (_theme && _theme.COLORS) || { primary: 0x5865f2 };
+const applyFooter =
+  (_theme && _theme.applyFooter) ||
+  ((embed, interaction) => {
+    try {
+      embed.setFooter({ text: `Richiesto da ${interaction?.user?.username ?? 'Utente'}` });
+    } catch {}
+    try {
+      embed.setTimestamp();
+    } catch {}
+    return embed;
+  });
+const truncate =
+  (_theme && _theme.truncate) || ((s, max) => String(s ?? '').slice(0, max));
+
 const SYSTEM_PROMPT =
   'Sei un analista di community Discord. Rispondi in italiano, conciso (max 1500 caratteri).';
 
@@ -71,24 +93,38 @@ module.exports = {
   cooldown: 30,
   buildContext,
   async execute(interaction) {
+    if (!interaction.guild || !interaction.guildId) {
+      return interaction.reply({
+        content: '❌ Usa questo comando dentro un server.',
+        flags: MessageFlags.Ephemeral,
+      }).catch(() => null);
+    }
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
       return interaction.reply({
         content: '❌ Solo chi gestisce il server può usare questo comando.',
         flags: MessageFlags.Ephemeral,
-      });
+      }).catch(() => null);
     }
 
     const giorni = interaction.options.getInteger('giorni') || 7;
     const guildId = interaction.guildId;
 
-    const totals = analytics.totals(guildId, giorni);
+    let totals;
+    try {
+      totals = analytics.totals(guildId, giorni) || { messages: 0, joins: 0, leaves: 0 };
+    } catch {
+      return interaction.reply({
+        content: '⚠️ Analytics non leggibili, riprova più tardi.',
+        flags: MessageFlags.Ephemeral,
+      }).catch(() => null);
+    }
 
     // DB analytics vuoto: niente chiamata AI.
     if (num(totals.messages) + num(totals.joins) + num(totals.leaves) === 0) {
       return interaction.reply({
         content: '📭 Dati insufficienti: analytics ancora vuoti, riprova tra qualche giorno.',
         flags: MessageFlags.Ephemeral,
-      });
+      }).catch(() => null);
     }
 
     let topLevels = [];
@@ -116,19 +152,19 @@ module.exports = {
       `Dati server (ultimi ${giorni} giorni):\n${contesto}\n\n` +
       'Dammi 5 insight azionabili in italiano per far crescere il server + 1 red flag se c\u2019è.';
 
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
 
     let insight;
     try {
       insight = await askAI(prompt, SYSTEM_PROMPT);
     } catch {
-      await interaction.editReply('⚠️ AI non disponibile, riprova più tardi.');
+      await interaction.editReply('⚠️ AI non disponibile, riprova più tardi.').catch(() => null);
       return;
     }
 
     const saldo = num(totals.joins) - num(totals.leaves);
     const embed = new EmbedBuilder()
-      .setColor(0x5865f2)
+      .setColor(COLORS.primary)
       .setTitle(`📊 Analisi server · ultimi ${giorni} giorni`)
       .addFields(
         {
@@ -139,11 +175,10 @@ module.exports = {
             `🎟️ Ticket: **${num(ticketStats.total)}** (${num(ticketStats.open)} aperti)\n` +
             `👥 Membri: **${memberCount ?? 'n/d'}**`,
         },
-        { name: '💡 Insight AI', value: String(insight || '').slice(0, 1024) || 'Nessun insight disponibile.' }
-      )
-      .setFooter({ text: `Richiesto da ${interaction.user.username}` })
-      .setTimestamp();
+        { name: '💡 Insight AI', value: truncate(insight, 1024) || 'Nessun insight disponibile.' }
+      );
+    applyFooter(embed, interaction);
 
-    await interaction.editReply({ embeds: [embed] });
+    await interaction.editReply({ embeds: [embed] }).catch(() => null);
   },
 };

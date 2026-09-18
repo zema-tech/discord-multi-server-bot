@@ -3,10 +3,32 @@ const { Client, GatewayIntentBits, Collection, Partials } = require('discord.js'
 const fs = require('fs');
 const path = require('path');
 const logger = require('./utils/logger');
+const store = require('./database/store');
+const pkg = require('../package.json');
+const { getEnv, validateEnv } = require('./utils/env');
 
-if (!process.env.DISCORD_TOKEN) {
-  console.error('❌ DISCORD_TOKEN mancante! Copia .env.example in .env e configuralo.');
+// Validazione env centralizzata (default documentati in src/utils/env.js).
+const env = getEnv();
+const envCheck = validateEnv();
+for (const w of envCheck.warnings) {
+  console.warn(`[ATTENZIONE] ${w}`);
+}
+if (!envCheck.ok) {
+  for (const e of envCheck.errors) {
+    console.error(`❌ ${e}`);
+  }
+  console.error('❌ Avvio annullato: copia .env.example in .env e configura le variabili mancanti.');
   process.exit(1);
+}
+
+// Banner di avvio.
+{
+  const dashInfo = env.DASHBOARD_PORT ? `attiva (porta ${env.DASHBOARD_PORT})` : 'disattiva';
+  console.log('============================================================');
+  console.log(`  🤖 ${pkg.name} v${pkg.version}`);
+  console.log(`  Node ${process.version} | DB backend: ${env.DB_BACKEND} | Dashboard: ${dashInfo}`);
+  console.log('  Avvio in corso...');
+  console.log('============================================================');
 }
 
 const client = new Client({
@@ -91,14 +113,48 @@ process.on('uncaughtException', (e) => {
   } catch {}
 });
 
-client.login(process.env.DISCORD_TOKEN);
+client.login(env.DISCORD_TOKEN);
 
 // Dashboard web (stesso processo del bot). Parte solo se DASHBOARD_PORT è impostato;
 // un fallimento qui non deve mai spegnere il bot.
-if (process.env.DASHBOARD_PORT) {
+if (env.DASHBOARD_PORT) {
   try {
     require('./dashboard/server').startDashboard(client);
   } catch (e) {
     console.error('[Dashboard] avvio fallito:', e.message);
   }
 }
+
+// Graceful shutdown (SIGINT/SIGTERM): chiude storage e client, poi esce con 0.
+// Il force-timer garantisce l'uscita entro 5s anche se qualcosa si blocca.
+let shuttingDown = false;
+function gracefulShutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`\n🛑 Segnale ${signal} ricevuto: chiusura in corso...`);
+  try {
+    logger.info('Shutdown', { signal });
+  } catch {}
+  const forceTimer = setTimeout(() => {
+    console.error('⚠️ Chiusura forzata dopo 5s di timeout.');
+    process.exit(0);
+  }, 5000);
+  if (typeof forceTimer.unref === 'function') forceTimer.unref();
+
+  try {
+    store.close();
+    console.log('💾 Storage chiuso.');
+  } catch (e) {
+    console.error(`[ERRORE] Chiusura storage fallita: ${e && e.message ? e.message : e}`);
+  }
+  try {
+    client.destroy();
+    console.log('👋 Connessione Discord chiusa. Arrivederci!');
+  } catch (e) {
+    console.error(`[ERRORE] Chiusura client Discord fallita: ${e && e.message ? e.message : e}`);
+  }
+  process.exit(0);
+}
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));

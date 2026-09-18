@@ -21,6 +21,8 @@ function getLevel(guildId, userId) {
 
 function addXp(guildId, userId, amount) {
   // Importi non validi (NaN, negativi, infiniti): nessun effetto, nessun record corrotto.
+  // ID mancanti: nessun record fantasma 'undefined'.
+  if (!guildId || !userId) return { xp: 0, level: 0, messageCount: 0, leveledUp: false };
   if (!Number.isFinite(amount) || amount <= 0) return { ...getLevel(guildId, userId), leveledUp: false };
   const db = load(FILE);
   if (!db[guildId]) db[guildId] = {};

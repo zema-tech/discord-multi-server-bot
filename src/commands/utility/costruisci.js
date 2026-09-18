@@ -11,6 +11,25 @@ const {
 const { askAI } = require('../../utils/ai');
 const { validateBlueprint, applyBlueprint, describeBlueprint } = require('../../utils/blueprints');
 
+// Tema premium condiviso, con fallback inline se il require fallisse.
+let COLORS = { primary: 0x5865f2, success: 0x57f287, error: 0xed4245, warn: 0xfee75c };
+let themeErr = (text) => new EmbedBuilder().setColor(0xed4245).setTitle('❌ Errore').setDescription(String(text ?? '').slice(0, 4000)).setTimestamp();
+let applyFooter = (embed, interaction) => {
+  try {
+    embed.setFooter({ text: `Richiesto da ${interaction?.user?.tag ?? interaction?.user?.username ?? 'Utente'}`.slice(0, 200) });
+    embed.setTimestamp();
+  } catch { /* footer non critico */ }
+  return embed;
+};
+let truncate = (s, max) => String(s ?? '').slice(0, max);
+try {
+  const theme = require('../../utils/theme');
+  COLORS = theme.COLORS ?? COLORS;
+  themeErr = theme.err ?? themeErr;
+  applyFooter = theme.applyFooter ?? applyFooter;
+  truncate = theme.truncate ?? truncate;
+} catch { /* fallback inline sopra */ }
+
 /** Estrae il primo blocco { ... } dalla risposta AI (cerca primo '{' → ultimo '}'). */
 function extractJson(text) {
   const s = String(text || '');
@@ -62,12 +81,12 @@ module.exports = {
   cooldown: 60,
   async execute(interaction) {
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-      return interaction.reply({ content: '❌ Ti serve il permesso **Gestisci Server**.', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ embeds: [themeErr('Ti serve il permesso **Gestisci Server**.')], flags: MessageFlags.Ephemeral });
     }
     const me = interaction.guild.members.me;
     if (!me?.permissions.has(PermissionFlagsBits.ManageRoles) || !me?.permissions.has(PermissionFlagsBits.ManageChannels)) {
       return interaction.reply({
-        content: '❌ Mi servono i permessi **Gestisci Ruoli** e **Gestisci Canali** per costruire la struttura.',
+        embeds: [themeErr('Mi servono i permessi **Gestisci Ruoli** e **Gestisci Canali** per costruire la struttura.')],
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -80,33 +99,35 @@ module.exports = {
     try {
       raw = await askAI(buildPrompt(descrizione), SYSTEM_PROMPT);
     } catch {
-      return interaction.editReply(
-        '❌ AI non disponibile al momento, riprova più tardi. Nessuna modifica applicata.'
-      );
+      return interaction.editReply({
+        embeds: [themeErr('AI non disponibile al momento, riprova più tardi. Nessuna modifica applicata.')],
+      });
     }
 
     // 2) Estraggo il JSON: se manca o è invalido → stop, NESSUNA creazione parziale.
     const parsed = extractJson(raw);
     if (!parsed) {
-      return interaction.editReply(
-        '❌ Non sono riuscito a generare una struttura valida dalla descrizione (risposta AI non valida). Riprova con una descrizione più semplice. Nessuna modifica applicata.'
-      );
+      return interaction.editReply({
+        embeds: [themeErr('Non sono riuscito a generare una struttura valida dalla descrizione (risposta AI non valida). Riprova con una descrizione più semplice. Nessuna modifica applicata.')],
+      });
     }
     const v = validateBlueprint(parsed);
     if (!v.ok || !v.blueprint) {
-      return interaction.editReply(
-        `❌ Struttura generata non valida: ${v.errors[0] || 'contenuto mancante.'} Riprova con una descrizione diversa. Nessuna modifica applicata.`
-      );
+      return interaction.editReply({
+        embeds: [themeErr(`Struttura generata non valida: ${v.errors[0] || 'contenuto mancante.'} Riprova con una descrizione diversa. Nessuna modifica applicata.`)],
+      });
     }
 
     const warningsLine =
       v.warnings.length > 0 ? `\n\n⚠️ Note automatiche:\n${v.warnings.slice(0, 5).map((w) => `• ${w}`).join('\n')}` : '';
-    const embed = new EmbedBuilder()
-      .setColor(0x5865f2)
-      .setTitle('🏗️ Struttura proposta dalla AI ✨')
-      .setDescription(`${describeBlueprint(v.blueprint)}${warningsLine}`.slice(0, 4000))
-      .setFooter({ text: 'Conferma entro 60 secondi • Non verrà cancellato nulla di esistente'.slice(0, 200) })
-      .setTimestamp();
+    const embed = applyFooter(
+      new EmbedBuilder()
+        .setColor(COLORS.primary)
+        .setTitle('🏗️ Struttura proposta dalla AI ✨')
+        .setDescription(truncate(`${describeBlueprint(v.blueprint)}${warningsLine}`, 4000))
+        .setFooter({ text: 'Conferma entro 60 secondi • Non verrà cancellato nulla di esistente'.slice(0, 200) }),
+      interaction
+    );
 
     const uid = interaction.user.id;
     const nonce = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
@@ -138,19 +159,23 @@ module.exports = {
       try {
         report = await applyBlueprint(interaction.guild, v.blueprint, `Costruisci AI | Mod: ${interaction.user.tag}`);
       } catch (e) {
-        return interaction.editReply({ content: `❌ Errore: ${e.message || e}`, embeds: [], components: [] });
+        return interaction.editReply({ embeds: [themeErr(`Errore: ${truncate(e.message || e, 3000)}`)], components: [] });
       }
-      const done = new EmbedBuilder()
-        .setColor(report.failed.length ? 0xfee75c : 0x57f287)
-        .setTitle('✅ Struttura creata!')
-        .setDescription(
-          `🎭 Ruoli creati: **${report.roles.length}**\n📁💬 Canali/categorie creati: **${report.channels.length}**` +
-            (report.failed.length > 0
-              ? `\n⚠️ Non riusciti (**${report.failed.length}**):\n${report.failed.slice(0, 10).map((f) => `• ${f.cosa}: ${f.errore}`).join('\n')}`
-              : '\n✅ Tutto creato senza errori.')
-        .slice(0, 4000))
-        .setFooter({ text: `Richiesto da ${interaction.user.tag}` })
-        .setTimestamp();
+      const done = applyFooter(
+        new EmbedBuilder()
+          .setColor(report.failed.length ? COLORS.warn : COLORS.success)
+          .setTitle('✅ Struttura creata!')
+          .setDescription(
+            truncate(
+              `🎭 Ruoli creati: **${report.roles.length}**\n📁💬 Canali/categorie creati: **${report.channels.length}**` +
+                (report.failed.length > 0
+                  ? `\n⚠️ Non riusciti (**${report.failed.length}**):\n${report.failed.slice(0, 10).map((f) => `• ${truncate(f.cosa, 80)}: ${truncate(f.errore, 200)}`).join('\n')}`
+                  : '\n✅ Tutto creato senza errori.'),
+              4000
+            )
+          ),
+        interaction
+      );
       await interaction.editReply({ content: '', embeds: [done], components: [] });
     });
 

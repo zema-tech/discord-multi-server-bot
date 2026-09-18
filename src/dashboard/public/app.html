@@ -15,7 +15,7 @@
   <a class="skip-link" href="#pannello">Salta al pannello</a>
 
   <div class="app-layout">
-    <aside class="sidebar" aria-label="Lista server">
+    <aside class="sidebar" id="sidebar" aria-label="Lista server" tabindex="-1">
       <a class="brand" href="/" aria-label="Torna alla home">
         <span class="brand-dot" aria-hidden="true"></span>
         <span>Multi-Server Bot</span>
@@ -42,6 +42,7 @@
 
     <main class="main" id="pannello">
       <div class="main-head">
+        <button class="btn btn-secondary btn-sm nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="sidebar">☰ Server</button>
         <h1 id="guild-title">Seleziona un server</h1>
         <p id="guild-sub">Scegli dalla lista un server dove il bot è presente.</p>
       </div>
@@ -82,6 +83,19 @@
         </form>
       </section>
     </main>
+  </div>
+
+  <div class="nav-overlay" id="nav-overlay" hidden></div>
+
+  <div class="modal-backdrop" id="confirm-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-msg">
+      <h2 id="confirm-title">Confermi il salvataggio?</h2>
+      <p id="confirm-msg"></p>
+      <div class="modal-actions">
+        <button class="btn btn-secondary btn-sm" type="button" id="confirm-cancel">Annulla</button>
+        <button class="btn btn-primary btn-sm" type="button" id="confirm-ok">Conferma</button>
+      </div>
+    </div>
   </div>
 
   <div class="toast-wrap" id="toasts" aria-live="polite" aria-atomic="false"></div>

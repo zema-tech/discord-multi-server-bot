@@ -12,7 +12,7 @@ const {
   MessageFlags,
 } = require('discord.js');
 const {
-  TICKET_TYPES, getConfig, nextNumber, saveTicket, getTicket, getUserOpenTickets,
+  TICKET_TYPES, getConfig, nextNumber, saveTicket, getTicket, getUserOpenTickets, removeTicket,
 } = require('../database/tickets');
 const { getGuild } = require('../database/guildConfig');
 const { buildTranscript } = require('../utils/transcript');
@@ -211,6 +211,14 @@ async function resolveLogChannel(guild) {
 }
 
 async function doClose(channel, guild, ticket, closedBy, reason) {
+  // Ricarica fresca dal DB: chi chiama può passare uno snapshot obsoleto
+  // (es. ticketAutoclose fotografa i ticket a inizio giro; nel frattempo un
+  // mod può aver già chiuso via bottone/modale). Senza questo, doppia
+  // chiusura = doppio transcript/DM/log.
+  try {
+    const fresh = getTicket(guild.id, channel?.id);
+    if (fresh) ticket = fresh;
+  } catch {}
   // Guard atomica: il claim dello stato avviene qui in modo sincrono, così una
   // doppia chiusura concorrente (bottone + comando + autoclose) diventa no-op.
   if (!ticket || ticket.status !== 'open') return false;
@@ -314,13 +322,13 @@ async function handle(interaction) {
   if (interaction.isModalSubmit() && interaction.customId === 'ticket_close_modal') {
     const ticket = getTicket(guild.id, interaction.channelId);
     if (!ticket || ticket.status !== 'open') {
-      await interaction.reply({ content: '❌ Ticket non valido o già chiuso.', flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: '❌ Ticket non valido o già chiuso.', flags: MessageFlags.Ephemeral }).catch(() => {});
       return true;
     }
     const config = getConfig(guild.id);
     const allowed = ticket.ownerId === interaction.user.id || isSupport(interaction.member, config);
     if (!allowed) {
-      await interaction.reply({ content: '❌ Solo il proprietario o lo staff possono chiudere il ticket.', flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: '❌ Solo il proprietario o lo staff possono chiudere il ticket.', flags: MessageFlags.Ephemeral }).catch(() => {});
       return true;
     }
     const reason = interaction.fields.getTextInputValue('reason');
@@ -452,7 +460,21 @@ async function handle(interaction) {
       return true;
     }
     await interaction.reply('🗑️ Canale in eliminazione tra 5 secondi…');
-    setTimeout(() => interaction.channel?.delete(`Ticket #${ticket.number} eliminato da ${interaction.user.tag}`).catch(() => {}), 5000).unref?.();
+    const delGuildId = guild.id;
+    const delChannelId = interaction.channelId;
+    const delReason = `Ticket #${ticket.number} eliminato da ${interaction.user.tag}`;
+    setTimeout(async () => {
+      try {
+        await interaction.channel?.delete(delReason).catch(() => {});
+      } catch {}
+      // Rimuovi il record solo se il canale è davvero sparito: se l'eliminazione
+      // fallisce (permessi), il record resta e si può riprovare. Senza questo,
+      // i ticket fantasma bloccano l'utente al limite maxPerUser per sempre.
+      try {
+        const stillThere = await guild.channels.fetch(delChannelId).catch(() => null);
+        if (!stillThere) removeTicket(delGuildId, delChannelId);
+      } catch {}
+    }, 5000).unref?.();
     return true;
   }
 

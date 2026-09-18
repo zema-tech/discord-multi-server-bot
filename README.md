@@ -20,7 +20,7 @@ Provider plug-and-play: basta **una chiave** nel `.env` (`OPENAI_API_KEY`, `ANTH
 - `/immagina` — genera un'immagine dal prompt (rispetta `fun-ai`)
 - `/storia` — storia generativa interattiva con bottoni (rispetta `fun-ai`)
 - `/analizza` — 5 insight azionabili per far crescere il server (serve Gestisci Server; niente chiamata AI se gli analytics sono vuoti)
-- `/codice` — l'AI conosce il proprio codice: `chiedi` (risponde con fonti), `file`, `cerca`, `albero` (serve Gestisci Server per `chiedi`)
+- `/codice` — l'AI conosce il proprio codice: `chiedi` (risponde con fonti), `file`, `cerca`, `albero` (serve Gestisci Server solo per `chiedi`; `file`/`cerca`/`albero` leggibili a tutti per scelta — il codice non contiene segreti, i redattori omettono comunque token/chiavi)
 - `/ai-config` — configura l'AI del server (serve Gestisci Server): `mostra` (include provider attivo) · `mention on/off` (risposta alle menzioni, default OFF) · `automod-ai on/off` · `ticket-ai on/off` · `fun-ai on/off` · `prompt <testo>` · `prompt-reset`
 - Extra automatiche (fuori slash): risposta alle menzioni (`mentionReply`, default OFF), analisi AI dei messaggi sospetti (`automodAI`, default OFF), AI nei ticket (`ticketAI`, default ON)
 
@@ -132,6 +132,26 @@ npm start
 
 Per test veloci su un solo server aggiungi `GUILD_ID` nel `.env` prima del deploy.
 
+## 🚀 Hosting rapido
+
+```bash
+npm run deploy && npm start   # Docker: docker compose up -d · VPS: pm2 start ecosystem.config.js · Termux: vedi sopra
+```
+
+Dettagli per Docker / PM2 / Termux / VPS / Railway / Render → [docs/HOSTING.md](docs/HOSTING.md).
+
+## 🔑 Variabili d'ambiente
+
+| Gruppo | Variabili | Dettagli |
+|---|---|---|
+| Obbligatorie | `DISCORD_TOKEN`, `CLIENT_ID` (+ `GUILD_ID` per test) | [docs/CONFIG.md](docs/CONFIG.md) |
+| AI | `AI_PROVIDER`, `AI_MODEL`, `AI_API_URL`, `AI_API_KEY`, `OPENAI/ANTHROPIC/GEMINI/GROQ/OPENROUTER_API_KEY`, `AI_DAILY_LIMIT=500` | [docs/CONFIG.md](docs/CONFIG.md) |
+| Storage/Log | `DB_BACKEND`, `DB_SQLITE_PATH`, `LOG_LEVEL`, `LOG_DIR`, `BACKUP_DIR` | [docs/CONFIG.md](docs/CONFIG.md) |
+| Self-improve | `SELF_IMPROVE`, `SELF_IMPROVE_TIME`, `SELF_IMPROVE_DRY_RUN`, `SELF_IMPROVE_GUILD_ID` | [docs/CONFIG.md](docs/CONFIG.md) |
+| Dashboard | `DASHBOARD_PORT`, `SESSION_SECRET`, `CLIENT_SECRET`, `BASE_URL` | [docs/CONFIG.md](docs/CONFIG.md) |
+
+Tabella completa con default e file d'uso → [docs/CONFIG.md](docs/CONFIG.md). Lista comandi generata → [docs/COMMANDS.md](docs/COMMANDS.md) (`node scripts/gen-docs.js`).
+
 Test di coerenza (non avvia il bot, non richiede token):
 
 ```bash
@@ -196,7 +216,7 @@ npm start     # la dashboard parte SOLO se DASHBOARD_PORT è impostato; un suo e
 
 Totale comandi = file in `src/commands/*/*.js` (1 file = 1 slash command): **84** (13+13+11+3+34+1+2+7).
 
-> **Restyling premium**: embed uniformati in tutto il bot — footer "Richiesto da …", numeri in formato `it-IT`, colori oro per l'economia, timestamp e miniature utente dove utili.
+> **Restyling premium**: embed uniformati in tutto il bot — footer "Richiesto da …", numeri in formato `it-IT`, colori oro per l'economia, timestamp e miniature utente dove utili. Design system centralizzato in `src/utils/theme.js` (`COLORS`, `ok/err/info`, `applyFooter`, `truncate` con fallback inline nei comandi).
 
 ## 🗺️ Roadmap (completata)
 

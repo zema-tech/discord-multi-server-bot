@@ -14,6 +14,16 @@ const {
   MessageFlags,
 } = require('discord.js');
 const { getStats, getLeaderboard } = require('../../database/invites');
+let T;
+try {
+  T = require('../../utils/theme');
+} catch {
+  T = {
+    COLORS: { primary: 0x5865f2 },
+    truncate: (s, m) => String(s ?? '').slice(0, m),
+    num: (n) => (Number.isFinite(Number(n)) ? Number(n).toLocaleString('it-IT') : 'n/d'),
+  };
+}
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 
@@ -44,13 +54,17 @@ module.exports = {
         const lines = top.map((e, i) => {
           const medal = MEDALS[i] || `\`${i + 1}.\``;
           const crown = i === 0 ? ' 👑' : '';
-          return `${medal} <@${e.userId}> — **${e.valid}** validi${crown} (✅ ${e.joins} / ❌ ${e.leaves})`;
+          // DB parziale/corrotto: valid può arrivare negativo (leaves > joins) — clamp a 0.
+          const valid = Math.max(0, Number(e.valid) || 0);
+          const joins = Math.max(0, Number(e.joins) || 0);
+          const leaves = Math.max(0, Number(e.leaves) || 0);
+          return `${medal} <@${e.userId}> — **${T.num(valid)}** validi${crown} (✅ ${T.num(joins)} / ❌ ${T.num(leaves)})`;
         });
         const embed = new EmbedBuilder()
           .setColor(0xfbd000)
-          .setTitle(`📊 Classifica inviti — ${interaction.guild.name}`.slice(0, 256))
-          .setDescription(`🏆 **Top ${top.length} invitanti**\n\n${lines.join('\n')}`.slice(0, 4000))
-          .setFooter({ text: `Totale invitanti tracciati: ${top.length}`.slice(0, 200) })
+          .setTitle(T.truncate(`📊 Classifica inviti — ${interaction.guild.name}`, 256))
+          .setDescription(T.truncate(`🏆 **Top ${top.length} invitanti**\n\n${lines.join('\n')}`, 4000))
+          .setFooter({ text: T.truncate(`Totale invitanti tracciati: ${top.length}`, 200) })
           .setTimestamp();
         return interaction.reply({ embeds: [embed] });
       }
@@ -66,17 +80,22 @@ module.exports = {
       }
 
       const stats = getStats(interaction.guild.id, target.id);
+      // Clamp: con DB parziali leaves può superare joins → valid negativo assurdo.
+      const joins = Math.max(0, Number(stats.joins) || 0);
+      const leaves = Math.max(0, Number(stats.leaves) || 0);
+      const valid = Math.max(0, Number(stats.valid) || 0);
+      const tag = target.tag ?? target.username ?? 'Utente';
       const embed = new EmbedBuilder()
         .setColor(0x5865f2)
-        .setTitle(`📨 Inviti — ${target.tag}`.slice(0, 256))
+        .setTitle(T.truncate(`📨 Inviti — ${tag}`, 256))
         .setDescription(stats.invitedBy ? `👤 Invitato da <@${stats.invitedBy}>` : '❓ Invitato da: sconosciuto')
         .setThumbnail(target.displayAvatarURL())
         .addFields(
-          { name: '✅ Join attribuiti', value: `**${stats.joins}**`, inline: true },
-          { name: '❌ Usciti', value: `**${stats.leaves}**`, inline: true },
-          { name: '📊 Inviti validi', value: `**${stats.valid}** 🏆`, inline: true }
+          { name: '✅ Join attribuiti', value: `**${T.num(joins)}**`, inline: true },
+          { name: '❌ Usciti', value: `**${T.num(leaves)}**`, inline: true },
+          { name: '📊 Inviti validi', value: `**${T.num(valid)}** 🏆`, inline: true }
         )
-        .setFooter({ text: interaction.guild.name.slice(0, 200) })
+        .setFooter({ text: T.truncate(interaction.guild.name, 200) })
         .setTimestamp();
       return interaction.reply({ embeds: [embed] });
     } catch (e) {

@@ -71,6 +71,7 @@ function exists(guildId, name) {
 }
 
 function create(guildId, name, response, createdBy) {
+  if (!guildId) return { ok: false, error: 'Server non valido.' };
   const nv = validateName(name);
   if (!nv.ok) return nv;
   const rv = validateResponse(response);
@@ -132,7 +133,11 @@ function incrementUses(guildId, name) {
   const db = readAll();
   const map = getGuildMap(db, guildId);
   if (map[value] === undefined) return 0;
-  const uses = (Number(map[value].uses) || 0) + 1;
+  // Contatore corrotto (Infinity/stringhe/negativi dal JSON): sanitize prima di +1,
+  // altrimenti Infinity verrebbe serializzato come null e perso.
+  const raw = Number(map[value] && map[value].uses);
+  const base = Number.isFinite(raw) ? Math.min(Math.max(0, Math.floor(raw)), Number.MAX_SAFE_INTEGER) : 0;
+  const uses = Math.min(base + 1, Number.MAX_SAFE_INTEGER);
   db[guildId] = { ...map, [value]: { ...map[value], uses } };
   save(FILE, db);
   return uses;
