@@ -88,8 +88,14 @@ module.exports = {
         ? `Contesto recente del canale:\n${contesto}\n\n${message.author.username} chiede: ${domanda}`
         : `${message.author.username} chiede: ${domanda}`;
 
-      const system = String(cfg.systemPrompt || '').trim()
+      let system = String(cfg.systemPrompt || '').trim()
         || 'Sei un assistente utile del server Discord, rispondi in italiano in modo conciso e cordiale.';
+      // Cervello del server: mai rompere il flusso se fallisce.
+      try {
+        const { buildContext } = require('../brain/kernel');
+        const ctx = buildContext({ guildId: message.guild.id, query: domanda });
+        if (ctx.system) system = `${system}\n\n${ctx.system}`;
+      } catch {}
 
       let risposta;
       try {

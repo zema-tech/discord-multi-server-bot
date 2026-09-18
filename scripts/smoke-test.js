@@ -941,6 +941,45 @@ try {
     fail(`selfImprove: ${e.message.split('\n')[0]}`);
   }
 
+  // brain — cervello Obsidian (skills/memorie/file/kernel), tutto in dir tmp isolata nel repo
+  try {
+    const brainTmp = path.join(ROOT, `.brain-qa-${process.pid}`);
+    fs.mkdirSync(brainTmp, { recursive: true });
+    process.env.BRAIN_DIR = brainTmp;
+    try {
+      const bskills = require(path.join(ROOT, 'src', 'brain', 'skills.js'));
+      const bmem = require(path.join(ROOT, 'src', 'brain', 'memory.js'));
+      const bfiles = require(path.join(ROOT, 'src', 'brain', 'files.js'));
+      const kernel = require(path.join(ROOT, 'src', 'brain', 'kernel.js'));
+      const G = 'qatest-brain';
+      if (bskills.listSkills(G).filter((s) => s.scope === 'global').length < 3) fail('brain: seed skill globali mancanti');
+      bskills.saveSkill(G, { name: 'qa-regole', description: 'd', triggers: 'regole, warn', instructions: 'i' });
+      if (!bskills.matchSkills(G, 'quali regole e warn?', 5).some((s) => s.name === 'qa-regole')) fail('brain: matchSkills non trova skill');
+      bskills.setEnabled(G, 'qa-regole', false);
+      if (bskills.matchSkills(G, 'qa-regole', 5).some((s) => s.name === 'qa-regole')) fail('brain: skill disattivata ancora matchata');
+      if (bskills.removeSkill(G, 'qa-regole') !== true) fail('brain: removeSkill');
+      try { bskills.saveSkill(G, { name: '__proto__', description: 'x', triggers: '', instructions: 'x' }); fail('brain: __proto__ accettato'); } catch {}
+      bmem.saveNote(G, 'Qa Orari', 'Apertura [[qa sera]] #test', []);
+      bmem.saveNote(G, 'Qa Sera', 'serata quiz', []);
+      const back = bmem.getNote(G, 'Qa Sera');
+      if (!back || !back.backlinks.includes('Qa Orari')) fail('brain: backlinks mancanti');
+      if (!bmem.searchNotes(G, 'apertura serale', 3).length) fail('brain: searchNotes vuoto (prefix sera/serale)');
+      bfiles.saveFile(G, 'qa-regole.txt', Buffer.from('niente spam'));
+      if (!bfiles.matchFiles(G, 'regole spam', 2).length) fail('brain: matchFiles vuoto');
+      try { bfiles.saveFile(G, '../../x.txt', Buffer.from('x')); fail('brain: traversal accettato'); } catch {}
+      try { bfiles.saveFile(G, 'x.exe', Buffer.from('x')); fail('brain: estensione exe accettata'); } catch {}
+      const ctx = kernel.buildContext({ guildId: G, query: 'a che ora aprite la sera?' });
+      if (!ctx.sources.some((s) => s.type === 'memoria')) fail('brain: kernel senza memorie');
+      if (kernel.buildContext({ guildId: G, query: 'x', budget: 200 }).system.length > 600) fail('brain: budget sforato');
+      bmem.deleteNote(G, 'Qa Orari'); bmem.deleteNote(G, 'Qa Sera'); bfiles.deleteStored(G, 'qa-regole.txt');
+    } finally {
+      delete process.env.BRAIN_DIR;
+      fs.rmSync(brainTmp, { recursive: true, force: true });
+    }
+  } catch (e) {
+    fail(`brain: ${e.message.split('\n')[0]}`);
+  }
+
   // ---- (c4) LOTTO roadmap QA: cases, customCommands, shop-riuso, store,
   //      logger, i18n+locales, backup, music ----
   // Policy: assente -> WARNING (skip, lavori in corso); API incompleta ->

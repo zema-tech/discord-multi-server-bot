@@ -1,6 +1,6 @@
 # Discord Multi-Server Bot 🤖
 
-Bot Discord avanzato per **più server** contemporaneamente — moderazione, economia, livelli XP, automod, welcome, giveaway, ticket professionali e tanto altro. **84 slash command**, dipendenze in `package.json`: `discord.js` (+ `express` solo per la dashboard web opzionale, più lo stack musica `discord-player`/`@discordjs/voice`/extractor).
+Bot Discord avanzato per **più server** contemporaneamente — moderazione, economia, livelli XP, automod, welcome, giveaway, ticket professionali e tanto altro. **85 slash command**, dipendenze in `package.json`: `discord.js` (+ `express` solo per la dashboard web opzionale, più lo stack musica `discord-player`/`@discordjs/voice`/extractor).
 
 ## 🚀 Funzionalità
 
@@ -23,6 +23,13 @@ Provider plug-and-play: basta **una chiave** nel `.env` (`OPENAI_API_KEY`, `ANTH
 - `/codice` — l'AI conosce il proprio codice: `chiedi` (risponde con fonti), `file`, `cerca`, `albero` (serve Gestisci Server solo per `chiedi`; `file`/`cerca`/`albero` leggibili a tutti per scelta — il codice non contiene segreti, i redattori omettono comunque token/chiavi)
 - `/ai-config` — configura l'AI del server (serve Gestisci Server): `mostra` (include provider attivo) · `mention on/off` (risposta alle menzioni, default OFF) · `automod-ai on/off` · `ticket-ai on/off` · `fun-ai on/off` · `prompt <testo>` · `prompt-reset`
 - Extra automatiche (fuori slash): risposta alle menzioni (`mentionReply`, default OFF), analisi AI dei messaggi sospetti (`automodAI`, default OFF), AI nei ticket (`ticketAI`, default ON)
+
+### 🧠 Cervello (1 comando hub, 16 sotto-comandi)
+Vault stile Obsidian che rende l'AI esperta del TUO server (`/brain`):
+- **Skill**: file markdown con trigger che cambiano il carattere dell'AI (`skill-crea|lista|mostra|toggle|rimuovi`) + 3 predefinite (accoglienza, game-master, moderatore-aiuto)
+- **Memorie**: note con `[[wikilink]]`, `#tag` e backlink (`memoria-salva|cerca|lista|mostra|dimentica`)
+- **File**: riferimento `.txt`/`.md` caricati come allegati (`file-aggiungi|lista|leggi|rimuovi`, max 100KB/1MB)
+- L'AI li usa da sola in `/chiedi`, menzioni e ticket (fonti mostrate nel footer). Dati in `brain/` (gitignored, `BRAIN_DIR` per spostarlo).
 
 ### 🌙 Self-improvement (1)
 - `/selfimprove stato|prova|esegui` (serve Gestisci Server) — ogni sera (default ore 22:00, `SELF_IMPROVE=1`) il bot rilegge il suo codice, propone **una** piccola patch e la applica **solo** se `node --check` + smoke test passano, altrimenti rollback automatico. Mai commit automatici, mai tocco a working tree sporco. Config: `SELF_IMPROVE_TIME`, `SELF_IMPROVE_DRY_RUN=1`, `SELF_IMPROVE_GUILD_ID` (report nel canale log).
@@ -192,7 +199,7 @@ npm start     # la dashboard parte SOLO se DASHBOARD_PORT è impostato; un suo e
 ├── src/
 │   ├── index.js
 │   ├── commands/
-│   │   ├── ai/            # 7 comandi (chiedi, riassumi, immagina, storia, analizza, ai-config, codice)
+│   │   ├── ai/            # 8 comandi (chiedi, riassumi, immagina, storia, analizza, ai-config, codice, brain)
 │   │   ├── moderation/    # 13 comandi
 │   │   ├── fun/           # 13 comandi (meme, joke, 8ball, coinflip, rps, dice, trivia, affinita, oroscopo, preferiresti, confessa, animale, sfida)
 │   │   ├── economy/       # 11 comandi (balance, daily, work, pay, leaderboard, bank, slots, rob, shop, lotteria, rep)
@@ -202,6 +209,7 @@ npm start     # la dashboard parte SOLO se DASHBOARD_PORT è impostato; un suo e
 │   │   └── tickets/       # 2 comandi (ticket con 9 sotto-comandi, ticket-ai)
 │   ├── events/          # ready, interactionCreate (ticket + reaction roles + nuke; check permessi custom PRIMA del cooldown; logging comandi + report errori nel canale log), messageCreate x5 (XP/automod, autoresponder, analytics, customCommands `!nome`, AI mention/moderation), messageReactionAdd (starboard), guildMemberAdd x5 (welcome/autorole/antiRaid/analytics/invite tracker), guildMemberRemove (+ lazy-attach analytics e inviteTracker), auditLog (messageDelete + altri, lazy-attach), inviteCreate/inviteDelete (cache), voiceStateUpdate x2 (tempVoice, voiceXp), aiMention, aiModeration
 │   ├── handlers/        # ticketHandler, reactionRoleHandler
+│   ├── brain/           # cervello Obsidian: skills/ (md con trigger), memory/<guild>/ (note [[linkate]]), files/<guild>/, kernel (contesto AI), paths
 │   ├── jobs/            # ticketAutoclose (auto-chiusura ticket inattivi), backup (snapshot notturno ore 03:00 in backups/, retention 7 giorni, avviato da ready.js)
 │   ├── locales/         # it.js, en.js (stringhe i18n; nomi/descrizioni slash restano in IT)
 │   ├── dashboard/       # server.js (startDashboard, lazy express), api.js (REST /api/*), auth.js (OAuth2 + sessione su cookie firmato con state anti-CSRF)
@@ -214,7 +222,7 @@ npm start     # la dashboard parte SOLO se DASHBOARD_PORT è impostato; un suo e
 └── package.json
 ```
 
-Totale comandi = file in `src/commands/*/*.js` (1 file = 1 slash command): **84** (13+13+11+3+34+1+2+7).
+Totale comandi = file in `src/commands/*/*.js` (1 file = 1 slash command): **85** (13+13+11+3+34+1+2+8).
 
 > **Restyling premium**: embed uniformati in tutto il bot — footer "Richiesto da …", numeri in formato `it-IT`, colori oro per l'economia, timestamp e miniature utente dove utili. Design system centralizzato in `src/utils/theme.js` (`COLORS`, `ok/err/info`, `applyFooter`, `truncate` con fallback inline nei comandi).
 

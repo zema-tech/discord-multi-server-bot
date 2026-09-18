@@ -58,8 +58,18 @@ function isStaff(member, ticketConfig) {
   }
 }
 
-function formatHistory(messages) {
-  const text = [...messages.values()]
+/** Contesto cervello (skill/memorie/file) sulla conversazione: mai fatale. */
+function brainExtra(guildId, text) {
+  try {
+    const { buildContext, sourcesLine } = require('../../brain/kernel');
+    const ctx = buildContext({ guildId, query: text });
+    return { system: ctx.system, sources: sourcesLine(ctx.sources) };
+  } catch {
+    return { system: '', sources: '' };
+  }
+}
+
+function formatHistory(messages) {  const text = [...messages.values()]
     .reverse()
     .map((m) => {
       const autore = m.author ? m.author.username : 'Sconosciuto';
@@ -116,10 +126,12 @@ module.exports = {
 
     if (sub === 'riassumi') {
       let riassunto;
+      const brain = brainExtra(interaction.guild.id, conversazione);
       try {
         riassunto = await askAI(
           `Riassumi questo ticket di assistenza in esattamente 5 punti brevi:\n${conversazione}`,
-          'Sei un assistente del team di supporto. Rispondi in italiano con esattamente 5 punti elenco brevi e chiari, tono professionale.'
+          'Sei un assistente del team di supporto. Rispondi in italiano con esattamente 5 punti elenco brevi e chiari, tono professionale.' +
+            (brain.system ? `\n\n${brain.system}` : '')
         );
       } catch {
         return interaction.editReply({ embeds: [themeErr('AI non disponibile, riprova più tardi.')] }).catch(() => {});
@@ -138,10 +150,12 @@ module.exports = {
 
     // ---- suggerisci ----
     let bozza;
+    const brainSugg = brainExtra(interaction.guild.id, conversazione);
     try {
       bozza = await askAI(
         `Scrivi una bozza di risposta dello staff per questo ticket di assistenza:\n${conversazione}`,
-        `Sei un membro dello staff di supporto Discord. Scrivi in italiano una bozza di risposta professionale, cortese e risolutiva, max ${MAX_DRAFT_CHARS} caratteri. Solo il testo della risposta, senza intestazioni.`
+        `Sei un membro dello staff di supporto Discord. Scrivi in italiano una bozza di risposta professionale, cortese e risolutiva, max ${MAX_DRAFT_CHARS} caratteri. Solo il testo della risposta, senza intestazioni.` +
+          (brainSugg.system ? `\n\n${brainSugg.system}` : '')
       );
     } catch {
       return interaction.editReply({ embeds: [themeErr('AI non disponibile, riprova più tardi.')] }).catch(() => {});

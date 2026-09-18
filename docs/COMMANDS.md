@@ -2,14 +2,14 @@
 
 > Generato automaticamente con `node scripts/gen-docs.js` il 2026-09-18 — non modificare a mano.
 >
-> Totale: **84 comandi** in **8 categorie**.
+> Totale: **85 comandi** in **8 categorie**.
 > La categoria corrisponde alla sottocartella in src/commands/.
 > Cooldown in secondi per utente (default 3 s se non specificato nel modulo).
 > I parametri marcati con asterisco (*) sono obbligatori.
 
 ## Indice categorie
 
-- [ai](#ai) (7)
+- [ai](#ai) (8)
 - [economy](#economy) (11)
 - [fun](#fun) (13)
 - [levels](#levels) (3)
@@ -20,12 +20,13 @@
 
 ## ai
 
-Comandi: 7
+Comandi: 8
 
 | Comando | Descrizione | Cooldown | Sottocomandi / Opzioni |
 |---|---|---|---|
 | `/ai-config` | Configura le funzioni AI del server | 3 s | **mostra** — Mostra la configurazione AI attuale (nessun parametro)<br>**mention** — Risposta automatica quando il bot viene menzionato (`stato: booleano*`)<br>**automod-ai** — Analisi AI dei messaggi sospetti (automod) (`stato: booleano*`)<br>**ticket-ai** — Risposte AI automatiche nei ticket (`stato: booleano*`)<br>**fun-ai** — Comandi fun AI (/immagina, /storia) (`stato: booleano*`)<br>**prompt** — Imposta il prompt di sistema personalizzato (`testo: stringa*`)<br>**prompt-reset** — Ripristina il prompt di sistema di default (nessun parametro) |
 | `/analizza` | Chiedi all’AI 5 insight azionabili per far crescere il server | 30 s | `giorni: intero` |
+| `/brain` | Il cervello del bot: skill, memorie e file (stile Obsidian) | 5 s | **stato** — Statistiche del cervello del server (nessun parametro)<br>**skill-lista** — Elenca le skill attive (nessun parametro)<br>**skill-mostra** — Mostra una skill (`nome: stringa*`)<br>**skill-crea** — Crea una skill (staff) (`nome: stringa*`, `descrizione: stringa*`, `trigger: stringa*`, `istruzioni: stringa*`)<br>**skill-toggle** — Attiva/disattiva una skill (staff) (`nome: stringa*`, `stato: booleano*`)<br>**skill-rimuovi** — Elimina una skill del server (staff) (`nome: stringa*`)<br>**memoria-salva** — Salva una nota nel cervello (staff) (`titolo: stringa*`, `testo: stringa*`, `tag: stringa`)<br>**memoria-cerca** — Cerca nelle memorie (`query: stringa*`)<br>**memoria-lista** — Elenca le note (nessun parametro)<br>**memoria-mostra** — Mostra una nota (staff) (`titolo: stringa*`)<br>**memoria-dimentica** — Elimina una nota (staff) (`titolo: stringa*`)<br>**file-aggiungi** — Carica un file di riferimento .txt/.md (staff) (`nome: stringa*`, `allegato: allegato*`)<br>**file-lista** — Elenca i file caricati (nessun parametro)<br>**file-leggi** — Leggi un file (staff) (`nome: stringa*`)<br>**file-rimuovi** — Elimina un file (staff) (`nome: stringa*`) |
 | `/chiedi` | Fai una domanda all’AI del server | 15 s | `domanda: stringa*` |
 | `/codice` | Chiedi all’AI cose sul codice del bot | 10 s | **chiedi** — Fai una domanda sul codice del bot (`domanda: stringa*`)<br>**file** — Mostra un file del bot (prime righe) (`percorso: stringa*`)<br>**cerca** — Cerca un termine nel codice (`termine: stringa*`)<br>**albero** — Panoramica della struttura del codice (nessun parametro) |
 | `/immagina` | Genera un’immagine con l’AI dal tuo prompt | 20 s | `prompt: stringa*` |

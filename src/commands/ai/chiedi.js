@@ -60,9 +60,19 @@ module.exports = {
 
     const systemPrompt = resolveSystemPrompt(interaction.guildId);
 
+    // Cervello del server (skill/memorie/file): mai rompere il flusso se fallisce.
+    let brainSystem = '';
+    let brainSources = '';
+    try {
+      const { buildContext, sourcesLine } = require('../../brain/kernel');
+      const ctx = buildContext({ guildId: interaction.guildId, query: domanda });
+      brainSystem = ctx.system;
+      brainSources = sourcesLine(ctx.sources);
+    } catch {}
+
     let risposta;
     try {
-      risposta = await askAI(domanda, systemPrompt);
+      risposta = await askAI(domanda, brainSystem ? `${systemPrompt}\n\n${brainSystem}` : systemPrompt);
     } catch (err) {
       await interaction.editReply(`⚠️ ${err?.message || 'AI non disponibile, riprova più tardi.'}`).catch(() => null);
       return;
@@ -76,7 +86,8 @@ module.exports = {
     applyFooter(embed, interaction);
     try {
       const base = embed.data?.footer?.text ?? `Richiesto da ${interaction?.user?.username ?? 'Utente'}`;
-      embed.setFooter({ text: truncate(`${base} • powered by AI gratuita`, 2048) });
+      const extra = `${brainSources ? ` • 🧠 ${brainSources}` : ''} • powered by AI gratuita`;
+      embed.setFooter({ text: truncate(`${base}${extra}`, 2048) });
     } catch {}
 
     await interaction.editReply({ embeds: [embed] }).catch(() => null);
