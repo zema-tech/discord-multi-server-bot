@@ -60,6 +60,8 @@ module.exports = {
     .addSubcommand((s) => s.setName('stato').setDescription('Stato: attivo? ultima run? provider AI?'))
     .addSubcommand((s) => s.setName('prova').setDescription('Prova ora in dry-run (propone senza applicare)'))
     .addSubcommand((s) => s.setName('esegui').setDescription('Esegui ora il ciclo completo (applica se i test passano)'))
+    .addSubcommand((s) => s.setName('lezioni').setDescription('Lezioni apprese dal compendio (come migliora)'))
+    .addSubcommand((s) => s.setName('principi').setDescription('Principi di revisione del compendio'))
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
   cooldown: 60,
   async execute(interaction) {
@@ -94,6 +96,33 @@ module.exports = {
       const embed = theme?.info
         ? withFooter(theme.info('🌙 Self-improvement', desc), interaction)
         : withFooter(new EmbedBuilder().setColor(0x5865f2).setTitle('🌙 Self-improvement').setDescription(desc.slice(0, 4000)).setTimestamp(), interaction);
+      return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral }).catch(() => null);
+    }
+
+    if (sub === 'lezioni' || sub === 'principi') {
+      let comp;
+      try {
+        comp = require('../../brain/compendio');
+      } catch {
+        return interaction.reply({ embeds: [errorEmbed('Compendio non disponibile.', interaction)], flags: MessageFlags.Ephemeral }).catch(() => null);
+      }
+      if (sub === 'principi') {
+        const text = comp.getPrincipi();
+        const embed = theme?.info
+          ? withFooter(theme.info('📜 Principi di revisione', truncate(text, 4000)), interaction)
+          : withFooter(new EmbedBuilder().setColor(0x5865f2).setTitle('📜 Principi di revisione').setDescription(truncate(text, 4000)).setTimestamp(), interaction);
+        return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral }).catch(() => null);
+      }
+      const st = comp.stats();
+      const lessons = comp.listLessons(10);
+      const desc =
+        `**Lezioni registrate:** ${st.total} (✅ ${st.successi} successi · ❌ ${st.errori} errori · max ${st.cap})\n\n` +
+        (lessons.length
+          ? lessons.map((l) => `${l.tipo === 'successo' ? '✅' : l.tipo === 'errore' ? '❌' : '📝'} **${l.ambito || l.id}** — ${truncate(l.body, 160)}`).join('\n')
+          : 'Nessuna lezione ancora: appariranno dopo le prime run applicate o revertite.');
+      const embed = theme?.info
+        ? withFooter(theme.info('🎓 Compendio: cosa ha imparato', truncate(desc, 4000)), interaction)
+        : withFooter(new EmbedBuilder().setColor(0x5865f2).setTitle('🎓 Compendio').setDescription(truncate(desc, 4000)).setTimestamp(), interaction);
       return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral }).catch(() => null);
     }
 

@@ -980,6 +980,34 @@ try {
     fail(`brain: ${e.message.split('\n')[0]}`);
   }
 
+  // compendio — memoria del self-improvement (principi + lezioni + prune)
+  try {
+    const brainTmp2 = path.join(ROOT, `.brain-qa2-${process.pid}`);
+    fs.mkdirSync(brainTmp2, { recursive: true });
+    process.env.BRAIN_DIR = brainTmp2;
+    try {
+      const comp = require(path.join(ROOT, 'src', 'brain', 'compendio.js'));
+      if (comp.getPrincipi() !== comp.getPrincipi()) fail('compendio: seed principi instabile');
+      const id1 = comp.recordLesson({ verdict: 'applied', file: 'qatest.js', reason: 'qa lezione', detail: '' });
+      if (!id1) fail('compendio: recordLesson non ritorna id');
+      if (comp.recordLesson({ verdict: 'applied', file: 'qatest.js', reason: 'qa lezione', detail: '' }) !== null) {
+        fail('compendio: lezione duplicata non scartata');
+      }
+      if (!comp.listLessons(10).some((l) => l.id === id1 && l.tipo === 'successo')) fail('compendio: listLessons senza la lezione');
+      const ctx = comp.loadContext(3000);
+      if (!ctx.includes('PRINCIPI') || ctx.length > 3100) fail('compendio: loadContext malformato/non cappato');
+      for (let i = 0; i < 55; i += 1) {
+        comp.recordLesson({ verdict: 'applied', file: `qa${i}.js`, reason: `qa prune ${i}`, detail: '' });
+      }
+      if (comp.listLessons(100).length !== 50) fail('compendio: prune non a 50');
+    } finally {
+      delete process.env.BRAIN_DIR;
+      fs.rmSync(brainTmp2, { recursive: true, force: true });
+    }
+  } catch (e) {
+    fail(`compendio: ${e.message.split('\n')[0]}`);
+  }
+
   // ---- (c4) LOTTO roadmap QA: cases, customCommands, shop-riuso, store,
   //      logger, i18n+locales, backup, music ----
   // Policy: assente -> WARNING (skip, lavori in corso); API incompleta ->

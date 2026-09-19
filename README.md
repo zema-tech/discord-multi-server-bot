@@ -32,7 +32,8 @@ Vault stile Obsidian che rende l'AI esperta del TUO server (`/brain`):
 - L'AI li usa da sola in `/chiedi`, menzioni e ticket (fonti mostrate nel footer). Dati in `brain/` (gitignored, `BRAIN_DIR` per spostarlo).
 
 ### 🌙 Self-improvement (1)
-- `/selfimprove stato|prova|esegui` (serve Gestisci Server) — ogni sera (default ore 22:00, `SELF_IMPROVE=1`) il bot rilegge il suo codice, propone **una** piccola patch e la applica **solo** se `node --check` + smoke test passano, altrimenti rollback automatico. Mai commit automatici, mai tocco a working tree sporco. Config: `SELF_IMPROVE_TIME`, `SELF_IMPROVE_DRY_RUN=1`, `SELF_IMPROVE_GUILD_ID` (report nel canale log).
+- `/selfimprove stato|prova|esegui|lezioni|principi` (serve Gestisci Server) — ogni sera (default ore 22:00, `SELF_IMPROVE=1`) il bot rilegge il suo codice, propone **una** piccola patch e la applica **solo** se `node --check` + smoke test passano, altrimenti rollback automatico. Mai commit automatici, mai tocco a working tree sporco. Config: `SELF_IMPROVE_TIME`, `SELF_IMPROVE_DRY_RUN=1`, `SELF_IMPROVE_GUILD_ID` (report nel canale log).
+- **Compendio** (`brain/compendio/`): principi di revisione + lezioni da ogni esito (successi e rollback). Il job li legge prima di proporre e li aggiorna dopo: diventa più forte col tempo invece di ripetere gli errori. `/selfimprove lezioni` mostra cosa ha imparato.
 
 ### 🎮 Divertimento (13)
 - `/meme` `/joke` `/8ball` `/coinflip` `/rps` `/dice`
