@@ -13,7 +13,7 @@
  *   writeExtra(gid, mod, patch, guild) -> updated; lancia {status:400,message}
  *     su input invalido; ritorna null se mod non gestito.
  *
- * MODULI MAPPATI (4):
+ * MODULI MAPPATI (5):
  *   1. ticketsPlus    <- database/tickets.js (DEFAULT_CONFIG reale:
  *                        panelChannelId, categoryId, supportRoleIds;
  *                        maxPerUser 1..20 e autoCloseDays 0..365 restano nel
@@ -42,6 +42,21 @@
  *                        canali; ogni write lancia 400 e rimanda a /lockdown
  *                        on|off (attivare un lockdown dal web è pericoloso:
  *                        tocca gli overwrite di TUTTI i canali testuali).
+ *   5. shop            <- database/shop.js (getItem/setItem/removeItem/
+ *                        listItems reali; mappa persistente { [roleId]: price }).
+ *                        Fonte comando: /shop aggiungi|rimuovi (staff con
+ *                        Gestisci ruoli) + validazione vendibilità
+ *                        (non @everyone, non managed). Modulo "lista" come
+ *                        autoresponder/commands/rewards nel PUT base: body
+ *                        action-based { action:'set', roleId, price } oppure
+ *                        { action:'remove', roleId }; in read si espone
+ *                        itemCount + listsExtra.shop (max 50, ordinati per
+ *                        prezzo come listItems). Prezzo: intero >= 1 come
+ *                        validPrice del DB; cap dashboard a 10.000.000
+ *                        anti-abuso (il comando Discord non ha tetto).
+ *                        Ruolo validato solo su guild.roles.cache esistente +
+ *                        non-managed + non-@everyone (la gerarchia
+ *                        role.editable resta enforced dai comandi all'acquisto).
  *
  * MODULI OMESSI (con motivo):
  *   - economy (tuning dailyAmount/workMin/workMax): database/economy.js NON
@@ -60,6 +75,13 @@
  *     persistente — solo cache/stats/invitedBy/leaderboard (dati runtime).
  *     Il comando /inviti è sola lettura (info/classifica). Niente chiavi
  *     scrivibili reali -> omesso.
+ *   - lotteria (ticketPrice/threshold): database/lotteria.js PERSISTE
+ *     ticketPrice/threshold per guild ma NON esporta alcun setter e NESSUN
+ *     comando li configura (solo info/compra/estrai). Aggiungerli dal web
+ *     inventerebbe una nuova API di tuning -> omesso.
+ *   - stanze (rooms per-utente): database/stanze.js contiene stanze runtime
+ *     possedute dagli utenti (ownerId/type), non impostazioni admin.
+ *     Niente config di guild scrivibile -> omesso.
  */
 
 const SNOWFLAKE_RE = /^\d{10,25}$/;
@@ -240,6 +262,16 @@ const EXTRA_SCHEMA = [
     fields: [],
     custom: 'lockdown',
   },
+  {
+    module: 'shop',
+    title: 'Negozio ruoli',
+    icon: '🛒',
+    section: 'Economia',
+    description: 'Ruoli in vendita con le monete del server. Si gestisce solo ' +
+      'da questa dashboard (il comando /shop nel server rimanda qui).',
+    fields: [],
+    custom: 'shop',
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -321,6 +353,25 @@ function readLockdown(gid) {
   }
 }
 
+function readShopList(gid) {
+  try {
+    const shop = safeRequire('../database/shop');
+    if (!shop || typeof shop.listItems !== 'function') return [];
+    const items = shop.listItems(gid);
+    return Array.isArray(items) ? items.slice(0, 50) : [];
+  } catch {
+    return [];
+  }
+}
+
+function readShop(gid) {
+  try {
+    return { itemCount: readShopList(gid).length };
+  } catch {
+    return { itemCount: 0 };
+  }
+}
+
 /**
  * Legge i moduli extra. Mai lancia, mai crea record se il modulo DB manca
  * (safeRequire -> default in memoria).
@@ -331,6 +382,9 @@ function readExtra(gid) {
     aiPlus: readAiPlus(gid),
     reactionRoles: readReactionRoles(gid),
     lockdown: readLockdown(gid),
+    shop: readShop(gid),
+    // Pattern anticipato dal GET guild in api.js: listsExtra finisce in `lists`.
+    listsExtra: { shop: readShopList(gid) },
   };
 }
 
@@ -421,6 +475,45 @@ function writeReactionRoles(gid, patch, guild) {
   return rr.setPanel(gid, clean);
 }
 
+const SHOP_MAX_PRICE = 10000000; // cap dashboard anti-abuso (il DB accetta interi >= 1)
+
+/** Prezzo shop: intero 1..SHOP_MAX_PRICE (stile api.js: range con 400). */
+function checkShopPrice(v) {
+  const n = Math.floor(Number(v));
+  if (!Number.isInteger(n) || n < 1 || n > SHOP_MAX_PRICE) {
+    fail(`Prezzo non valido: intero tra 1 e ${SHOP_MAX_PRICE}.`);
+  }
+  return n;
+}
+
+/**
+ * Negozio ruoli (action-based come rewards nel PUT base).
+ * Body: { action:'set', roleId, price } | { action:'remove', roleId }.
+ * Ritorna il risultato del modulo DB ({ roleId, price } | { removed, roleId }).
+ */
+function writeShop(gid, patch, guild) {
+  if (!gid) fail('guildId mancante.');
+  const shop = safeRequire('../database/shop');
+  if (!shop || typeof shop.setItem !== 'function' || typeof shop.removeItem !== 'function') {
+    failUnavailable('shop');
+  }
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) fail('Body non valido.');
+  const action = patch.action;
+  if (action !== 'set' && action !== 'remove') fail('Action non valida (set/remove).');
+  const roleId = patch.roleId;
+  if (!isSnowflake(roleId)) fail('Ruolo non valido: atteso ID Discord.');
+  if (action === 'remove') {
+    const removed = shop.removeItem(gid, roleId);
+    return { removed: Boolean(removed), roleId };
+  }
+  const role = roleInGuild(guild, roleId);
+  if (!role) fail('Ruolo non trovato in questo server: ricarica la pagina.');
+  if (role.managed) fail('I ruoli dei bot non possono essere venduti.');
+  if (guild && guild.id && roleId === guild.id) fail('Il ruolo @everyone non può essere venduto.');
+  const price = checkShopPrice(patch.price);
+  return shop.setItem(gid, roleId, price);
+}
+
 /**
  * Applica una patch a un modulo extra. Ritorna l'oggetto updated dal modulo DB,
  * null se `mod` non è gestito qui, lancia { status, message } su input invalido.
@@ -430,6 +523,7 @@ function writeExtra(gid, mod, patch, guild) {
   if (mod === 'ticketsPlus') return writeTicketsPlus(gid, patch, guild);
   if (mod === 'aiPlus') return writeAiPlus(gid, patch, guild);
   if (mod === 'reactionRoles') return writeReactionRoles(gid, patch, guild);
+  if (mod === 'shop') return writeShop(gid, patch, guild);
   if (mod === 'lockdown') {
     fail('Lockdown in sola lettura dalla dashboard: usa /lockdown on|off nel server per attivarlo o disattivarlo.');
   }

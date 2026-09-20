@@ -172,6 +172,8 @@ Per l'AI nessun setup obbligatorio: di default usa l'endpoint gratuito Pollinati
 
 Pannello web per configurare ogni server senza comandi: moduli (welcome, automod, ticket, livelli, AI, log, vocali temporanee), permessi custom e statistiche.
 
+La configurazione avviene esclusivamente dalla dashboard web (`<BASE_URL>/app.html`): sezione Generale per lingua e canali, Moderazione per automod e autorole, Livelli per XP e ricompense, Ticket e Vocali per ticket e vocali temporanee, AI ed Extra per AI e risposte automatiche, Permessi per i permessi custom. I comandi Discord restano solo azioni.
+
 **Prerequisiti OAuth2** (portale [Discord Developer](https://discord.com/developers/applications)):
 1. Apri la tua applicazione → **OAuth2 → General** → aggiungi il redirect: `<BASE_URL>/callback` (es. `http://localhost:3000/callback`).
 2. Copia il **Client Secret** (serve per lo scambio code→token). Gli scope usati sono `identify guilds`.

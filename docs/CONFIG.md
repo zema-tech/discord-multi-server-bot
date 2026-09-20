@@ -4,6 +4,8 @@ Tutte le env lette dal codice (`grep process.env` in `src/`,
 `deploy-commands.js`) più `.env.example`. Copia `.env.example` in `.env`
 e compila almeno le obbligatorie. Mai committare `.env`.
 
+La configurazione per-server (lingua, canali, welcome, automod, ticket, livelli, AI, permessi) avviene esclusivamente dalla dashboard web (`<BASE_URL>/app.html`, sezioni Generale, Moderazione, Livelli, Ticket e Vocali, AI ed Extra, Permessi). Questo file descrive solo le variabili d'ambiente del processo.
+
 | Variabile | Obbligatoria | Default | Dove usata | Note |
 |---|---|---|---|---|
 | `DISCORD_TOKEN` | sì | — | `src/index.js`, `deploy-commands.js` | Token del bot. Senza, il bot esce con errore. |

@@ -5,7 +5,7 @@ const {
   PermissionFlagsBits,
   ChannelType,
 } = require('discord.js');
-const { getConfessioni, setCanale, secondiAttesa, registraConfessione } = require('../../database/confessioni');
+const { getConfessioni, secondiAttesa, registraConfessione } = require('../../database/confessioni');
 const { getGuild } = require('../../database/guildConfig');
 
 let _theme = null;
@@ -18,6 +18,12 @@ const BLUE = _theme?.COLORS?.blue ?? 0x3498db;
 const truncate = _theme?.truncate ?? ((s, m) => String(s ?? '').slice(0, m));
 
 const MAX_LEN = 500;
+
+function dashboardMsg(guildId, sezione) {
+  const base = (process.env.BASE_URL || '').trim().replace(/\/+$/, '');
+  const dest = base ? `${base}/app.html#gid=${guildId}` : 'apri la dashboard del bot';
+  return `La configurazione si fa dalla dashboard: ${dest} — sezione ${sezione}`;
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -51,7 +57,7 @@ module.exports = {
   async execute(interaction) {
     const sub = interaction.options.getSubcommand();
 
-    // --- /confessa imposta (solo staff con ManageGuild) ---
+    // --- /confessa imposta: solo dalla dashboard (nessuna scrittura qui) ---
     if (sub === 'imposta') {
       if (!interaction.guild) {
         return interaction.reply({ content: '❌ Usabile solo in un server.', flags: MessageFlags.Ephemeral });
@@ -62,23 +68,7 @@ module.exports = {
           flags: MessageFlags.Ephemeral,
         });
       }
-      const canale = interaction.options.getChannel('canale');
-      if (!canale || !canale.isTextBased()) {
-        return interaction.reply({ content: '❌ Scegli un canale di testo valido.', flags: MessageFlags.Ephemeral });
-      }
-      const me = interaction.guild?.members?.me;
-      const perms = me ? canale.permissionsFor(me) : null;
-      if (!perms?.has(PermissionFlagsBits.ViewChannel) || !perms?.has(PermissionFlagsBits.SendMessages)) {
-        return interaction.reply({
-          content: '❌ Non ho i permessi per scrivere in quel canale (mi servono **Vedere il canale** e **Inviare messaggi**).',
-          flags: MessageFlags.Ephemeral,
-        });
-      }
-      setCanale(interaction.guildId, canale.id);
-      return interaction.reply({
-        content: `✅ Canale delle confessioni impostato su ${canale}. Ora gli utenti possono usare \`/confessa invia\`.`,
-        flags: MessageFlags.Ephemeral,
-      });
+      return interaction.reply({ content: dashboardMsg(interaction.guildId, 'Confessioni'), flags: MessageFlags.Ephemeral });
     }
 
     // --- /confessa invia (anonimo, anti-abuso) ---
@@ -127,7 +117,7 @@ module.exports = {
       const { channelId } = getConfessioni(interaction.guildId);
       if (!channelId) {
         return interaction.reply({
-          content: '❌ Il canale delle confessioni non è ancora stato configurato. Chiedi allo staff di usare `/confessa imposta`.',
+          content: '❌ Il canale delle confessioni non è ancora stato configurato. Chiedi allo staff di usare la dashboard (sezione Confessioni).',
           flags: MessageFlags.Ephemeral,
         });
       }
@@ -140,7 +130,7 @@ module.exports = {
       }
       if (!canale || !canale.isTextBased()) {
         return interaction.reply({
-          content: '❌ Il canale delle confessioni non è più disponibile. Chiedi allo staff di reimpostarlo con `/confessa imposta`.',
+          content: '❌ Il canale delle confessioni non è più disponibile. Chiedi allo staff di reimpostarlo dalla dashboard (sezione Confessioni).',
           flags: MessageFlags.Ephemeral,
         });
       }

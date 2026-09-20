@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, MessageFlags, EmbedBuilder } = require('discord.js');
-const { getStarboard, setStarboard, disableStarboard } = require('../../database/starboard');
+const { getStarboard } = require('../../database/starboard');
 let theme;
 try {
   theme = require('../../utils/theme');
@@ -14,7 +14,13 @@ try {
     truncate: (s, m) => String(s ?? '').slice(0, m),
   };
 }
-const { COLORS, ok, info, applyFooter, truncate } = theme;
+const { COLORS, info, applyFooter, truncate } = theme;
+
+// Configurazione solo dalla dashboard web: nessun accesso in scrittura al DB da qui.
+function dashboardMessaggio(guildId, sezione) {
+  const base = (process.env.BASE_URL || '').trim().replace(/\/+$/, '') || 'apri la dashboard del bot';
+  return `La configurazione si fa dalla dashboard: ${base}/app.html#gid=${guildId} — sezione ${sezione}`;
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -36,9 +42,9 @@ module.exports = {
     }
     const sub = interaction.options.getSubcommand();
 
-    if (sub === 'disattiva') {
-      disableStarboard(interaction.guild.id);
-      return interaction.reply({ embeds: [ok('⭐ Starboard disattivata', 'La bacheca dei messaggi più apprezzati è stata **disattivata**.')], flags: MessageFlags.Ephemeral });
+    // Configurazione (imposta/disattiva) solo dalla dashboard web.
+    if (sub === 'imposta' || sub === 'disattiva') {
+      return interaction.reply({ content: dashboardMessaggio(interaction.guild.id, 'Starboard'), flags: MessageFlags.Ephemeral });
     }
 
     if (sub === 'mostra') {
@@ -54,17 +60,7 @@ module.exports = {
       return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     }
 
-    // imposta
-    const canale = interaction.options.getChannel('canale');
-    let soglia = interaction.options.getInteger('soglia') ?? 3;
-    if (!Number.isFinite(soglia)) soglia = 3;
-    soglia = Math.min(100, Math.max(1, Math.floor(soglia)));
-    const emojiRaw = (interaction.options.getString('emoji') || '⭐').trim().slice(0, 50);
-    const emoji = emojiRaw || '⭐';
-
-    setStarboard(interaction.guild.id, { channelId: canale.id, threshold: soglia, emoji });
-    const okEmbed = ok('⭐ Starboard attivata!', `📺 Canale: ${canale}\n🔢 Soglia: **${soglia}** reazioni\n😀 Emoji: ${emoji}`);
-    applyFooter(okEmbed, interaction);
-    return interaction.reply({ embeds: [okEmbed], flags: MessageFlags.Ephemeral });
+    // imposta: configurazione solo dalla dashboard (ramo gia gestito sopra).
+    return null;
   },
 };

@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, EmbedBuilder } = require('discord.js');
-const { setReward, removeReward, listRewards } = require('../../database/levelRewards');
+const { listRewards } = require('../../database/levelRewards');
 
 // theme.js con fallback inline: mai crash se il require fallisce.
 let _T = null;
@@ -11,6 +11,12 @@ const applyFooter = _T?.applyFooter ?? ((embed, interaction) => {
   return embed;
 });
 const truncate = _T?.truncate ?? ((s, m) => String(s ?? '').slice(0, m));
+
+function dashboardMsg(guildId, sezione) {
+  const base = (process.env.BASE_URL || '').trim().replace(/\/+$/, '');
+  const dest = base ? `${base}/app.html#gid=${guildId}` : 'apri la dashboard del bot';
+  return `La configurazione si fa dalla dashboard: ${dest} — sezione ${sezione}`;
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -37,7 +43,7 @@ module.exports = {
     if (sub === 'lista') {
       const list = listRewards(guildId);
       if (!list.length) {
-        return interaction.reply({ content: '📭 Nessun premio livello configurato. Usa `/premi imposta`.', flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: '📭 Nessun premio livello configurato. Usa la dashboard (sezione Ricompense livello).', flags: MessageFlags.Ephemeral });
       }
       // Micro-fix: con tanti premi la description supererebbe il limite 4096 char.
       const ordinati = [...list].sort((a, b) => a.level - b.level);
@@ -52,47 +58,11 @@ module.exports = {
       return interaction.reply({ embeds: [embed] });
     }
 
-    const livello = interaction.options.getInteger('livello');
-    if (!Number.isInteger(livello) || livello < 1 || livello > 100) {
-      return interaction.reply({ content: '❌ Livello non valido: usa un numero tra 1 e 100.', flags: MessageFlags.Ephemeral });
+    // imposta e rimuovi: solo dalla dashboard (nessuna scrittura qui).
+    if (sub === 'imposta' || sub === 'rimuovi') {
+      return interaction.reply({ content: dashboardMsg(guildId, 'Ricompense livello'), flags: MessageFlags.Ephemeral });
     }
 
-    if (sub === 'rimuovi') {
-      let existed = false;
-      try {
-        existed = removeReward(guildId, livello);
-      } catch {
-        return interaction.reply({ content: '❌ Livello non valido: usa un numero tra 1 e 100.', flags: MessageFlags.Ephemeral });
-      }
-      return interaction.reply({
-        content: existed ? `✅ Premio per il livello **${livello}** rimosso.` : `ℹ️ Nessun premio configurato per il livello **${livello}**.`,
-        flags: MessageFlags.Ephemeral,
-      });
-    }
-
-    // sub === 'imposta'
-    const ruolo = interaction.options.getRole('ruolo');
-    // @everyone non assegnabile come premio (parità con shop.js validateSellable).
-    if (ruolo.id === interaction.guild.id) {
-      return interaction.reply({ content: '❌ Non puoi usare il ruolo @everyone come premio.', flags: MessageFlags.Ephemeral });
-    }
-    if (!ruolo.editable) {
-      return interaction.reply({
-        content: '❌ Non posso gestire quel ruolo: è sopra il mio ruolo più alto o è un ruolo gestito. Sposta il mio ruolo più in alto nella gerarchia.',
-        flags: MessageFlags.Ephemeral,
-      });
-    }
-    if (ruolo.managed) {
-      return interaction.reply({ content: '❌ Quel ruolo è gestito da un\'integrazione e non può essere assegnato.', flags: MessageFlags.Ephemeral });
-    }
-    try {
-      setReward(guildId, livello, ruolo.id);
-    } catch {
-      return interaction.reply({ content: '❌ Dati non validi: controlla livello (1-100) e ruolo.', flags: MessageFlags.Ephemeral });
-    }
-    return interaction.reply({
-      content: `✅ Dal livello **${livello}** gli utenti riceveranno ${ruolo}.`,
-      flags: MessageFlags.Ephemeral,
-    });
+    return interaction.reply({ content: '❌ Sottocomando sconosciuto.', flags: MessageFlags.Ephemeral });
   },
 };

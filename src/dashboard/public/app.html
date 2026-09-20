@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Pannello di gestione del bot per i tuoi server Discord.">
+  <meta name="theme-color" content="#141519">
   <title>Pannello — Multi-Server Bot</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -35,7 +36,7 @@
       <div class="side-search">
         <label class="visually-hidden" for="guild-search">Cerca server</label>
         <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input type="search" id="guild-search" placeholder="Cerca server…" autocomplete="off">
+        <input type="search" id="guild-search" placeholder="Cerca server…" autocomplete="off" aria-keyshortcuts="/">
         <kbd class="search-kbd" title="Premi / per cercare">/</kbd>
       </div>
 
@@ -57,10 +58,10 @@
     </aside>
 
     <main class="main" id="pannello" tabindex="-1">
+      <button class="btn btn-secondary btn-sm nav-toggle main-nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="sidebar" aria-label="Apri lista server">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
+      </button>
       <div class="subheader" id="subheader" hidden>
-        <button class="btn btn-secondary btn-sm nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="sidebar" aria-label="Apri lista server">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
-        </button>
         <span class="guild-icon" id="guild-hero-icon" aria-hidden="true">?</span>
         <div class="subheader-txt">
           <h1 id="guild-title">Seleziona un server</h1>
@@ -121,7 +122,7 @@
             <div class="mod-search">
               <label class="visually-hidden" for="module-search">Cerca impostazione o modulo</label>
               <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-              <input type="search" id="module-search" placeholder="Cerca impostazione…" autocomplete="off">
+              <input type="search" id="module-search" placeholder="Cerca impostazione…" autocomplete="off" aria-keyshortcuts="/">
             </div>
             <div class="chips" id="module-sections" role="group" aria-label="Filtra per sezione"></div>
           </div>
@@ -186,6 +187,24 @@
                 <button class="btn btn-primary btn-sm" type="submit">Assegna</button>
               </form>
             </div>
+            <div class="card" id="card-shop">
+              <h3>Negozio ruoli</h3>
+              <p class="muted small">Ruoli acquistabili con le monete del server.</p>
+              <ul class="itemlist" id="sh-list"><li class="muted">Negozio vuoto.</li></ul>
+              <form id="sh-form" class="stack">
+                <div class="row2">
+                  <div class="field">
+                    <label for="sh-role">Ruolo in vendita</label>
+                    <select id="sh-role" required></select>
+                  </div>
+                  <div class="field">
+                    <label for="sh-price">Prezzo (monete)</label>
+                    <input type="number" id="sh-price" min="1" max="10000000" step="1" required>
+                  </div>
+                </div>
+                <button class="btn btn-primary btn-sm" type="submit">Metti in vendita</button>
+              </form>
+            </div>
           </div>
         </section>
 
@@ -194,7 +213,7 @@
           <div class="card">
             <h3>Chi può usare cosa</h3>
             <p class="muted small">Seleziona i ruoli ammessi per ogni comando. Riga vuota = nessun limite. Le modifiche si salvano dalla barra in basso.</p>
-            <div class="matrix-scroll">
+            <div class="matrix-scroll" tabindex="0" role="region" aria-label="Matrice permessi: scorri orizzontalmente per vedere tutti i ruoli">
               <table class="matrix" id="perms-matrix">
                 <thead id="perms-head"></thead>
                 <tbody id="perms-body"></tbody>
@@ -206,7 +225,7 @@
     </main>
   </div>
 
-  <div class="dirty-bar" id="dirty-bar" hidden>
+  <div class="dirty-bar" id="dirty-bar" hidden role="region" aria-label="Modifiche non salvate">
     <span class="dirty-dot" aria-hidden="true"></span>
     <span id="dirty-count" role="status">Modifiche non salvate</span>
     <span class="dirty-actions">

@@ -52,9 +52,12 @@ module.exports = {
       embed.addFields({ name: label, value: T.truncate(sorted.join(' ') || t('help.emptyField', lang), 1024) || t('help.emptyField', lang) });
     }
     const baseUrl = (process.env.BASE_URL || '').trim().replace(/\/$/, '');
-    const footerText = baseUrl
-      ? t('help.footerWith', lang, { baseUrl })
-      : t('help.footerDefault', lang);
+    // La configurazione del bot si fa solo dalla dashboard web: il footer non
+    // rimanda piu ai comandi di setup via Discord.
+    const dashboardUrl = baseUrl ? `${baseUrl}/app.html` : '';
+    const footerText = dashboardUrl
+      ? `Configura il server dalla dashboard: ${dashboardUrl}`
+      : 'Configura il server dalla dashboard web (chiedi allo staff il link)';
     embed.setFooter({ text: T.truncate(footerText, 200) }).setTimestamp();
     await interaction.reply({ embeds: [embed] });
   },

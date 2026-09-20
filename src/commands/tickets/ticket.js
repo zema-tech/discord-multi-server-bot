@@ -2,9 +2,15 @@ const {
   SlashCommandBuilder, PermissionFlagsBits, ChannelType,
   EmbedBuilder, MessageFlags,
 } = require('discord.js');
-const { getConfig, setConfig, getTicket, getStats } = require('../../database/tickets');
-const { isSupport, sendPanel, doClose, typeLabel, ticketButtons } = require('../../handlers/ticketHandler');
+const { getConfig, getTicket, getStats } = require('../../database/tickets');
+const { isSupport, doClose, typeLabel, ticketButtons } = require('../../handlers/ticketHandler');
 const { buildTranscript } = require('../../utils/transcript');
+
+function dashboardMsg(guildId, sezione) {
+  const base = (process.env.BASE_URL || '').trim().replace(/\/+$/, '');
+  const dest = base ? `${base}/app.html#gid=${guildId}` : 'apri la dashboard del bot';
+  return `La configurazione si fa dalla dashboard: ${dest} — sezione ${sezione}`;
+}
 
 let theme = null;
 try {
@@ -63,36 +69,12 @@ module.exports = {
     const sub = interaction.options.getSubcommand();
     const config = getConfig(interaction.guild.id);
 
-    // ---- SETUP (solo staff gestione server) ----
+    // ---- SETUP e PANEL: solo dalla dashboard ----
     if (sub === 'setup') {
       if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
         return interaction.reply({ embeds: [themeErr('Ti serve il permesso **Gestisci Server**.')], flags: MessageFlags.Ephemeral });
       }
-      const panelCh = interaction.options.getChannel('canale-panel');
-      const category = interaction.options.getChannel('categoria');
-      const role = interaction.options.getRole('ruolo-supporto');
-      const role2 = interaction.options.getRole('ruolo-supporto-2');
-      const logCh = interaction.options.getChannel('canale-log');
-      const max = interaction.options.getInteger('max-per-utente') ?? 3;
-
-      const supportRoleIds = [role.id, ...(role2 ? [role2.id] : [])];
-      setConfig(interaction.guild.id, {
-        panelChannelId: panelCh.id,
-        categoryId: category.id,
-        logChannelId: logCh ? logCh.id : null,
-        supportRoleIds,
-        maxPerUser: max,
-      });
-
-      try {
-        await sendPanel(panelCh);
-      } catch {
-        return interaction.reply({ embeds: [themeErr('Non riesco a scrivere nel canale panel. Verifica i permessi.')], flags: MessageFlags.Ephemeral });
-      }
-      return interaction.reply({
-        embeds: [applyFooter(ok('✅ Ticket configurati', `📌 Panel: ${panelCh}\n📁 Categoria: **${truncate(category.name, 100)}**\n🛠️ Staff: ${role}${role2 ? ` + ${role2}` : ''}\n📝 Log: ${logCh || '—'}\n👤 Max per utente: **${max}**`), interaction)],
-        flags: MessageFlags.Ephemeral,
-      });
+      return interaction.reply({ content: dashboardMsg(interaction.guild.id, 'Ticket'), flags: MessageFlags.Ephemeral });
     }
 
     // ---- PANEL ----
@@ -100,14 +82,7 @@ module.exports = {
       if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
         return interaction.reply({ embeds: [themeErr('Ti serve il permesso **Gestisci Server**.')], flags: MessageFlags.Ephemeral });
       }
-      const ch = interaction.guild.channels.cache.get(config.panelChannelId) ?? await interaction.guild.channels.fetch(config.panelChannelId).catch(() => null);
-      if (!ch?.isTextBased?.()) return interaction.reply({ embeds: [themeErr('Canale panel non configurato. Usa `/ticket setup`.')], flags: MessageFlags.Ephemeral });
-      try {
-        await sendPanel(ch);
-      } catch {
-        return interaction.reply({ embeds: [themeErr('Non riesco a scrivere nel canale panel. Verifica i permessi.')], flags: MessageFlags.Ephemeral });
-      }
-      return interaction.reply({ embeds: [applyFooter(ok('✅ Pannello ripubblicato', `Pannello ripubblicato in ${ch}.`), interaction)], flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: dashboardMsg(interaction.guild.id, 'Ticket'), flags: MessageFlags.Ephemeral });
     }
 
     // ---- STATS ----

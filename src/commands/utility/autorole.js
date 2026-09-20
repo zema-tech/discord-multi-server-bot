@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, EmbedBuilder } = require('discord.js');
-const { getConfig, setConfig, addRole, removeRole } = require('../../database/autorole');
+const { getConfig } = require('../../database/autorole');
 
 let theme = null;
 try {
@@ -47,6 +47,12 @@ function hasManageRoles(interaction) {
   }
 }
 
+// Configurazione solo dalla dashboard web: nessun accesso in scrittura al DB da qui.
+function dashboardMessaggio(guildId, sezione) {
+  const base = (process.env.BASE_URL || '').trim().replace(/\/+$/, '') || 'apri la dashboard del bot';
+  return `La configurazione si fa dalla dashboard: ${base}/app.html#gid=${guildId} — sezione ${sezione}`;
+}
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('autorole')
@@ -86,73 +92,9 @@ module.exports = {
         return interaction.reply({ embeds: [statoEmbed(interaction.guild, cfg)], flags: MessageFlags.Ephemeral }).catch(() => null);
       }
 
-      if (sub === 'attiva') {
-        const stato = interaction.options.getBoolean('stato');
-        const cfg = setConfig(guildId, { enabled: stato });
-        return interaction.reply({
-          content: `🎭 Autorole **${stato ? 'attivato 🟢' : 'disattivato 🔴'}**.`,
-          embeds: [statoEmbed(interaction.guild, cfg)],
-          flags: MessageFlags.Ephemeral,
-        }).catch(() => null);
-      }
-
-      if (sub === 'aggiungi') {
-        const ruolo = interaction.options.getRole('ruolo');
-        if (!ruolo) {
-          return interaction.reply({ embeds: [errorEmbed('Ruolo non valido.')], flags: MessageFlags.Ephemeral }).catch(() => null);
-        }
-        if (ruolo.id === interaction.guild.id) {
-          return interaction.reply({ embeds: [errorEmbed('Non puoi usare il ruolo @everyone come autorole.')], flags: MessageFlags.Ephemeral }).catch(() => null);
-        }
-        if (ruolo.managed) {
-          return interaction.reply({ embeds: [errorEmbed('Questo ruolo è gestito da un’integrazione e non può essere assegnato automaticamente.')], flags: MessageFlags.Ephemeral }).catch(() => null);
-        }
-        if (!ruolo.editable) {
-          return interaction.reply({ embeds: [errorEmbed('Non posso assegnare questo ruolo: è sopra il mio ruolo più alto o mi mancano i permessi. Sposta il mio ruolo più in alto.')], flags: MessageFlags.Ephemeral }).catch(() => null);
-        }
-        // FIX: interaction.member può essere null (cache/partial) → il vecchio codice lanciava su me.roles.highest.
-        const me = interaction.member;
-        const myHighest = me?.roles?.highest;
-        const isOwner = interaction.guild.ownerId === interaction.user.id;
-        let isAdmin = false;
-        try {
-          isAdmin = Boolean(me?.permissions?.has(PermissionFlagsBits.Administrator));
-        } catch {
-          isAdmin = false;
-        }
-        if (!isOwner && !isAdmin) {
-          if (!myHighest) {
-            return interaction.reply({ embeds: [errorEmbed('Impossibile verificare la gerarchia ruoli: riprova tra poco.')], flags: MessageFlags.Ephemeral }).catch(() => null);
-          }
-          if (ruolo.position >= myHighest.position) {
-            return interaction.reply({ embeds: [errorEmbed('Non puoi impostare come autorole un ruolo pari o superiore al tuo.')], flags: MessageFlags.Ephemeral }).catch(() => null);
-          }
-        }
-        const { added, config } = addRole(guildId, ruolo.id);
-        if (!added) {
-          return interaction.reply({ content: `⚠️ ${ruolo} è già tra i ruoli automatici.`, embeds: [statoEmbed(interaction.guild, config)], flags: MessageFlags.Ephemeral }).catch(() => null);
-        }
-        return interaction.reply({
-          content: `✅ ${ruolo} verrà assegnato ai nuovi membri.`,
-          embeds: [statoEmbed(interaction.guild, config)],
-          flags: MessageFlags.Ephemeral,
-        }).catch(() => null);
-      }
-
-      if (sub === 'rimuovi') {
-        const ruolo = interaction.options.getRole('ruolo');
-        if (!ruolo) {
-          return interaction.reply({ embeds: [errorEmbed('Ruolo non valido.')], flags: MessageFlags.Ephemeral }).catch(() => null);
-        }
-        const { removed, config } = removeRole(guildId, ruolo.id);
-        if (!removed) {
-          return interaction.reply({ content: `⚠️ ${ruolo} non è tra i ruoli automatici.`, embeds: [statoEmbed(interaction.guild, config)], flags: MessageFlags.Ephemeral }).catch(() => null);
-        }
-        return interaction.reply({
-          content: `✅ ${ruolo} rimosso dai ruoli automatici.`,
-          embeds: [statoEmbed(interaction.guild, config)],
-          flags: MessageFlags.Ephemeral,
-        }).catch(() => null);
+      // Configurazione (attiva/aggiungi/rimuovi) solo dalla dashboard web.
+      if (sub === 'attiva' || sub === 'aggiungi' || sub === 'rimuovi') {
+        return interaction.reply({ content: dashboardMessaggio(guildId, 'Autorole'), flags: MessageFlags.Ephemeral }).catch(() => null);
       }
       return null;
     } catch (e) {

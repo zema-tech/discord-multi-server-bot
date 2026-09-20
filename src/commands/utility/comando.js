@@ -1,26 +1,14 @@
 const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, EmbedBuilder } = require('discord.js');
 const {
   list,
-  get,
-  create,
-  update,
-  remove,
-  validateName,
-  resolveVariables,
   MAX_COMMANDS,
   MAX_RESPONSE,
 } = require('../../database/customCommands');
 
-// Contesto per l'anteprima: variabili risolte sull'utente che esegue /comando.
-function previewContext(interaction) {
-  return {
-    userMention: `${interaction.user}`,
-    username: interaction.user.username,
-    serverName: interaction.guild?.name || 'questo server',
-    count: get(interaction.guildId, interaction.options.getString('nome', false) || '')?.uses || 0,
-    channelRef: interaction.channelId ? `<#${interaction.channelId}>` : '',
-    dateStr: new Date().toLocaleDateString('it-IT'),
-  };
+// Configurazione solo dalla dashboard web: nessun accesso in scrittura al DB da qui.
+function dashboardMessaggio(guildId, sezione) {
+  const base = (process.env.BASE_URL || '').trim().replace(/\/+$/, '') || 'apri la dashboard del bot';
+  return `La configurazione si fa dalla dashboard: ${base}/app.html#gid=${guildId} — sezione ${sezione}`;
 }
 
 module.exports = {
@@ -72,43 +60,10 @@ module.exports = {
       const sub = interaction.options.getSubcommand();
       const guildId = interaction.guildId;
 
-      if (sub === 'crea') {
-        const nome = interaction.options.getString('nome', true);
-        const risposta = interaction.options.getString('risposta', true);
-        const res = create(guildId, nome, risposta, interaction.user.id);
-        if (!res.ok) {
-          return interaction.reply({ content: `❌ ${res.error}`, flags: MessageFlags.Ephemeral });
-        }
-        const anteprima = resolveVariables(risposta, previewContext(interaction));
+      // Configurazione (crea/modifica/elimina) solo dalla dashboard web.
+      if (sub === 'crea' || sub === 'modifica' || sub === 'elimina') {
         return interaction.reply({
-          content: `✅ Comando \`!${res.name}\` creato.\n👁️ **Anteprima:**\n${anteprima.slice(0, 1500)}`,
-          flags: MessageFlags.Ephemeral,
-        });
-      }
-
-      if (sub === 'modifica') {
-        const nome = interaction.options.getString('nome', true);
-        const risposta = interaction.options.getString('risposta', true);
-        const res = update(guildId, nome, risposta);
-        if (!res.ok) {
-          return interaction.reply({ content: `❌ ${res.error}`, flags: MessageFlags.Ephemeral });
-        }
-        const anteprima = resolveVariables(risposta, previewContext(interaction));
-        return interaction.reply({
-          content: `✅ Comando \`!${res.name}\` aggiornato.\n👁️ **Anteprima:**\n${anteprima.slice(0, 1500)}`,
-          flags: MessageFlags.Ephemeral,
-        });
-      }
-
-      if (sub === 'elimina') {
-        const nome = interaction.options.getString('nome', true);
-        const v = validateName(nome);
-        if (!v.ok) {
-          return interaction.reply({ content: `❌ ${v.error}`, flags: MessageFlags.Ephemeral });
-        }
-        const deleted = remove(guildId, v.value);
-        return interaction.reply({
-          content: deleted ? `✅ Comando \`!${v.value}\` eliminato.` : `❌ Nessun comando \`!${v.value}\`.`,
+          content: dashboardMessaggio(guildId, 'Comandi custom (!nome)'),
           flags: MessageFlags.Ephemeral,
         });
       }

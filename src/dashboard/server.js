@@ -13,9 +13,13 @@ const fs = require('fs');
 // ---- Hardening dashboard (zero dipendenze, require-safe senza express) ----
 
 const CSP_VALUE = "default-src 'self'; img-src 'self' data: https:; " +
-  "font-src https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'";
-// public/index.html usa <script> inline + server.js fallback usa style="" inline:
+  "font-src https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline'";
+// public/index.html + public/app.html usano <script> inline / defer + Google Fonts:
 // per questo style/script 'unsafe-inline' è necessario (verificato su public/*).
+// style-src include fonts.googleapis.com (foglio di stile Inter), font-src https:
+// copre i file font su fonts.gstatic.com. SVG inline via DOM (innerHTML statico
+// + createElementNS) e addEventListener non richiedono eccezioni: nessun inline
+// event handler nel frontend.
 
 function securityHeadersMiddleware(req, res, next) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -57,6 +61,9 @@ function createApiRateLimiter({ windowMs = RATE_WINDOW_MS, max = RATE_MAX } = {}
     if (!e || e.resetTime <= now) { e = { count: 0, resetTime: now + windowMs }; hits.set(ip, e); }
     e.count += 1;
     if (e.count > max) {
+      try {
+        res.setHeader('Retry-After', String(Math.max(1, Math.ceil((e.resetTime - now) / 1000))));
+      } catch { /* header best-effort */ }
       return res.status(429).json({ errore: 'Troppe richieste: riprova tra qualche minuto.' });
     }
     return next();
@@ -167,6 +174,10 @@ function startDashboard(client) {
     }
     if (res.headersSent) return next(err);
     const status = err && Number.isFinite(err.status) ? err.status : 500;
+    // body-parser: JSON malformato (400) o body oltre il limite (413) sono errori
+    // client, non "interni": messaggio specifico invece del generico 500.
+    if (status === 400) return res.status(400).json({ errore: 'Richiesta non valida: JSON malformato.' });
+    if (status === 413) return res.status(413).json({ errore: 'Richiesta troppo grande.' });
     return res.status(status).json({ errore: 'Errore interno, riprova.' });
   });
 

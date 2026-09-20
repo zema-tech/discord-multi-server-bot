@@ -27,7 +27,7 @@
     tickets: "ticket", ticketsPlus: "ticket", tempvoice: "mic",
     ai: "cpu", aiPlus: "cpu", starboard: "star",
     confessioni: "eye", autoresponder: "message", commands: "terminal",
-    reactionRoles: "check", lockdown: "lock"
+    reactionRoles: "check", lockdown: "lock", shop: "cart"
   };
 
   var ICONS = {
@@ -53,7 +53,8 @@
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg>',
     info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="8" r="1.2" fill="currentColor"/></svg>',
     server: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><circle cx="7" cy="7.5" r="1" fill="currentColor"/><circle cx="7" cy="16.5" r="1" fill="currentColor"/></svg>',
-    clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>'
+    clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>',
+    cart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2l2.4 11h10.2L21 8H7"/><circle cx="9.5" cy="20" r="1.4"/><circle cx="16.5" cy="20" r="1.4"/></svg>'
   };
 
   var state = {
@@ -63,7 +64,7 @@
     search: "",
     meta: { channels: [], roles: [] },
     modulesCache: {},
-    listsCache: { autoresponder: [], customCommands: [], levelRewards: [] },
+    listsCache: { autoresponder: [], customCommands: [], levelRewards: [], shop: [] },
     schema: [],
     activeTab: "panoramica",
     activeModule: null,
@@ -311,7 +312,7 @@
   }
 
   function clearBusy() {
-    ["guild-list", "stats", "module-detail"].forEach(function (id) {
+    ["guild-list", "stats", "modules", "module-detail"].forEach(function (id) {
       var el = $(id);
       if (el) el.setAttribute("aria-busy", "false");
     });
@@ -412,9 +413,12 @@
       var t = ev.target;
       var tag = t && t.tagName ? String(t.tagName).toLowerCase() : "";
       if (tag === "input" || tag === "textarea" || tag === "select" || (t && t.isContentEditable)) return;
+      var cb = $("confirm-backdrop");
+      if (cb && !cb.hidden) return;
       ev.preventDefault();
       if (isMobileNav() && !document.body.classList.contains("nav-open")) openNav();
-      var target = state.gid && state.activeTab === "moduli" ? $("module-search") : $("guild-search");
+      var inModules = state.gid && state.activeTab === "moduli" && !$("guild-detail").hidden;
+      var target = inModules ? $("module-search") : $("guild-search");
       if (target) target.focus();
     });
   }
@@ -518,7 +522,7 @@
       return;
     }
     items.forEach(function (g) {
-      if (!g.botPresent && !(g.canManage && g.inviteUrl)) return;
+      if (!g.botPresent && !g.canManage) return;
       var li = document.createElement("li");
       var row = document.createElement("div");
       row.className = "guild-row" + (g.id === state.gid ? " is-active" : "");
@@ -561,14 +565,22 @@
         sub2.textContent = "Bot non installato";
         txt2.appendChild(sub2);
         row.appendChild(txt2);
-        var add = document.createElement("a");
-        add.className = "btn btn-primary btn-sm";
-        add.href = g.inviteUrl;
-        add.target = "_blank";
-        add.rel = "noopener";
-        add.textContent = "Installa";
-        add.setAttribute("aria-label", "Installa il bot su " + (g.name || g.id));
-        row.appendChild(add);
+        if (g.inviteUrl) {
+          var add = document.createElement("a");
+          add.className = "btn btn-primary btn-sm";
+          add.href = g.inviteUrl;
+          add.target = "_blank";
+          add.rel = "noopener";
+          add.textContent = "Installa";
+          add.setAttribute("aria-label", "Installa il bot su " + (g.name || g.id));
+          row.appendChild(add);
+        } else {
+          var pill2 = document.createElement("span");
+          pill2.className = "pill";
+          pill2.textContent = "Non collegato";
+          pill2.title = "Imposta CLIENT_ID nel server per generare il link di invito";
+          row.appendChild(pill2);
+        }
       }
       li.appendChild(row);
       list.appendChild(li);
@@ -864,6 +876,7 @@
       renderLists(state.listsCache);
       renderMatrix(detail && detail.perms);
       buildRewardRoles(state.meta.roles);
+      buildShopRoles();
       clearBusy();
       setStatus("");
     }).catch(function (err) {
@@ -885,7 +898,8 @@
     return {
       autoresponder: (lists && Array.isArray(lists.autoresponder)) ? lists.autoresponder : [],
       customCommands: (lists && Array.isArray(lists.customCommands)) ? lists.customCommands : [],
-      levelRewards: (lists && Array.isArray(lists.levelRewards)) ? lists.levelRewards : []
+      levelRewards: (lists && Array.isArray(lists.levelRewards)) ? lists.levelRewards : [],
+      shop: (lists && Array.isArray(lists.shop)) ? lists.shop : []
     };
   }
 
@@ -1052,6 +1066,7 @@
     clear(wrap);
     var tip = document.createElement("div");
     tip.className = "chart-tip";
+    tip.id = "chart-tip";
     tip.hidden = true;
     wrap.appendChild(tip);
     var W = 640, H = 240, PL = 44, PR = 44, PT = 14, PB = 28;
@@ -1106,6 +1121,12 @@
     svg.appendChild(elNS("path", { d: chartPath(pts), class: "line-msg" }));
     svg.appendChild(elNS("path", { d: chartPath(pj), class: "line-join" }));
     svg.appendChild(elNS("path", { d: chartPath(pl), class: "line-leave" }));
+    if (trends.length === 1) {
+      var single = [[pts[0], "dot-msg"], [pj[0], "dot-join"], [pl[0], "dot-leave"]];
+      single.forEach(function (pair) {
+        svg.appendChild(elNS("circle", { cx: pair[0][0], cy: pair[0][1], r: 4, class: pair[1] }));
+      });
+    }
     for (i = 0; i < trends.length; i += 5) {
       var txl = elNS("text", { x: X(i), y: H - 8, "text-anchor": "middle", class: "axis" });
       txl.textContent = shortDay(trends[i].date);
@@ -1120,8 +1141,10 @@
     });
     var hit = elNS("rect", { x: PL, y: PT, width: iw, height: ih, class: "hit" });
     svg.appendChild(hit);
+    var kbIdx = trends.length - 1;
     function showTip(idx, clientX, clientY) {
       idx = Math.max(0, Math.min(trends.length - 1, idx));
+      kbIdx = idx;
       var d = trends[idx];
       cursor.setAttribute("x1", X(idx));
       cursor.setAttribute("x2", X(idx));
@@ -1156,7 +1179,8 @@
       var wr = wrap.getBoundingClientRect();
       var lx = (clientX !== undefined ? clientX - wr.left : (X(idx) / W) * wr.width) + 12;
       var ly = (clientY !== undefined ? clientY - wr.top : 20) - 10;
-      tip.style.left = Math.min(Math.max(lx, 4), wr.width - 140) + "px";
+      var maxL = Math.max(4, wr.width - 140);
+      tip.style.left = Math.min(Math.max(lx, 4), maxL) + "px";
       tip.style.top = Math.max(ly, 0) + "px";
     }
     function hideTip() {
@@ -1174,7 +1198,6 @@
     hit.addEventListener("mouseleave", hideTip);
     hit.addEventListener("click", function (ev) { showTip(idxFromEvent(ev), ev.clientX, ev.clientY); });
     svg.setAttribute("tabindex", "0");
-    var kbIdx = trends.length - 1;
     svg.addEventListener("keydown", function (ev) {
       if (ev.key === "ArrowLeft" || ev.key === "ArrowRight") {
         ev.preventDefault();
@@ -1396,6 +1419,15 @@
     input.addEventListener("input", update);
     update();
     return counter;
+  }
+
+  function pokeCounter(input) {
+    try {
+      var ev;
+      if (typeof Event === "function") ev = new Event("input", { bubbles: true });
+      else { ev = document.createEvent("Event"); ev.initEvent("input", true, false); }
+      input.dispatchEvent(ev);
+    } catch (e) { /* contatore non critico */ }
   }
 
   function renderActiveModule() {
@@ -1666,19 +1698,72 @@
     $("dirty-save").textContent = saving ? "Salvataggio…" : "Salva tutto";
   }
 
+  function validatePendingValues(modName, values) {
+    var spec = null;
+    state.schema.forEach(function (m) { if (m.module === modName) spec = m; });
+    var fields = spec ? (spec.fields || []) : [];
+    for (var i = 0; i < fields.length; i++) {
+      var f = fields[i];
+      var val = values ? values[f.key] : undefined;
+      if (val === undefined) val = defaultForType(f.type);
+      var label = f.label || f.key;
+      if (f.type === "number") {
+        if (val === null || typeof val !== "number" || !isFinite(val)) {
+          return { key: f.key, msg: label + ": inserisci un numero valido." };
+        }
+        var range = NUMBER_RANGES[f.key];
+        if (range && (val < range[0] || val > range[1])) {
+          return { key: f.key, msg: label + ": deve stare tra " + range[0] + " e " + range[1] + "." };
+        }
+      } else if (f.type === "text") {
+        var limit = TEXT_LIMITS[f.key] || DEFAULT_TEXT_MAX;
+        if (String(val === null || val === undefined ? "" : val).length > limit) {
+          return { key: f.key, msg: label + ": supera il limite di " + limit + " caratteri." };
+        }
+      } else if (f.type === "channel" || f.type === "role") {
+        if (val === "") {
+          return { key: f.key, msg: label + ": scegli un valore oppure Nessuno." };
+        }
+        if (val !== null && !/^\d{10,25}$/.test(String(val))) {
+          return { key: f.key, msg: label + ": valore non valido." };
+        }
+      } else if (f.type === "emoji") {
+        if (!String(val === null || val === undefined ? "" : val).trim()) {
+          return { key: f.key, msg: label + ": inserisci un emoji." };
+        }
+      }
+    }
+    return null;
+  }
+
   function saveAllDirty() {
     var mods = Object.keys(state.dirtyModules);
     var cmds = Object.keys(state.dirtyPerms);
     if (mods.length === 0 && cmds.length === 0) return;
+    if (state.activeModule) {
+      var activeForm = formOf(state.activeModule);
+      if (activeForm) {
+        state.pending[state.activeModule] = readValues(activeForm);
+        syncDirty(state.activeModule);
+        mods = Object.keys(state.dirtyModules);
+      }
+    }
     for (var i = 0; i < mods.length; i++) {
-      focusModule(mods[i]);
-      var form = formOf(mods[i]);
-      if (!form) continue;
-      var bad = validateModule(mods[i], form);
-      if (bad) {
-        setFieldError(bad.ctl, bad.msg);
-        bad.ctl.focus();
-        toast(bad.msg, "err");
+      var body0 = valuesInOrder(mods[i], state.pending[mods[i]]);
+      var bad0 = validatePendingValues(mods[i], body0);
+      if (bad0) {
+        focusModule(mods[i]);
+        var form = formOf(mods[i]);
+        if (form) {
+          var bad = validateModule(mods[i], form);
+          if (bad) {
+            setFieldError(bad.ctl, bad.msg);
+            bad.ctl.focus();
+            toast(bad.msg, "err");
+            return;
+          }
+        }
+        toast(bad0.msg, "err");
         return;
       }
     }
@@ -1687,6 +1772,13 @@
       var base = state.permsBaseline[c] || [];
       return draft.length === 0 && base.length > 0;
     });
+    for (var k = 0; k < cmds.length; k++) {
+      if ((state.permsDraft[cmds[k]] || []).length > 5) {
+        switchTab("permessi");
+        toast("Troppi ruoli per " + cmds[k] + ": massimo 5 per comando.", "err");
+        return;
+      }
+    }
     var chain = Promise.resolve();
     if (resetCmds.length > 0) {
       chain = chain.then(function () {
@@ -1751,6 +1843,7 @@
     renderAR(lists.autoresponder);
     renderCC(lists.customCommands);
     renderRW(lists.levelRewards);
+    renderShop(lists.shop);
   }
 
   function deleteBtn(label, onClick) {
@@ -1899,14 +1992,57 @@
     });
   }
 
-  function buildRewardRoles(roles) {
-    var sel = $("rw-role");
+  function renderShop(arr) {
+    var ul = $("sh-list");
+    clear(ul);
+    if (!arr || arr.length === 0) {
+      var li = document.createElement("li");
+      li.className = "muted";
+      li.textContent = "Negozio vuoto: metti in vendita il primo ruolo qui sotto.";
+      ul.appendChild(li);
+      return;
+    }
+    arr.forEach(function (it) {
+      var li2 = document.createElement("li");
+      li2.className = "itemrow";
+      var txt = document.createElement("span");
+      txt.textContent = roleName(it.roleId) + " → " + fmtNum(it.price) + " monete";
+      li2.appendChild(txt);
+      li2.appendChild(deleteBtn("Rimuovi dal negozio " + roleName(it.roleId), function (ev) {
+        var btn = ev.currentTarget;
+        openConfirm("Rimuovi dal negozio", "Rimuovere " + roleName(it.roleId) + " dal negozio?").then(function (ok) {
+          if (!ok) return;
+          btn.disabled = true;
+          var modSh = "shop";
+          putModule(modSh, { action: "remove", roleId: it.roleId })
+            .then(function () { return refreshShop(); })
+            .then(function () { toast("Oggetto rimosso.", "ok"); })
+            .catch(function (err) {
+              if (err && err.message === "unauthorized") return;
+              toast("Errore: " + err.message, "err");
+            })
+            .then(function () { btn.disabled = false; });
+        });
+      }));
+      ul.appendChild(li2);
+    });
+  }
+
+  function refreshShop() {
+    return getJSON("/api/guilds/" + encodeURIComponent(state.gid)).then(function (detail) {
+      state.listsCache.shop = (detail && detail.lists && detail.lists.shop) || [];
+      renderShop(state.listsCache.shop);
+    });
+  }
+
+  function fillRoleSelect(selId, emptyLabel) {
+    var sel = $(selId);
     clear(sel);
-    var usable = (roles || []).filter(function (r) { return !r.managed; });
+    var usable = (state.meta.roles || []).filter(function (r) { return !r.managed; });
     if (usable.length === 0) {
       var o = document.createElement("option");
       o.value = "";
-      o.textContent = "Nessun ruolo disponibile";
+      o.textContent = emptyLabel || "Nessun ruolo disponibile";
       sel.appendChild(o);
       return;
     }
@@ -1916,6 +2052,15 @@
       opt.textContent = r.name;
       sel.appendChild(opt);
     });
+  }
+
+  function buildRewardRoles(roles) {
+    fillRoleSelect("rw-role");
+    void roles;
+  }
+
+  function buildShopRoles() {
+    fillRoleSelect("sh-role");
   }
 
   function initListForms() {
@@ -1938,6 +2083,8 @@
           renderAR(state.listsCache.autoresponder);
           $("ar-match").value = "";
           $("ar-response").value = "";
+          pokeCounter($("ar-match"));
+          pokeCounter($("ar-response"));
           toast("Risposta aggiunta.", "ok");
         })
         .catch(function (err) {
@@ -1963,6 +2110,8 @@
             syncMatrixCommands();
             $("cc-name").value = "";
           $("cc-response").value = "";
+          pokeCounter($("cc-name"));
+          pokeCounter($("cc-response"));
           toast("Comando !" + name + " salvato.", "ok");
         })
         .catch(function (err) {
@@ -1987,6 +2136,28 @@
           renderRW(state.listsCache.levelRewards);
           $("rw-level").value = "";
           toast("Ricompensa salvata.", "ok");
+        })
+        .catch(function (err) {
+          if (err && err.message === "unauthorized") return;
+          toast("Errore: " + err.message, "err");
+        })
+        .then(function () { setSaving(btn, false); });
+    });
+    $("sh-form").addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      if (!state.gid) { toast("Seleziona prima un server.", "err"); return; }
+      var roleId = $("sh-role").value;
+      var price = Math.floor(Number($("sh-price").value));
+      if (!roleId) { toast("Seleziona un ruolo.", "err"); return; }
+      if (!Number.isFinite(price) || price < 1 || price > 10000000) { toast("Prezzo non valido (1-10.000.000).", "err"); return; }
+      var btn = ev.target.querySelector('button[type="submit"]');
+      setSaving(btn, true);
+      var modShop = "shop";
+      putModule(modShop, { action: "set", roleId: roleId, price: price })
+        .then(function () { return refreshShop(); })
+        .then(function () {
+          $("sh-price").value = "";
+          toast("Oggetto in vendita.", "ok");
         })
         .catch(function (err) {
           if (err && err.message === "unauthorized") return;
@@ -2038,9 +2209,10 @@
       }
     });
     Object.keys(state.permsDraft).forEach(function (cmd) {
-      if (cmds.indexOf(cmd) === -1 && !state.dirtyPerms[cmd]) {
+      if (cmds.indexOf(cmd) === -1) {
         delete state.permsDraft[cmd];
         delete state.permsBaseline[cmd];
+        delete state.dirtyPerms[cmd];
         changed = true;
       }
     });
@@ -2084,6 +2256,9 @@
       cmds.forEach(function (cmd) {
         state.permsDraft[cmd] = (state.permsBaseline[cmd] || []).slice();
       });
+      Object.keys(state.permsBaseline).forEach(function (cmd) {
+        if (cmds.indexOf(cmd) === -1) delete state.permsBaseline[cmd];
+      });
       state.dirtyPerms = {};
     }
     var hr = document.createElement("tr");
@@ -2109,6 +2284,8 @@
     if (roles.length === 0) {
       var er = document.createElement("tr");
       var ed = document.createElement("td");
+      ed.colSpan = 2;
+      ed.className = "muted";
       ed.textContent = "Nessun ruolo disponibile in questo server.";
       er.appendChild(ed);
       body.appendChild(er);
@@ -2229,11 +2406,20 @@
   }
 
   /* ---------- boot ---------- */
+  function initHashLink() {
+    window.addEventListener("hashchange", function () {
+      var gid = readHashGid();
+      if (!gid || gid === state.gid || state.guilds.length === 0) return;
+      var found = state.guilds.filter(function (g) { return g && g.id === gid && g.botPresent; })[0];
+      if (found && dirtyCount() === 0) selectGuild(found.id, found.name);
+    });
+  }
   document.addEventListener("DOMContentLoaded", function () {
     initConfirm();
     initNav();
     initFilters();
     initShortcut();
+    initHashLink();
     initDirtyBar();
     initListForms();
     buildTabs();

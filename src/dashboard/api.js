@@ -264,6 +264,38 @@ function createApiRouter(client) {
     }
   }
 
+  // Cache token -> user id con TTL, popolata dal GET /me (che il frontend
+  // chiama a ogni load): l'audit log usa l'id reale senza nuove chiamate
+  // Discord nel percorso caldo. Fallback 'oauth-user'.
+  const userIdByToken = new Map();
+  function actorId(t) {
+    try {
+      const e = t && userIdByToken.get(t);
+      if (!e || e.exp <= Date.now()) {
+        if (e) userIdByToken.delete(t);
+        return 'oauth-user';
+      }
+      return e.id;
+    } catch {
+      return 'oauth-user';
+    }
+  }
+
+  // Best-effort: registra una scrittura riuscita, mai 500 per colpa del log.
+  function auditWrite(req, gid, moduleLabel, keysObj) {
+    try {
+      const audit = safeRequire('./audit');
+      if (!audit || typeof audit.logChange !== 'function') return;
+      audit.logChange({
+        gid,
+        actor: actorId(req.discordToken),
+        module: moduleLabel,
+        keys: keysObj,
+        ip: req.ip || (req.socket && req.socket.remoteAddress),
+      });
+    } catch { /* audit mai bloccante */ }
+  }
+
   /** Carica le guild dell'utente + verifica (canManage E botPresent), altrimenti 403. */
   async function loadAccess(req, res, next) {
     try {
@@ -279,6 +311,10 @@ function createApiRouter(client) {
         }
         if (e && e.status === 403) {
           return res.status(401).json({ errore: 'Scope Discord mancante (guilds): riaccedi effettuando di nuovo il login.', relogin: true });
+        }
+        if (isDiscordUnavailable(e)) {
+          logDashboardError('loadAccess', e);
+          return res.status(503).json({ errore: 'Discord non raggiungibile, riprova tra poco.' });
         }
         throw e;
       }
@@ -302,28 +338,66 @@ function createApiRouter(client) {
   async function resolveChannel(guild, id) {
     if (id === null) return null;
     if (!isSnowflake(id)) return { invalid: true };
-    let ch = guild.channels.cache.get(id);
-    if (!ch) ch = await guild.channels.fetch(id).catch(() => null);
-    if (!ch) return { missing: true };
-    return { channel: ch };
+    try {
+      const cache = guild && guild.channels && guild.channels.cache ? guild.channels.cache : null;
+      let ch = cache ? cache.get(id) : null;
+      if (!ch && guild && guild.channels && typeof guild.channels.fetch === 'function') {
+        ch = await guild.channels.fetch(id).catch(() => null);
+      }
+      if (!ch) return { missing: true };
+      return { channel: ch };
+    } catch {
+      // Cache parziale / guild incompleta: mai 500, tratta come non trovato.
+      return { missing: true };
+    }
   }
 
   function resolveRoles(guild, ids) {
-    const out = [];
-    for (const id of ids) {
-      if (!isSnowflake(id)) return { invalid: id };
-      const role = guild.roles.cache.get(id);
-      if (!role) return { missing: id };
-      if (role.managed) return { managed: id };
-      out.push(id);
+    try {
+      if (!Array.isArray(ids)) return { invalid: true };
+      const cache = guild && guild.roles && guild.roles.cache ? guild.roles.cache : null;
+      const out = [];
+      for (const id of ids) {
+        if (!isSnowflake(id)) return { invalid: id };
+        const role = cache ? cache.get(id) : null;
+        if (!role) return { missing: id };
+        if (role.managed) return { managed: id };
+        if (!out.includes(id)) out.push(id);
+      }
+      return { roles: out };
+    } catch {
+      return { missing: true };
     }
-    return { roles: out };
+  }
+
+  /** Dimensioni cache Discord difensive: mai lanciare su guild parziali. */
+  function cacheSize(map) {
+    try {
+      return (map && typeof map.size === 'number') ? map.size : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  /**
+   * true se l'errore Discord è un problema di rete/lato Discord (timeout dopo
+   * il retry, 429, 5xx): il client deve ricevere 503, non un 500 generico.
+   */
+  function isDiscordUnavailable(e) {
+    if (!e || e.status === undefined || e.status === null) return true;
+    if (!Number.isFinite(e.status)) return true;
+    return e.status === 429 || e.status >= 500;
   }
 
   // ---- GET /api/me -------------------------------------------------------
   router.get('/me', async (req, res) => {
     try {
       const me = await apiWithRetry(req.discordToken, '/users/@me');
+      try {
+        if (me && me.id && req.discordToken) {
+          userIdByToken.set(req.discordToken, { id: me.id, exp: Date.now() + 600000 });
+        }
+      } catch { /* cache best-effort */ }
       return res.json({
         id: me.id,
         username: me.username,
@@ -338,6 +412,10 @@ function createApiRouter(client) {
       }
       if (e && e.status === 403) {
         return res.status(401).json({ errore: 'Scope Discord mancante: riaccedi effettuando di nuovo il login.', relogin: true });
+      }
+      if (isDiscordUnavailable(e)) {
+        logDashboardError('/api/me', e);
+        return res.status(503).json({ errore: 'Discord non raggiungibile, riprova tra poco.' });
       }
       logDashboardError('/api/me', e);
       return res.status(500).json({ errore: 'Impossibile leggere il profilo Discord.' });
@@ -396,6 +474,10 @@ function createApiRouter(client) {
       }
       if (e && e.status === 403) {
         return res.status(401).json({ errore: 'Scope Discord mancante (guilds): riaccedi effettuando di nuovo il login.', relogin: true });
+      }
+      if (isDiscordUnavailable(e)) {
+        logDashboardError('/api/guilds', e);
+        return res.status(503).json({ errore: 'Discord non raggiungibile, riprova tra poco.' });
       }
       logDashboardError('/api/guilds', e);
       return res.status(500).json({ errore: 'Impossibile leggere le guild Discord.' });
@@ -465,8 +547,8 @@ function createApiRouter(client) {
       try {
         counts = {
           members: guild.memberCount ?? null,
-          channels: guild.channels.cache.size,
-          roles: Math.max(guild.roles.cache.size - 1, 0),
+          channels: cacheSize(guild.channels && guild.channels.cache),
+          roles: Math.max(cacheSize(guild.roles && guild.roles.cache) - 1, 0),
         };
       } catch {
         counts = {};
@@ -625,8 +707,8 @@ function createApiRouter(client) {
         },
         counts: {
           members: guild.memberCount ?? null,
-          channels: guild.channels.cache.size,
-          roles: Math.max(guild.roles.cache.size - 1, 0),
+          channels: cacheSize(guild.channels && guild.channels.cache),
+          roles: Math.max(cacheSize(guild.roles && guild.roles.cache) - 1, 0),
           commands: (client && typeof client.commands?.size === 'number') ? client.commands.size : 0,
         },
         modules,
@@ -787,6 +869,15 @@ function createApiRouter(client) {
     const gid = req.params.gid;
     const mod = req.params.mod;
     const guild = req.access.guild;
+    // Audit best-effort: logga solo le scritture riuscite ({ok:true}).
+    // Vale anche per gli handler delegati (stesso oggetto res).
+    const origJsonMod = res.json.bind(res);
+    res.json = (body) => {
+      try {
+        if (body && body.ok === true) auditWrite(req, gid, mod, req.body);
+      } catch { /* mai rompere la risposta per il log */ }
+      return origJsonMod(body);
+    };
     try {
       // --- Moduli lista (action-based): bypassano MODULE_FIELDS generico ---
       if (mod === 'autoresponder') return handleAutoresponder(gid, req, res);
@@ -955,13 +1046,13 @@ function createApiRouter(client) {
       if (!match || !response) return res.status(400).json({ errore: 'Parola e risposta sono obbligatorie.' });
       const r = autoresponder.addTrigger(gid, { match, response, mode });
       if (!r || !r.ok) return res.status(400).json({ errore: (r && r.error) || 'Creazione trigger fallita.' });
-      return res.json({ ok: true, module: 'autoresponder', trigger: r.trigger, list: autoresponder.listTriggers(gid) });
+      return res.json(sanitizeForJson({ ok: true, module: 'autoresponder', trigger: r.trigger, list: autoresponder.listTriggers(gid) }));
     }
     if (action === 'remove') {
       if (typeof body.id !== 'string' || !body.id) return res.status(400).json({ errore: 'ID trigger mancante.' });
       const ok = autoresponder.removeTrigger(gid, body.id);
       if (!ok) return res.status(404).json({ errore: 'Trigger non trovato.' });
-      return res.json({ ok: true, module: 'autoresponder', list: autoresponder.listTriggers(gid) });
+      return res.json(sanitizeForJson({ ok: true, module: 'autoresponder', list: autoresponder.listTriggers(gid) }));
     }
     return res.status(400).json({ errore: 'Action non valida (add/remove).' });
   }
@@ -979,7 +1070,7 @@ function createApiRouter(client) {
         ? customCommands.create(gid, name, response, null)
         : customCommands.update(gid, name, response);
       if (!r || !r.ok) return res.status(400).json({ errore: (r && r.error) || 'Salvataggio fallito.' });
-      return res.json({ ok: true, module: 'commands', command: r.command || r, list: customCommands.list(gid) });
+      return res.json(sanitizeForJson({ ok: true, module: 'commands', command: r.command || r, list: customCommands.list(gid) }));
     }
     if (action === 'remove') {
       if (typeof body.name !== 'string' || !body.name.trim()) {
@@ -987,7 +1078,7 @@ function createApiRouter(client) {
       }
       const ok = customCommands.delete(gid, body.name.trim().toLowerCase());
       if (!ok) return res.status(404).json({ errore: 'Comando non trovato.' });
-      return res.json({ ok: true, module: 'commands', list: customCommands.list(gid) });
+      return res.json(sanitizeForJson({ ok: true, module: 'commands', list: customCommands.list(gid) }));
     }
     return res.status(400).json({ errore: 'Action non valida (create/update/remove).' });
   }
@@ -1003,13 +1094,18 @@ function createApiRouter(client) {
         return res.status(400).json({ errore: 'Livello non valido (1-100).' });
       }
       if (!isSnowflake(body.roleId)) return res.status(400).json({ errore: 'Ruolo non valido.' });
-      const role = guild.roles.cache.get(body.roleId);
-      if (!role) return res.status(400).json({ errore: 'Ruolo non trovato in questo server.' });
+      const roleCache = guild && guild.roles && guild.roles.cache ? guild.roles.cache : null;
+      const role = roleCache ? roleCache.get(body.roleId) : null;
+      if (!role) return res.status(400).json({ errore: 'Ruolo non trovato in questo server: ricarica la pagina.' });
+      if (role.managed) return res.status(400).json({ errore: 'I ruoli dei bot non possono essere ricompense.' });
+      if (role.id === gid) return res.status(400).json({ errore: 'Il ruolo @everyone non può essere una ricompensa.' });
       try {
         const r = levelRewards.setReward(gid, level, body.roleId);
-        return res.json({ ok: true, module: 'rewards', reward: r, list: levelRewards.listRewards(gid) });
+        return res.json(sanitizeForJson({ ok: true, module: 'rewards', reward: r, list: levelRewards.listRewards(gid) }));
       } catch (e) {
-        return res.status(400).json({ errore: e.message });
+        // Input già validati sopra: ogni throw qui è storage -> 500 generico.
+        logDashboardError('PUT rewards', e);
+        return res.status(500).json({ errore: 'Salvataggio fallito, riprova.' });
       }
     }
     if (action === 'remove') {
@@ -1018,7 +1114,7 @@ function createApiRouter(client) {
         return res.status(400).json({ errore: 'Livello non valido (1-100).' });
       }
       levelRewards.removeReward(gid, level);
-      return res.json({ ok: true, module: 'rewards', list: levelRewards.listRewards(gid) });
+      return res.json(sanitizeForJson({ ok: true, module: 'rewards', list: levelRewards.listRewards(gid) }));
     }
     return res.status(400).json({ errore: 'Action non valida (set/remove).' });
   }
@@ -1026,21 +1122,53 @@ function createApiRouter(client) {
   // ---- PUT /api/guilds/:gid/perms ----------------------------------------
   router.put('/guilds/:gid/perms', loadAccess, (req, res) => {
     const gid = req.params.gid;
+    const guild = req.access.guild;
+    const origJsonPerms = res.json.bind(res);
+    res.json = (body) => {
+      try {
+        if (body && body.ok === true) {
+          const b = req.body && typeof req.body === 'object' ? req.body : {};
+          auditWrite(req, gid, 'perms:' + (b.command || '?'), { roleIds: b.roleIds });
+        }
+      } catch { /* mai rompere la risposta per il log */ }
+      return origJsonPerms(body);
+    };
     try {
       const body = req.body && typeof req.body === 'object' ? req.body : {};
       const { command, roleIds } = body;
-      if (!command || typeof command !== 'string') {
+      if (!command || typeof command !== 'string' || !command.trim()) {
         return res.status(400).json({ errore: 'Campo command mancante o non valido.' });
+      }
+      // Specchio della validazione di src/database/customPerms.js (COMMAND_RE +
+      // nomi che causano prototype pollution): così un comando invalido dà 400
+      // qui invece di far lanciare setCommandRoles (-> 500 generico).
+      const cmdName = command.toLowerCase().trim();
+      if (!/^[\w-]{1,32}$/.test(cmdName) || cmdName === '__proto__' || cmdName === 'constructor' || cmdName === 'prototype') {
+        return res.status(400).json({ errore: 'Nome comando non valido (1-32 caratteri: lettere, numeri, _ o -).' });
       }
       if (!Array.isArray(roleIds) || !roleIds.every((r) => typeof r === 'string')) {
         return res.status(400).json({ errore: 'Campo roleIds mancante: array di stringhe.' });
+      }
+      // Il DB tronca silenziosamente a MAX_ROLES=5: rifiuta prima, con messaggio.
+      if (roleIds.length > 5) {
+        return res.status(400).json({ errore: 'Max 5 ruoli per comando.' });
+      }
+      const roleCache = guild && guild.roles && guild.roles.cache ? guild.roles.cache : null;
+      const cleanRoleIds = [];
+      for (const id of roleIds) {
+        if (!isSnowflake(id)) return res.status(400).json({ errore: 'ID ruolo non valido nei permessi.' });
+        const role = roleCache ? roleCache.get(id) : null;
+        if (!role) return res.status(400).json({ errore: 'Un ruolo selezionato non esiste più: ricarica la pagina.' });
+        if (role.managed) return res.status(400).json({ errore: 'I ruoli dei bot non possono avere permessi custom.' });
+        if (role.id === gid) return res.status(400).json({ errore: 'Il ruolo @everyone non serve: riga vuota = nessun limite.' });
+        if (!cleanRoleIds.includes(id)) cleanRoleIds.push(id);
       }
       const customPerms = safeRequire('../database/customPerms');
       if (!customPerms) {
         return res.status(501).json({ errore: 'Modulo permessi non ancora disponibile.' });
       }
       // roleIds:[] = reset del comando (setCommandRoles lancia su array vuoto -> 500).
-      if (roleIds.length === 0) {
+      if (cleanRoleIds.length === 0) {
         if (typeof customPerms.clearCommandRoles === 'function') customPerms.clearCommandRoles(gid, command);
         else if (typeof customPerms.clear === 'function') customPerms.clear(gid, command);
         else if (typeof customPerms.remove === 'function') customPerms.remove(gid, command);
@@ -1050,16 +1178,16 @@ function createApiRouter(client) {
         } else {
           return res.status(501).json({ errore: 'Modulo permessi senza API di cancellazione.' });
         }
-        return res.json({ ok: true, command, perms: [], cleared: true });
+        return res.json(sanitizeForJson({ ok: true, command, perms: [], cleared: true }));
       }
       let result;
-      if (typeof customPerms.setCommandRoles === 'function') result = customPerms.setCommandRoles(gid, command, roleIds);
-      else if (typeof customPerms.setCommandPerms === 'function') result = customPerms.setCommandPerms(gid, command, roleIds);
-      else if (typeof customPerms.setPerms === 'function') result = customPerms.setPerms(gid, command, roleIds);
-      else if (typeof customPerms.setCommand === 'function') result = customPerms.setCommand(gid, command, roleIds);
-      else if (typeof customPerms.updatePerms === 'function') result = customPerms.updatePerms(gid, command, roleIds);
+      if (typeof customPerms.setCommandRoles === 'function') result = customPerms.setCommandRoles(gid, command, cleanRoleIds);
+      else if (typeof customPerms.setCommandPerms === 'function') result = customPerms.setCommandPerms(gid, command, cleanRoleIds);
+      else if (typeof customPerms.setPerms === 'function') result = customPerms.setPerms(gid, command, cleanRoleIds);
+      else if (typeof customPerms.setCommand === 'function') result = customPerms.setCommand(gid, command, cleanRoleIds);
+      else if (typeof customPerms.updatePerms === 'function') result = customPerms.updatePerms(gid, command, cleanRoleIds);
       else return res.status(501).json({ errore: 'Modulo permessi senza API di scrittura.' });
-      return res.json({ ok: true, command, perms: result });
+      return res.json(sanitizeForJson({ ok: true, command, perms: result }));
     } catch (e) {
       logDashboardError('PUT perms', e);
       return res.status(500).json({ errore: 'Salvataggio permessi fallito, riprova.' });

@@ -9,12 +9,8 @@ const {
   ComponentType,
 } = require('discord.js');
 const {
-  MAX_ROLES,
   getCommandRoles,
-  setCommandRoles,
-  clearCommandRoles,
   getAll,
-  clearAll,
 } = require('../../database/customPerms');
 
 let theme = null;
@@ -123,92 +119,12 @@ module.exports = {
       const sub = interaction.options.getSubcommand();
       const guildId = interaction.guild.id;
 
-      if (sub === 'imposta') {
-        const comando = normComando(interaction.options.getString('comando'));
-        if (!comando) {
-          return interaction.reply({
-            embeds: [errorEmbed('Nome comando non valido: usa 1-32 caratteri (lettere, numeri, `_` o `-`, senza slash).')],
-            flags: MessageFlags.Ephemeral,
-          }).catch(() => null);
-        }
-        if (comando === 'permessi') {
-          return interaction.reply({
-            embeds: [errorEmbed('Non puoi limitare `/permessi`: resta riservato a chi ha **Gestisci Server** (o Amministratore).')],
-            flags: MessageFlags.Ephemeral,
-          }).catch(() => null);
-        }
-        const ruoli = [
-          interaction.options.getRole('ruolo'),
-          interaction.options.getRole('ruolo2'),
-          interaction.options.getRole('ruolo3'),
-          interaction.options.getRole('ruolo4'),
-          interaction.options.getRole('ruolo5'),
-        ].filter(Boolean);
-        if (ruoli.some((r) => r.id === guildId)) {
-          return interaction.reply({ embeds: [errorEmbed('Non puoi usare @everyone: scegli ruoli specifici.')], flags: MessageFlags.Ephemeral }).catch(() => null);
-        }
-        const ids = [...new Set(ruoli.map((r) => r.id))].slice(0, MAX_ROLES);
-        try {
-          setCommandRoles(guildId, comando, ids);
-        } catch (e) {
-          return interaction.reply({ embeds: [errorEmbed(e?.message || 'Errore nel salvataggio.')], flags: MessageFlags.Ephemeral }).catch(() => null);
-        }
-        const embed = withFooter(listEmbed(
-          `🔐 Permessi impostati — \`/${comando}\``,
-          `Da ora solo chi ha almeno uno di questi ruoli può usare \`/${comando}\` (gli **Amministratori** restano sempre esclusi dal blocco).\n\n🎭 Ruoli: ${mentionRoles(ids)}`,
-          theme?.COLORS?.success ?? 0x57f287
-        ), interaction);
-        return interaction.reply({ embeds: [embed] }).catch(() => null);
-      }
-
-      if (sub === 'rimuovi') {
-        const comando = normComando(interaction.options.getString('comando'));
-        if (!comando) {
-          return interaction.reply({
-            embeds: [errorEmbed('Nome comando non valido: usa 1-32 caratteri (lettere, numeri, `_` o `-`, senza slash).')],
-            flags: MessageFlags.Ephemeral,
-          }).catch(() => null);
-        }
-        const attuali = getCommandRoles(guildId, comando);
-        if (attuali.length === 0) {
-          return interaction.reply({
-            embeds: [listEmbed(`🔐 Permessi — \`/${comando}\``, `\`/${comando}\` non ha permessi personalizzati: usa già i permessi Discord standard.`)],
-            flags: MessageFlags.Ephemeral,
-          }).catch(() => null);
-        }
-        const ruolo = interaction.options.getRole('ruolo');
-        if (!ruolo) {
-          clearCommandRoles(guildId, comando);
-          const embed = withFooter(listEmbed(
-            `🗑️ Permessi resettati — \`/${comando}\``,
-            `\`/${comando}\` torna ai permessi Discord standard (nessun ruolo custom richiesto).`,
-            theme?.COLORS?.warn ?? 0xfee75c
-          ), interaction);
-          return interaction.reply({ embeds: [embed] }).catch(() => null);
-        }
-        if (!attuali.includes(ruolo.id)) {
-          return interaction.reply({
-            embeds: [listEmbed(`🔐 Permessi — \`/${comando}\``, `${ruolo} non è tra i ruoli autorizzati per \`/${comando}\`.\n🎭 Ruoli attuali: ${mentionRoles(attuali)}`)],
-            flags: MessageFlags.Ephemeral,
-          }).catch(() => null);
-        }
-        const restanti = attuali.filter((id) => id !== ruolo.id);
-        if (restanti.length === 0) {
-          clearCommandRoles(guildId, comando);
-          return interaction.reply({
-            embeds: [withFooter(listEmbed(`🗑️ Permessi resettati — \`/${comando}\``, `Rimosso l'ultimo ruolo: \`/${comando}\` torna ai permessi Discord standard.`, theme?.COLORS?.warn ?? 0xfee75c), interaction)],
-          }).catch(() => null);
-        }
-        setCommandRoles(guildId, comando, restanti);
-        return interaction.reply({
-          embeds: [
-            withFooter(listEmbed(
-              `✅ Ruolo rimosso — \`/${comando}\``,
-              `Rimosso ${ruolo}.\n\n🎭 Ruoli restanti: ${mentionRoles(restanti)}`,
-              theme?.COLORS?.success ?? 0x57f287
-            ), interaction),
-          ],
-        }).catch(() => null);
+      // Scritture di configurazione (imposta/rimuovi/reset):
+      // si fanno solo dalla dashboard web (sezione Permessi), mai dal comando.
+      if (sub === 'imposta' || sub === 'rimuovi' || sub === 'reset') {
+        const base = (process.env.BASE_URL || '').trim().replace(/\/+$/, '');
+        const url = base ? `${base}/app.html#gid=${guildId}` : 'apri la dashboard del bot';
+        return interaction.reply({ content: `La configurazione si fa dalla dashboard: ${url} — sezione Permessi`, flags: MessageFlags.Ephemeral }).catch(() => null);
       }
 
       if (sub === 'mostra') {
@@ -256,62 +172,12 @@ module.exports = {
         }).catch(() => null);
       }
 
-      // sub === 'reset'
-      const tutti = getAll(guildId);
-      if (Object.keys(tutti).length === 0) {
-        return interaction.reply({ embeds: [listEmbed('🔐 Permessi personalizzati', 'Niente da resettare: nessun permesso personalizzato in questo server.')], flags: MessageFlags.Ephemeral }).catch(() => null);
+      // Qualsiasi altro subcommand non gestito: rimanda alla dashboard.
+      {
+        const base = (process.env.BASE_URL || '').trim().replace(/\/+$/, '');
+        const url = base ? `${base}/app.html#gid=${guildId}` : 'apri la dashboard del bot';
+        return interaction.reply({ content: `La configurazione si fa dalla dashboard: ${url} — sezione Permessi`, flags: MessageFlags.Ephemeral }).catch(() => null);
       }
-      const uid = interaction.user.id;
-      const nonce = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
-      const prefix = `permessi:${uid}:${nonce}`;
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`${prefix}:si`).setLabel('Conferma reset').setStyle(ButtonStyle.Danger).setEmoji('🗑️'),
-        new ButtonBuilder().setCustomId(`${prefix}:no`).setLabel('Annulla').setStyle(ButtonStyle.Secondary).setEmoji('✖️')
-      );
-      const reply = await interaction.reply({
-        embeds: [
-          listEmbed(
-            '⚠️ Reset permessi personalizzati',
-            `Stai per azzerare **${Object.keys(tutti).length}** configurazioni: tutti i comandi torneranno ai permessi Discord standard.\n\nHai **30 secondi** per confermare.`,
-            theme?.COLORS?.error ?? 0xed4245
-          ),
-        ],
-        components: [row],
-        withResponse: true,
-      }).catch(() => null);
-      if (!reply) return null;
-      // FIX: reply.resource.message può mancare (versioni diverse di discord.js) → fallback a fetchReply.
-      const message = reply?.resource?.message ?? await interaction.fetchReply().catch(() => null);
-      if (!message || typeof message.createMessageComponentCollector !== 'function') return null;
-
-      const collector = message.createMessageComponentCollector({
-        componentType: ComponentType.Button,
-        time: 30_000,
-        filter: (i) => i.customId.startsWith(prefix),
-      });
-
-      collector.on('collect', async (i) => {
-        if (i.user.id !== uid) {
-          return i.reply({ content: '❌ Solo chi ha avviato il comando può confermare.', flags: MessageFlags.Ephemeral }).catch(() => null);
-        }
-        if (i.customId === `${prefix}:no`) {
-          collector.stop('annullato');
-          return i.update({ content: '✅ Reset annullato: nessuna modifica.', embeds: [], components: [] }).catch(() => null);
-        }
-        collector.stop('confermato');
-        clearAll(guildId);
-        return i.update({ content: '🗑️ Tutti i permessi personalizzati sono stati azzerati.', embeds: [], components: [] }).catch(() => null);
-      });
-
-      collector.on('end', async (_collected, reason) => {
-        if (reason === 'confermato' || reason === 'annullato') return;
-        const disabled = new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId(`${prefix}:si:fin`).setLabel('Conferma reset').setStyle(ButtonStyle.Danger).setDisabled(true),
-          new ButtonBuilder().setCustomId(`${prefix}:no:fin`).setLabel('Annulla').setStyle(ButtonStyle.Secondary).setDisabled(true)
-        );
-        await interaction.editReply({ content: '⏰ Tempo scaduto: nessuna modifica applicata.', embeds: [], components: [disabled] }).catch(() => {});
-      });
-      return null;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e ?? 'sconosciuto');
       const payload = { embeds: [errorEmbed(`Errore: ${truncate(msg, 1500)}`)], flags: MessageFlags.Ephemeral };

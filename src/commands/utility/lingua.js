@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
-const { t, getLang, setLang } = require('../../utils/i18n');
+const { t, getLang } = require('../../utils/i18n');
 let T;
 try {
   T = require('../../utils/theme');
@@ -49,18 +49,9 @@ module.exports = {
       return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     }
 
-    // imposta
-    const value = interaction.options.getString('lingua');
-    if (value !== 'it' && value !== 'en') {
-      return interaction.reply({ content: T.truncate(t('lingua.invalid', lang, { value }), 4000), flags: MessageFlags.Ephemeral });
-    }
-    setLang(interaction.guildId, value);
-    const embed = new EmbedBuilder()
-      .setColor(T.COLORS.success ?? 0x57f287)
-      .setTitle(T.truncate(t('lingua.title', value), 256))
-      .setDescription(T.truncate(t('lingua.set', value, { label: labelOf(value), lang: value }), 4000))
-      .setTimestamp();
-    try { T.applyFooter(embed, interaction); } catch { /* footer non critico */ }
-    return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+    // imposta: la lingua si cambia solo dalla dashboard (sezione Generale), mai dal comando.
+    const base = (process.env.BASE_URL || '').trim().replace(/\/+$/, '');
+    const url = base ? `${base}/app.html#gid=${interaction.guildId}` : 'apri la dashboard del bot';
+    return interaction.reply({ content: `La configurazione si fa dalla dashboard: ${url} — sezione Generale`, flags: MessageFlags.Ephemeral });
   },
 };

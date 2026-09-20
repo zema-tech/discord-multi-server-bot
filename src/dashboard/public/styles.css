@@ -12,7 +12,7 @@
   --accent-soft: rgba(88, 101, 242, 0.14);
   --text: #f2f3f5;
   --muted: #b5bac1;
-  --muted-dim: #8e94a3;
+  --muted-dim: #a0a6b3;
   --green: #57f287;
   --green-dim: #2f9e5f;
   --red: #ed4245;
@@ -408,7 +408,9 @@ code {
   font-size: 0.88rem;
 }
 .side-search input:focus,
-.mod-search input:focus {
+.mod-search input:focus,
+.side-search input:focus-visible,
+.mod-search input:focus-visible {
   border-color: var(--accent);
   outline: none;
   box-shadow: 0 0 0 3px var(--accent-soft);
@@ -612,7 +614,7 @@ code {
 .chart-wrap { position: relative; }
 svg.chart { width: 100%; height: auto; display: block; }
 svg.chart .grid { stroke: var(--card-border); stroke-width: 1; }
-svg.chart .axis { fill: var(--muted-dim); font-size: 11px; font-family: inherit; }
+svg.chart .axis { fill: var(--muted); font-size: 11px; font-family: inherit; }
 svg.chart .area-msg { fill: var(--accent-soft); }
 svg.chart .line-msg { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; }
 svg.chart .line-join { fill: none; stroke: var(--green); stroke-width: 1.75; }
@@ -635,6 +637,8 @@ svg.chart .chart-empty-sub { fill: var(--muted); font-size: 12px; }
   box-shadow: var(--shadow);
   pointer-events: none;
   min-width: 128px;
+  max-width: min(220px, calc(100% - 8px));
+  overflow-wrap: anywhere;
 }
 .tip-date { font-weight: 700; margin-bottom: 0.25rem; }
 .tip-row { display: flex; align-items: center; gap: 0.4rem; color: var(--muted); }
@@ -781,11 +785,15 @@ svg.chart .chart-empty-sub { fill: var(--muted); font-size: 12px; }
 .field textarea { min-height: 88px; resize: vertical; }
 .field input:focus,
 .field textarea:focus,
-.field select:focus {
+.field select:focus,
+.field input:focus-visible,
+.field textarea:focus-visible,
+.field select:focus-visible {
   border-color: var(--accent);
   outline: none;
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
+.toggle > label { flex: 1; min-width: 0; margin-bottom: 0; }
 .toggle { display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: var(--bg0); border: 1px solid var(--card-border); border-radius: var(--radius-sm); padding: 0.5rem 0.7rem; }
 .toggle input {
   appearance: none;
@@ -831,13 +839,14 @@ svg.chart .chart-empty-sub { fill: var(--muted); font-size: 12px; }
   padding: 0.5rem 0.65rem;
   font-size: 0.85rem;
 }
-.itemrow span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.itemrow span { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .roles-checks {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
   max-height: 230px;
   overflow: auto;
+  scrollbar-width: thin;
   border: 1px solid var(--card-border);
   border-radius: var(--radius-sm);
   padding: 0.7rem;
@@ -850,7 +859,19 @@ svg.chart .chart-empty-sub { fill: var(--muted); font-size: 12px; }
 .textarea-wrap { display: flex; flex-direction: column; }
 
 /* ---------- Matrice permessi ---------- */
-.matrix-scroll { overflow: auto; border: 1px solid var(--card-border); border-radius: var(--radius-sm); max-height: 60vh; }
+.matrix-scroll {
+  overflow: auto;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-sm);
+  max-height: 60vh;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+.matrix-scroll:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 .matrix { border-collapse: collapse; width: 100%; font-size: 0.84rem; min-width: 560px; }
 .matrix th, .matrix td { padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--card-border); text-align: center; }
 .matrix thead th {
@@ -863,6 +884,10 @@ svg.chart .chart-empty-sub { fill: var(--muted); font-size: 12px; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.matrix thead th.m-corner {
+  left: 0;
+  z-index: 3;
 }
 .matrix tbody th {
   position: sticky;
@@ -899,7 +924,8 @@ svg.chart .chart-empty-sub { fill: var(--muted); font-size: 12px; }
   z-index: 250;
   display: flex;
   align-items: center;
-  gap: 0.7rem;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.7rem;
   background: var(--bg2);
   border: 1px solid var(--accent);
   border-radius: 12px;
@@ -910,7 +936,10 @@ svg.chart .chart-empty-sub { fill: var(--muted); font-size: 12px; }
   max-width: min(94vw, 560px);
 }
 .dirty-bar .dirty-dot { width: 9px; height: 9px; }
-.dirty-actions { display: flex; gap: 0.5rem; margin-left: 0.4rem; }
+#dirty-count { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.dirty-actions { display: flex; gap: 0.5rem; margin-left: auto; flex-wrap: wrap; }
+/* Solleva i toast quando la dirty-bar è visibile: evita sovrapposizione su desktop e mobile */
+body:has(#dirty-bar:not([hidden])) .toast-wrap { bottom: 4.8rem; }
 
 /* ---------- Toast ---------- */
 .toast-wrap {
@@ -933,6 +962,7 @@ svg.chart .chart-empty-sub { fill: var(--muted); font-size: 12px; }
   font-size: 0.88rem;
   box-shadow: var(--shadow);
   overflow: hidden;
+  overflow-wrap: anywhere;
   animation: toast-in 0.25s var(--ease);
   cursor: pointer;
 }
@@ -979,6 +1009,8 @@ svg.chart .chart-empty-sub { fill: var(--muted); font-size: 12px; }
 .empty-state strong { display: block; color: var(--text); margin-bottom: 0.3rem; font-size: 0.98rem; }
 .empty-state p { margin: 0 0 0.9rem; }
 .empty-cta { display: flex; gap: 0.6rem; justify-content: center; flex-wrap: wrap; }
+.ov-grid > .empty-state { grid-column: 1 / -1; }
+.tab-panel { scroll-margin-top: 90px; }
 
 /* ---------- Errori di validazione ---------- */
 .field-error { color: #ff8a8d; font-size: 0.83rem; margin: 0.3rem 0 0; font-weight: 600; }
@@ -1010,7 +1042,9 @@ svg.chart .chart-empty-sub { fill: var(--muted); font-size: 12px; }
 
 /* ---------- Drawer mobile ---------- */
 .nav-toggle { display: none; }
+.main-nav-toggle { margin-bottom: 0.8rem; }
 .nav-toggle svg { width: 16px; height: 16px; }
+body.nav-open { overflow: hidden; }
 .nav-overlay {
   position: fixed;
   inset: 0;
@@ -1072,7 +1106,10 @@ svg.chart .chart-empty-sub { fill: var(--muted); font-size: 12px; }
   .stats-cards { grid-template-columns: repeat(2, 1fr); }
   .stat-card { min-height: 0; }
   .toast-wrap { left: 1rem; right: 1rem; bottom: 4.5rem; max-width: none; }
+  body:has(#dirty-bar:not([hidden])) .toast-wrap { bottom: 7.5rem; }
   .dirty-bar { bottom: 0.7rem; width: calc(100% - 1.4rem); }
+  .dirty-actions { width: 100%; }
+  .dirty-actions .btn { flex: 1; }
   .chart-head { flex-direction: column; }
 }
 

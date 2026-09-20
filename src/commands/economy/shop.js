@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } = require('discord.js');
 const { getUser, addBalance } = require('../../database/economy');
-const { getItem, setItem, removeItem, listItems } = require('../../database/shop');
+const { getItem, listItems } = require('../../database/shop');
 
 // theme.js con fallback inline: mai crash se il require fallisce.
 let _T = null;
@@ -16,6 +16,12 @@ const truncate = _T?.truncate ?? ((s, m) => String(s ?? '').slice(0, m));
 
 function noPerm() {
   return { content: '❌ Ti serve il permesso **Gestisci ruoli** per usare questo comando.', flags: MessageFlags.Ephemeral };
+}
+
+function dashboardMsg(guildId, sezione) {
+  const base = (process.env.BASE_URL || '').trim().replace(/\/+$/, '');
+  const dest = base ? `${base}/app.html#gid=${guildId}` : 'apri la dashboard del bot';
+  return `La configurazione si fa dalla dashboard: ${dest} — sezione ${sezione}`;
 }
 
 // Ruolo vendibile: non @everyone, non gestito da integrazioni, sotto il ruolo più alto del bot.
@@ -105,31 +111,14 @@ module.exports = {
       return interaction.reply({ embeds: [embed] });
     }
 
-    // aggiungi / rimuovi = staff con Gestisci ruoli (controllo interno: i subcommand pubblici restano visibili a tutti).
-    if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageRoles)) {
-      return interaction.reply(noPerm());
+    // aggiungi / rimuovi = solo dalla dashboard (nessuna scrittura qui).
+    if (sub === 'aggiungi' || sub === 'rimuovi') {
+      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageRoles)) {
+        return interaction.reply(noPerm());
+      }
+      return interaction.reply({ content: dashboardMsg(guildId, 'Negozio'), flags: MessageFlags.Ephemeral });
     }
 
-    const role = interaction.options.getRole('ruolo');
-
-    if (sub === 'rimuovi') {
-      const existed = removeItem(guildId, role.id);
-      return interaction.reply({
-        content: existed ? `✅ ${role} rimosso dalla vendita.` : `ℹ️ ${role} non era in vendita.`,
-        flags: MessageFlags.Ephemeral,
-      });
-    }
-
-    // sub === 'aggiungi'
-    const invalid = validateSellable(role, interaction.guild);
-    if (invalid) return interaction.reply({ content: invalid, flags: MessageFlags.Ephemeral });
-    const price = interaction.options.getInteger('prezzo');
-    // setItem lancia su prezzo/roleId non validi: senza try/catch crasherebbe il comando.
-    try {
-      setItem(guildId, role.id, price);
-    } catch {
-      return interaction.reply({ content: '❌ Prezzo non valido: usa un intero ≥ 1.', flags: MessageFlags.Ephemeral });
-    }
-    return interaction.reply({ content: `✅ ${role} ora in vendita a **${num(price)}** 🪙.`, flags: MessageFlags.Ephemeral });
+    return interaction.reply({ content: '❌ Sottocomando sconosciuto.', flags: MessageFlags.Ephemeral });
   },
 };

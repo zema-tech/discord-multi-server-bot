@@ -84,7 +84,7 @@ function verifySession(value) {
     const got = b64urlDecode(sig);
     if (got.length !== expected.length || !crypto.timingSafeEqual(got, expected)) return null;
     const data = JSON.parse(b64urlDecode(payload).toString('utf8'));
-    if (!data || typeof data.at !== 'string' || !Number.isFinite(data.exp)) return null;
+    if (!data || typeof data.at !== 'string' || !data.at || !Number.isFinite(data.exp)) return null;
     const now = Date.now();
     if (data.exp <= now) return null;
     // Sessione hardened: valida v/iat solo se almeno uno è presente
@@ -208,6 +208,9 @@ function loginRateLimiter({ windowMs = LOGIN_RATE_WINDOW_MS, max = LOGIN_RATE_MA
     if (!e || e.resetTime <= now) { e = { count: 0, resetTime: now + windowMs }; hits.set(ip, e); }
     e.count += 1;
     if (e.count > max) {
+      try {
+        res.setHeader('Retry-After', String(Math.max(1, Math.ceil((e.resetTime - now) / 1000))));
+      } catch { /* header best-effort */ }
       if (wantsJson(req)) {
         return res.status(429).json({ errore: 'Troppi tentativi di login: riprova tra qualche minuto.' });
       }
@@ -336,6 +339,11 @@ function registerAuthRoutes(app) {
 
   app.get('/callback', authLimiter, async (req, res) => {
     try {
+      // Utente che ha rifiutato i permessi su Discord (?error=access_denied):
+      // messaggio specifico invece del generico "senza code".
+      if (req.query && typeof req.query.error === 'string' && req.query.error) {
+        return res.status(401).json({ errore: 'Accesso negato su Discord: hai rifiutato i permessi, riprova il login.' });
+      }
       const code = req.query && req.query.code;
       if (!code || typeof code !== 'string') {
         return res.status(400).json({ errore: 'Callback OAuth2 senza code.' });

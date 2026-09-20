@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, MessageFlags } = require('discord.js');
-const { getConfig, setConfig, disable } = require('../../database/tempvoice');
+const { getConfig } = require('../../database/tempvoice');
 let theme;
 try {
   theme = require('../../utils/theme');
@@ -11,6 +11,12 @@ try {
     info: (t, d, c = 0x5865f2) => new EB().setColor(c).setTitle(String(t).slice(0, 256)).setDescription(String(d).slice(0, 4000)).setTimestamp(),
     applyFooter: (e, i) => { try { e.setFooter({ text: `Richiesto da ${i?.user?.tag ?? 'Utente'}` }); e.setTimestamp(); } catch {} return e; },
   };
+}
+
+// Configurazione solo dalla dashboard web: nessun accesso in scrittura al DB da qui.
+function dashboardMessaggio(guildId, sezione) {
+  const base = (process.env.BASE_URL || '').trim().replace(/\/+$/, '') || 'apri la dashboard del bot';
+  return `La configurazione si fa dalla dashboard: ${base}/app.html#gid=${guildId} — sezione ${sezione}`;
 }
 
 module.exports = {
@@ -32,9 +38,9 @@ module.exports = {
     }
     const sub = interaction.options.getSubcommand();
 
-    if (sub === 'disattiva') {
-      disable(interaction.guild.id);
-      return interaction.reply({ embeds: [theme.ok('🎧 Vocali temporanee disattivate', 'La creazione automatica di vocali personali è stata **disattivata**.')], flags: MessageFlags.Ephemeral });
+    // Configurazione (imposta/disattiva) solo dalla dashboard web.
+    if (sub === 'imposta' || sub === 'disattiva') {
+      return interaction.reply({ content: dashboardMessaggio(interaction.guild.id, 'Vocali temporanee'), flags: MessageFlags.Ephemeral });
     }
 
     if (sub === 'mostra') {
@@ -46,20 +52,7 @@ module.exports = {
       return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     }
 
-    // imposta
-    const lobby = interaction.options.getChannel('lobby');
-    const categoria = interaction.options.getChannel('categoria');
-
-    if (!lobby || lobby.type !== ChannelType.GuildVoice) {
-      return interaction.reply({ embeds: [theme.err('La lobby deve essere un **canale vocale**.')], flags: MessageFlags.Ephemeral });
-    }
-    if (!categoria || categoria.type !== ChannelType.GuildCategory) {
-      return interaction.reply({ embeds: [theme.err('La categoria deve essere una **categoria**.')], flags: MessageFlags.Ephemeral });
-    }
-
-    setConfig(interaction.guild.id, { lobbyChannelId: lobby.id, categoryId: categoria.id });
-    const done = theme.ok('🎧 Vocali temporanee attivate!', `🚪 Lobby: ${lobby}\n📁 Categoria: **${String(categoria.name).slice(0, 100)}**\n\nEntra nella lobby per creare la tua vocale personale.`);
-    theme.applyFooter(done, interaction);
-    return interaction.reply({ embeds: [done], flags: MessageFlags.Ephemeral });
+    // imposta: configurazione solo dalla dashboard (ramo gia gestito sopra).
+    return null;
   },
 };

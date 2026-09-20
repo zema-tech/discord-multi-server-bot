@@ -8,7 +8,7 @@ const {
   ButtonStyle,
   ComponentType,
 } = require('discord.js');
-const { TEMPLATES, validateBlueprint, applyBlueprint, describeBlueprint } = require('../../utils/blueprints');
+const { TEMPLATES, validateBlueprint, describeBlueprint } = require('../../utils/blueprints');
 let theme;
 try {
   theme = require('../../utils/theme');
@@ -115,83 +115,12 @@ module.exports = {
       return interaction.reply({ embeds: [prev] });
     }
 
-    // sub === 'applica'
-    if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-      return interaction.reply({ embeds: [theme.err('Ti serve il permesso **Gestisci Server**.')], flags: MessageFlags.Ephemeral });
+    // sub === 'applica': la struttura si crea solo dalla dashboard web, mai dal comando.
+    {
+      const base = (process.env.BASE_URL || '').trim().replace(/\/+$/, '');
+      const gid = interaction.guild?.id ?? interaction.guildId ?? '';
+      const url = base ? `${base}/app.html#gid=${gid}` : 'apri la dashboard del bot';
+      return interaction.reply({ content: `La configurazione si fa dalla dashboard: ${url} — sezione Moduli`, flags: MessageFlags.Ephemeral });
     }
-    if (!botCanBuild(interaction.guild)) {
-      return interaction.reply({
-        embeds: [theme.err('Mi servono i permessi **Gestisci Ruoli** e **Gestisci Canali** per applicare il template.')],
-        flags: MessageFlags.Ephemeral,
-      });
-    }
-
-    const uid = interaction.user.id;
-    const nonce = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
-    const prefix = `template:${uid}:${nonce}`;
-
-    const reply = await interaction.reply({
-      embeds: [previewEmbed(nome)],
-      content: `⚠️ Creare la struttura **${tpl.label}** in questo server? Non verrà cancellato nulla di esistente. Hai 60 secondi.`,
-      components: [confirmRow(prefix)],
-      withResponse: true,
-    });
-    // FIX collector: reply.resource.message può essere undefined (versioni discord.js diverse);
-    // senza fallback il collector su undefined lanciava e il comando restava appeso senza riepilogo.
-    const message = reply?.resource?.message ?? reply?.message ?? await interaction.fetchReply().catch(() => null);
-    if (!message || typeof message.createMessageComponentCollector !== 'function') {
-      return interaction.followUp({ embeds: [theme.err('Impossibile aprire la conferma: riprova tra poco.')] }).catch(() => {});
-    }
-
-    const collector = message.createMessageComponentCollector({
-      componentType: ComponentType.Button,
-      time: 60_000,
-      filter: (i) => i.customId.startsWith(prefix),
-    });
-
-    collector.on('collect', async (i) => {
-      if (i.user.id !== uid) {
-        return i.reply({ content: '❌ Solo chi ha avviato il comando può confermare.', flags: MessageFlags.Ephemeral });
-      }
-      if (i.customId === `${prefix}:no`) {
-        collector.stop('annullato');
-        return i.update({ content: '✅ Applicazione template annullata.', embeds: [], components: [] });
-      }
-      // Conferma: operazione lunga → defer + edit finale.
-      collector.stop('confermato');
-      await i.deferUpdate();
-      let report;
-      try {
-        report = await applyBlueprint(interaction.guild, tpl, `Template ${nome} | Mod: ${interaction.user.tag}`);
-      } catch (e) {
-        return interaction.editReply({
-          content: `❌ Errore: ${e.message || e}`,
-          embeds: [],
-          components: [],
-        });
-      }
-      const okLines = [
-        `🎭 Ruoli creati: **${report.roles.length}**${report.roles.length ? ` (${report.roles.map((r) => r.name).join(', ')})` : ''}`,
-        `📁💬 Canali/categorie creati: **${report.channels.length}**`,
-      ];
-      const failLines =
-        report.failed.length > 0
-          ? `\n⚠️ Non riusciti (**${report.failed.length}**):\n${report.failed.slice(0, 10).map((f) => `• ${f.cosa}: ${f.errore}`).join('\n')}`
-          : '\n✅ Tutto creato senza errori.';
-      const done = new EmbedBuilder()
-        .setColor(report.failed.length ? COLORS.warn ?? 0xfee75c : COLORS.success ?? 0x57f287)
-        .setTitle(`✅ Template ${tpl.label} applicato`)
-        .setDescription(`${okLines.join('\n')}${failLines}`.slice(0, 4000))
-        .setFooter({ text: `Richiesto da ${interaction.user.tag}`.slice(0, 200) })
-        .setTimestamp();
-      await interaction.editReply({ content: '', embeds: [done], components: [] });
-    });
-
-    collector.on('end', async (_collected, reason) => {
-      if (reason === 'confermato' || reason === 'annullato') return;
-      await interaction
-        .editReply({ content: '⏰ Tempo scaduto: nessuna modifica applicata.', components: [disabledRow(prefix)] })
-        .catch(() => {});
-    });
   },
 };

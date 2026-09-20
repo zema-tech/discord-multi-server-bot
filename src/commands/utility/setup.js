@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, MessageFlags, EmbedBuilder } = require('discord.js');
-const { getGuild, updateGuild } = require('../../database/guildConfig');
+const { getGuild } = require('../../database/guildConfig');
 
 // theme.js condiviso (fallback inline se il require fallisse).
 let theme;
@@ -16,6 +16,22 @@ try {
   };
 }
 const { COLORS, ok, applyFooter, truncate } = theme;
+
+// La configurazione si fa solo dalla dashboard web: i subcommand di scrittura
+// rispondono con un puntatore alla sezione corretta (nessuna scrittura DB).
+function dashboardLink(guildId, sezione) {
+  const base = (process.env.BASE_URL || '').trim().replace(/\/+$/, '');
+  const url = base ? `${base}/app.html#gid=${guildId}` : 'apri la dashboard del bot';
+  return `La configurazione si fa dalla dashboard: ${url} — sezione ${sezione}`;
+}
+
+const SEZIONI_SETUP = {
+  welcome: 'Benvenuto e Addii',
+  goodbye: 'Benvenuto e Addii',
+  logs: 'Generale',
+  suggest: 'Generale',
+  automod: 'Moderazione',
+};
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -68,39 +84,8 @@ module.exports = {
       applyFooter(embed, interaction);
       return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     }
-    if (sub === 'welcome') {
-      const canale = interaction.options.getChannel('canale');
-      const msg = interaction.options.getString('messaggio');
-      const patch = {};
-      if (canale !== null) patch.welcomeChannelId = canale ? canale.id : null;
-      if (msg) patch.welcomeMessage = msg.slice(0, 500);
-      updateGuild(interaction.guild.id, patch);
-      const e = applyFooter(ok('✅ Benvenuto aggiornato', `Canale: ${canale || 'disattivato'}${msg ? `\nMessaggio: \`${truncate(msg, 200).replace(/`/g, "'")}\`` : ''}`), interaction);
-      return interaction.reply({ embeds: [e], flags: MessageFlags.Ephemeral });
-    }
-    if (sub === 'goodbye') {
-      const canale = interaction.options.getChannel('canale');
-      updateGuild(interaction.guild.id, { goodbyeChannelId: canale ? canale.id : null });
-      const e = applyFooter(ok('✅ Canale addio aggiornato', `Canale: ${canale || 'disattivato'}.`), interaction);
-      return interaction.reply({ embeds: [e], flags: MessageFlags.Ephemeral });
-    }
-    if (sub === 'logs') {
-      const canale = interaction.options.getChannel('canale');
-      updateGuild(interaction.guild.id, { logChannelId: canale ? canale.id : null });
-      const e = applyFooter(ok('✅ Canale log aggiornato', `Canale: ${canale || 'disattivato'}.`), interaction);
-      return interaction.reply({ embeds: [e], flags: MessageFlags.Ephemeral });
-    }
-    if (sub === 'suggest') {
-      const canale = interaction.options.getChannel('canale');
-      updateGuild(interaction.guild.id, { suggestChannelId: canale ? canale.id : null });
-      const e = applyFooter(ok('✅ Canale suggerimenti aggiornato', `Canale: ${canale || 'disattivato'}.`), interaction);
-      return interaction.reply({ embeds: [e], flags: MessageFlags.Ephemeral });
-    }
-    if (sub === 'automod') {
-      const on = interaction.options.getBoolean('attiva');
-      updateGuild(interaction.guild.id, { automod: { enabled: on } });
-      const e = applyFooter(ok('🛡️ Automoderazione', `Stato: **${on ? 'attivata 🟢' : 'disattivata 🔴'}**`), interaction);
-      return interaction.reply({ embeds: [e], flags: MessageFlags.Ephemeral });
-    }
+    // Scritture di configurazione (welcome/goodbye/logs/suggest/automod):
+    // si fanno solo dalla dashboard web, mai dal comando.
+    return interaction.reply({ content: dashboardLink(interaction.guild.id, SEZIONI_SETUP[sub] || 'Moduli'), flags: MessageFlags.Ephemeral });
   },
 };

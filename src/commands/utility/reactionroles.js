@@ -7,7 +7,7 @@ const {
   StringSelectMenuBuilder,
   MessageFlags,
 } = require('discord.js');
-const { getPanel, setPanel, addOption, removeOption, clear, MAX_OPTIONS } = require('../../database/reactionRoles');
+const { getPanel, setPanel } = require('../../database/reactionRoles');
 
 // Theme condiviso con fallback inline se il require fallisse.
 let COLORS = { primary: 0x5865f2 };
@@ -23,16 +23,11 @@ try {
   if (typeof theme?.truncate === 'function') truncate = theme.truncate;
 } catch {}
 
-const CUSTOM_EMOJI_RE = /^<a?:[a-zA-Z0-9_]+:(\d+)>$/;
-
-function parseEmojiInput(raw) {
-  const emoji = (raw || '').trim();
-  if (!emoji) return { ok: false, reason: 'empty' };
-  const custom = emoji.match(CUSTOM_EMOJI_RE);
-  if (custom) return { ok: true, emoji, customId: custom[1], custom: true };
-  // Unicode: deve contenere almeno un carattere non ASCII (evita "abc" come emoji)
-  if (/[^\x00-\x7F]/.test(emoji) && emoji.length <= 20) return { ok: true, emoji, custom: false };
-  return { ok: false, reason: 'invalid' };
+// Configurazione solo dalla dashboard web: nessun accesso in scrittura al DB da qui
+// (fa eccezione /reactionroles pubblica, che posta il pannello gia configurato).
+function dashboardMessaggio(guildId, sezione) {
+  const base = (process.env.BASE_URL || '').trim().replace(/\/+$/, '') || 'apri la dashboard del bot';
+  return `La configurazione si fa dalla dashboard: ${base}/app.html#gid=${guildId} — sezione ${sezione}`;
 }
 
 function checkRoleValid(guild, role) {
@@ -40,21 +35,6 @@ function checkRoleValid(guild, role) {
   if (role.managed) return '❌ Questo ruolo è gestito da un\u2019integrazione (bot/boost) e non può essere usato.';
   if (!role.editable) return '❌ Non posso gestire questo ruolo: è sopra il mio ruolo più alto o mi mancano i permessi. Sposta il mio ruolo più in alto.';
   return null;
-}
-
-function formatPanel(guild, panel) {
-  const lines = panel.options.length
-    ? panel.options.map((o) => `${o.emoji} <@&${o.roleId}> — ${o.label}`).join('\n')
-    : '— (nessuna opzione: usa `/reactionroles aggiungi`)';
-  const dest = panel.channelId ? `<#${panel.channelId}>` : '— (non impostato)';
-  const msg = panel.messageId ? ` (messaggio \`${panel.messageId}\`)` : '';
-  // Reply max 2000 char: con 25 opzioni il testo sforerebbe e l'invio fallirebbe.
-  return (
-    `📌 **Reaction Roles**\n` +
-    `📢 Canale: ${dest}${msg}\n` +
-    `📝 Titolo: **${panel.title}**\n` +
-    `Opzioni (${panel.options.length}/${MAX_OPTIONS}):\n${lines}`
-  ).slice(0, 1900);
 }
 
 module.exports = {
@@ -93,67 +73,23 @@ module.exports = {
     const guild = interaction.guild;
     const guildId = guild.id;
 
-    if (sub === 'crea') {
-      const canale = interaction.options.getChannel('canale');
-      const titolo = interaction.options.getString('titolo', true).trim();
-      const descrizione = interaction.options.getString('descrizione', true).trim();
-      if (!canale?.isTextBased?.()) {
-        return interaction.reply({ content: '❌ Scegli un canale testuale valido.', flags: MessageFlags.Ephemeral });
-      }
-      const panel = setPanel(guildId, { channelId: canale.id, title: titolo.slice(0, 100), description: descrizione.slice(0, 1000) });
-      return interaction.reply({ content: `✅ Pannello configurato per ${canale}.\n\n${formatPanel(guild, panel)}`, flags: MessageFlags.Ephemeral });
-    }
-
-    if (sub === 'aggiungi') {
-      const ruolo = interaction.options.getRole('ruolo', true);
-      const etichetta = interaction.options.getString('etichetta', true).trim().slice(0, 100);
-      const emojiRaw = interaction.options.getString('emoji', true);
-
-      const roleError = checkRoleValid(guild, ruolo);
-      if (roleError) {
-        return interaction.reply({ content: roleError, flags: MessageFlags.Ephemeral });
-      }
-
-      const parsed = parseEmojiInput(emojiRaw);
-      if (!parsed.ok) {
-        return interaction.reply({ content: '❌ Emoji non valida: usa un\u2019emoji unicode (es. 🎮) o un\u2019emoji custom di questo server.', flags: MessageFlags.Ephemeral });
-      }
-      if (parsed.custom && !guild.emojis.cache.has(parsed.customId)) {
-        return interaction.reply({ content: '❌ Emoji custom non trovata: usa un\u2019emoji custom di questo server.', flags: MessageFlags.Ephemeral });
-      }
-      if (!etichetta) {
-        return interaction.reply({ content: '❌ Etichetta non valida.', flags: MessageFlags.Ephemeral });
-      }
-
-      const res = addOption(guildId, { roleId: ruolo.id, label: etichetta, emoji: parsed.emoji });
-      if (res.full) {
-        return interaction.reply({ content: `❌ Pannello pieno: massimo ${MAX_OPTIONS} opzioni.`, flags: MessageFlags.Ephemeral });
-      }
-      const panel = res.panel;
-      const msg = res.updated ? `🔄 ${ruolo} aggiornato nel pannello.` : `✅ ${parsed.emoji} ${ruolo} aggiunto al pannello.`;
-      return interaction.reply({ content: `${msg}\n\n${formatPanel(guild, panel)}`, flags: MessageFlags.Ephemeral });
-    }
-
-    if (sub === 'rimuovi') {
-      const ruolo = interaction.options.getRole('ruolo', true);
-      const { removed, panel } = removeOption(guildId, ruolo.id);
-      if (!removed) {
-        return interaction.reply({ content: `⚠️ ${ruolo} non è nel pannello.\n\n${formatPanel(guild, panel)}`, flags: MessageFlags.Ephemeral });
-      }
-      return interaction.reply({ content: `✅ ${ruolo} rimosso dal pannello.\n\n${formatPanel(guild, panel)}`, flags: MessageFlags.Ephemeral });
+    // Configurazione (crea/aggiungi/rimuovi/elimina) solo dalla dashboard web.
+    // Fa eccezione 'pubblica', che posta il pannello gia configurato (azione).
+    if (sub === 'crea' || sub === 'aggiungi' || sub === 'rimuovi' || sub === 'elimina') {
+      return interaction.reply({ content: dashboardMessaggio(guildId, 'Reaction roles'), flags: MessageFlags.Ephemeral });
     }
 
     if (sub === 'pubblica') {
       const panel = getPanel(guildId);
       if (!panel.channelId) {
-        return interaction.reply({ content: '❌ Prima configura il pannello con `/reactionroles crea`.', flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: '❌ Prima configura il pannello dalla dashboard, poi ripubblica.', flags: MessageFlags.Ephemeral });
       }
       if (!panel.options.length) {
-        return interaction.reply({ content: '❌ Aggiungi almeno un\u2019opzione con `/reactionroles aggiungi` prima di pubblicare.', flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: '❌ Il pannello non ha opzioni: aggiungile dalla dashboard, poi ripubblica.', flags: MessageFlags.Ephemeral });
       }
       const channel = await guild.channels.fetch(panel.channelId).catch(() => null);
       if (!channel?.isTextBased?.() || typeof channel.send !== 'function') {
-        return interaction.reply({ content: '❌ Canale non trovato. Riesegui `/reactionroles crea` con un canale valido.', flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: '❌ Canale non trovato. Reimposta il pannello dalla dashboard con un canale valido.', flags: MessageFlags.Ephemeral });
       }
 
       // Filtra ruoli non più validi al momento della pubblicazione
@@ -201,16 +137,7 @@ module.exports = {
       return interaction.reply({ content: `✅ Pannello pubblicato in ${channel} (${validOptions.length} opzioni).${warn}`, flags: MessageFlags.Ephemeral });
     }
 
-    if (sub === 'elimina') {
-      const panel = getPanel(guildId);
-      if (panel.messageId && panel.channelId) {
-        const channel = await guild.channels.fetch(panel.channelId).catch(() => null);
-        if (channel?.isTextBased?.()) {
-          await channel.messages.delete(panel.messageId).catch(() => {});
-        }
-      }
-      clear(guildId);
-      return interaction.reply({ content: '🗑️ Pannello reaction roles eliminato.', flags: MessageFlags.Ephemeral });
-    }
+    // elimina: configurazione solo dalla dashboard (ramo gia gestito sopra).
+    return null;
   },
 };

@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, EmbedBuilder } = require('discord.js');
-const { listTriggers, addTrigger, removeTrigger, clearTriggers, MAX_TRIGGERS, MAX_RESPONSE } = require('../../database/autoresponder');
+const { listTriggers, MAX_TRIGGERS, MAX_RESPONSE } = require('../../database/autoresponder');
 
 let theme = null;
 try {
@@ -32,11 +32,10 @@ function errorEmbed(text, interaction) {
   return interaction ? withFooter(e, interaction) : e;
 }
 
-function successEmbed(title, description, interaction) {
-  let e;
-  if (theme?.ok) e = theme.ok(title, description);
-  else e = new EmbedBuilder().setColor(0x57f287).setTitle(String(title).slice(0, 256)).setDescription(String(description).slice(0, 4000)).setTimestamp();
-  return withFooter(e, interaction);
+// Configurazione solo dalla dashboard web: nessun accesso in scrittura al DB da qui.
+function dashboardMessaggio(guildId, sezione) {
+  const base = (process.env.BASE_URL || '').trim().replace(/\/+$/, '') || 'apri la dashboard del bot';
+  return `La configurazione si fa dalla dashboard: ${base}/app.html#gid=${guildId} — sezione ${sezione}`;
 }
 
 function infoEmbed(title, description, interaction) {
@@ -110,47 +109,9 @@ module.exports = {
       const sub = interaction.options.getSubcommand();
       const guildId = interaction.guildId ?? interaction.guild?.id;
 
-      if (sub === 'aggiungi') {
-        const parola = interaction.options.getString('parola', true).trim();
-        const risposta = interaction.options.getString('risposta', true);
-        const modalita = interaction.options.getString('modalita') || 'include';
-
-        if (!parola) {
-          return interaction.reply({ embeds: [errorEmbed('La parola/pattern non può essere vuota.', interaction)], flags: MessageFlags.Ephemeral }).catch(() => null);
-        }
-        if (risposta.length > MAX_RESPONSE) {
-          return interaction.reply({
-            embeds: [errorEmbed(`Risposta troppo lunga (max ${MAX_RESPONSE} caratteri).`, interaction)],
-            flags: MessageFlags.Ephemeral,
-          }).catch(() => null);
-        }
-
-        const res = addTrigger(guildId, { match: parola, response: risposta, mode: modalita });
-        if (!res.ok) {
-          return interaction.reply({ embeds: [errorEmbed(res.error, interaction)], flags: MessageFlags.Ephemeral }).catch(() => null);
-        }
-        return interaction.reply({
-          embeds: [successEmbed(
-            `✅ Trigger aggiunto — \`${res.trigger.id}\``,
-            `Modalità **${res.trigger.mode}**\n🔑 \`${truncate(parola, 200)}\`\n💬 ${truncate(risposta, 300)}${risposta.length > 300 ? '…' : ''}`,
-            interaction
-          )],
-          flags: MessageFlags.Ephemeral,
-        }).catch(() => null);
-      }
-
-      if (sub === 'rimuovi') {
-        const id = interaction.options.getString('id', true).trim();
-        if (!id) {
-          return interaction.reply({ embeds: [errorEmbed('ID non valido: usa `/autoresponder lista` per vedere gli ID.', interaction)], flags: MessageFlags.Ephemeral }).catch(() => null);
-        }
-        const removed = removeTrigger(guildId, id);
-        return interaction.reply({
-          embeds: [removed
-            ? successEmbed('✅ Trigger rimosso', `Trigger \`${truncate(id, 100)}\` rimosso.`, interaction)
-            : errorEmbed(`Nessun trigger con ID \`${truncate(id, 100)}\`.`, interaction)],
-          flags: MessageFlags.Ephemeral,
-        }).catch(() => null);
+      // Configurazione (aggiungi/rimuovi/pulisci) solo dalla dashboard web.
+      if (sub === 'aggiungi' || sub === 'rimuovi' || sub === 'pulisci') {
+        return interaction.reply({ content: dashboardMessaggio(guildId, 'Risposte automatiche'), flags: MessageFlags.Ephemeral }).catch(() => null);
       }
 
       if (sub === 'lista') {
@@ -179,14 +140,8 @@ module.exports = {
         return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral }).catch(() => null);
       }
 
-      // pulisci
-      const count = clearTriggers(guildId);
-      return interaction.reply({
-        embeds: [count > 0
-          ? successEmbed('🧹 Auto-responder pulito', `Eliminati **${count}** trigger.`, interaction)
-          : infoEmbed('📭 Auto-responder', 'Niente da eliminare: nessun trigger configurato.', interaction)],
-        flags: MessageFlags.Ephemeral,
-      }).catch(() => null);
+      // pulisci: configurazione solo dalla dashboard (ramo gia gestito sopra).
+      return null;
     } catch (e) {
       console.error('autoresponder:', e?.message ?? e);
       const payload = { embeds: [errorEmbed('Errore durante l’operazione.', interaction)], flags: MessageFlags.Ephemeral };
