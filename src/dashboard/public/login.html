@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Accedi con Discord per gestire i tuoi server con Multi-Server Bot.">
+  <title>Accedi — Multi-Server Bot</title>
+  <style>
+    :root {
+      --blurple: #5865f2;
+      --blurple-dark: #4752c4;
+      --bg: #1e1f22;
+      --card: #2b2d31;
+      --text: #f2f3f5;
+      --muted: #b5bac1;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "gg sans", "Inter", Whitney, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem 1rem;
+    }
+    .card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 2.5rem 2rem;
+      max-width: 420px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+    }
+    .logo {
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      background: var(--blurple);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.75rem;
+      margin-bottom: 1rem;
+    }
+    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    .sub { color: var(--muted); font-size: 0.95rem; margin-bottom: 1.5rem; line-height: 1.5; }
+    .btn-login {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      background: var(--blurple);
+      color: #fff;
+      font-weight: 600;
+      font-size: 1rem;
+      padding: 0.8rem 1.6rem;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: background 0.15s ease;
+    }
+    .btn-login:hover, .btn-login:focus-visible { background: var(--blurple-dark); }
+    .btn-login svg { width: 22px; height: 22px; flex-shrink: 0; }
+    .scopes {
+      margin-top: 1.5rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .scopes code {
+      background: #1e1f22;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      font-size: 0.78rem;
+    }
+    .home { margin-top: 1.25rem; font-size: 0.85rem; }
+    .home a { color: var(--blurple); text-decoration: none; }
+    .home a:hover { text-decoration: underline; }
+    @media (max-width: 480px) {
+      .card { padding: 2rem 1.25rem; }
+      h1 { font-size: 1.3rem; }
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <span class="logo" aria-hidden="true">🤖</span>
+    <h1>Accedi alla dashboard</h1>
+    <p class="sub">Collega il tuo account Discord per gestire i tuoi server: moderazione, ticket, livelli XP, AI e molto altro.</p>
+    <a class="btn-login" href="/login">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.865-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.058a.082.082 0 0 0 .031.056 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 0 1 .078-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.099.246.198.373.292a.077.077 0 0 1-.006.127 12.3 12.3 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.363 1.225 1.993a.076.076 0 0 0 .084.029 19.84 19.84 0 0 0 6.002-3.03.077.077 0 0 0 .032-.055c.5-5.177-.838-9.674-3.549-13.66a.06.06 0 0 0-.031-.029ZM8.02 15.331c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418Zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418Z"/></svg>
+      Accedi con Discord
+    </a>
+    <p class="scopes">L'accesso richiede gli ambiti <code>identify</code> e <code>guilds</code>: servono solo a riconoscere chi sei e a elencare i server che amministri. Nessun altro dato viene letto o salvato.</p>
+    <p class="home"><a href="/">← Torna alla home</a></p>
+  </main>
+</body>
+</html>

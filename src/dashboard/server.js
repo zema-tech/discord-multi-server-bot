@@ -124,6 +124,15 @@ function startDashboard(client) {
   // così non richiede cookie e non consuma mai il budget /api.
   app.get('/healthz', (req, res) => res.json(buildHealthPayload(client)));
 
+  // Dashboard protetta da login Discord: /app.html richiede sessione valida
+  // (redirect a /login per i browser, 401 JSON per le API). Registrata PRIMA
+  // dello static, altrimenti il file resterebbe raggiungibile senza login.
+  // Landing (/), login.html, CSS e JS restano pubblici: senza sessione le API
+  // rispondono comunque 401.
+  app.get('/app.html', auth.requireAuthOrRedirect, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'app.html'));
+  });
+
   app.use(express.static(path.join(__dirname, 'public')));
 
   auth.registerAuthRoutes(app);
@@ -149,7 +158,13 @@ function startDashboard(client) {
   // Error handler: mai crashare su guild assente o input imprevisti.
   // eslint-disable-next-line no-unused-vars
   app.use((err, req, res, next) => {
-    console.error('[Dashboard] errore:', err && err.message ? err.message : err);
+    try {
+      const msg = err && err.message ? err.message : String(err);
+      const st = err && Number.isFinite(err.status) ? err.status : 500;
+      console.error(`[Dashboard] error-handler: ${msg} | status=${st}`);
+    } catch {
+      try { console.error('[Dashboard] error-handler: unknown | status=500'); } catch { /* mai rompere */ }
+    }
     if (res.headersSent) return next(err);
     const status = err && Number.isFinite(err.status) ? err.status : 500;
     return res.status(status).json({ errore: 'Errore interno, riprova.' });

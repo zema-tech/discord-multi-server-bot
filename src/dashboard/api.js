@@ -84,10 +84,59 @@ function safeRequire(relPath) {
 }
 
 function hasManageGuild(entry) {
-  const perms = typeof entry.permissions === 'string'
-    ? BigInt(entry.permissions)
-    : BigInt(entry.permissions || 0);
-  return (perms & BigInt(MANAGE_GUILD)) !== 0n;
+  try {
+    if (!entry || typeof entry !== 'object') return false;
+    const p = entry.permissions;
+    if (p === undefined || p === null) return false;
+    let perms;
+    if (typeof p === 'bigint') {
+      perms = p;
+    } else if (typeof p === 'number') {
+      if (!Number.isFinite(p)) return false;
+      perms = BigInt(Math.floor(p));
+    } else if (typeof p === 'string') {
+      const s = p.trim();
+      if (!/^\d+$/.test(s)) return false;
+      perms = BigInt(s);
+    } else {
+      return false;
+    }
+    return (perms & BigInt(MANAGE_GUILD)) !== 0n;
+  } catch {
+    return false;
+  }
+}
+
+/** Clona e converte eventuali BigInt in String (JSON.stringify lancia sui BigInt -> 500). */
+function sanitizeForJson(value, seen) {
+  if (typeof value === 'bigint') return value.toString();
+  if (value === null || value === undefined) return value;
+  if (typeof value !== 'object') return value;
+  if (value instanceof Date) return value;
+  const active = seen || new WeakSet();
+  if (active.has(value)) return null;
+  active.add(value);
+  if (Array.isArray(value)) return value.map((v) => sanitizeForJson(v, active));
+  const out = {};
+  for (const [k, v] of Object.entries(value)) {
+    try {
+      out[k] = sanitizeForJson(v, active);
+    } catch {
+      out[k] = null;
+    }
+  }
+  return out;
+}
+
+/** Log server-side utile senza mai loggare token/cookie/PII. */
+function logDashboardError(route, e) {
+  try {
+    const msg = e && e.message ? e.message : String(e);
+    const st = e && e.status !== undefined && e.status !== null ? e.status : 'n/a';
+    console.error(`[Dashboard] ${route}: ${msg} | status=${st}`);
+  } catch {
+    try { console.error('[Dashboard] log-failed | status=n/a'); } catch { /* mai rompere */ }
+  }
 }
 
 /**
@@ -118,6 +167,21 @@ function createApiRouter(client) {
   const auth = require('./auth');
   const router = express.Router();
 
+  /**
+   * Wrapper locale con retry UNA volta solo su errori di rete senza status HTTP
+   * (timeout, ECONNRESET, fetch fallita). Mai su errori HTTP (401/403/429/...).
+   */
+  async function apiWithRetry(token, apiPath) {
+    try {
+      return await auth.discordApi(token, apiPath);
+    } catch (e) {
+      if (e && (e.status === undefined || e.status === null)) {
+        return await auth.discordApi(token, apiPath);
+      }
+      throw e;
+    }
+  }
+
   /** Carica le guild dell'utente + verifica (canManage E botPresent), altrimenti 403. */
   async function loadAccess(req, res, next) {
     try {
@@ -126,10 +190,13 @@ function createApiRouter(client) {
       const gid = req.params.gid;
       let userGuilds;
       try {
-        userGuilds = await auth.discordApi(token, '/users/@me/guilds');
+        userGuilds = await apiWithRetry(token, '/users/@me/guilds');
       } catch (e) {
         if (e && e.status === 401) {
-          return res.status(401).json({ errore: 'Sessione Discord scaduta: rieffettua il login.' });
+          return res.status(401).json({ errore: 'Sessione Discord scaduta: rieffettua il login.', relogin: true });
+        }
+        if (e && e.status === 403) {
+          return res.status(401).json({ errore: 'Scope Discord mancante (guilds): riaccedi effettuando di nuovo il login.', relogin: true });
         }
         throw e;
       }
@@ -145,7 +212,7 @@ function createApiRouter(client) {
       req.access = { entry, guild };
       return next();
     } catch (e) {
-      console.error('[Dashboard] loadAccess:', e.message);
+      logDashboardError('loadAccess', e);
       return res.status(500).json({ errore: 'Errore interno, riprova.' });
     }
   }
@@ -174,7 +241,7 @@ function createApiRouter(client) {
   // ---- GET /api/me -------------------------------------------------------
   router.get('/me', async (req, res) => {
     try {
-      const me = await auth.discordApi(req.discordToken, '/users/@me');
+      const me = await apiWithRetry(req.discordToken, '/users/@me');
       return res.json({
         id: me.id,
         username: me.username,
@@ -185,9 +252,12 @@ function createApiRouter(client) {
       });
     } catch (e) {
       if (e && e.status === 401) {
-        return res.status(401).json({ errore: 'Sessione Discord scaduta: rieffettua il login.' });
+        return res.status(401).json({ errore: 'Sessione Discord scaduta: rieffettua il login.', relogin: true });
       }
-      console.error('[Dashboard] /api/me:', e.message);
+      if (e && e.status === 403) {
+        return res.status(401).json({ errore: 'Scope Discord mancante: riaccedi effettuando di nuovo il login.', relogin: true });
+      }
+      logDashboardError('/api/me', e);
       return res.status(500).json({ errore: 'Impossibile leggere il profilo Discord.' });
     }
   });
@@ -197,7 +267,7 @@ function createApiRouter(client) {
   // icona dalla cache; per quelli gestibili SENZA bot aggiunge inviteUrl.
   router.get('/guilds', async (req, res) => {
     try {
-      const userGuilds = await auth.discordApi(req.discordToken, '/users/@me/guilds');
+      const userGuilds = await apiWithRetry(req.discordToken, '/users/@me/guilds');
       const clientId = process.env.CLIENT_ID || '';
       const list = (Array.isArray(userGuilds) ? userGuilds : []).map((g) => {
         const botGuild = client && client.guilds && client.guilds.cache
@@ -224,12 +294,15 @@ function createApiRouter(client) {
       });
       // Prima i server con il bot, poi gli altri; alfabetici a parità.
       list.sort((a, b) => Number(b.botPresent) - Number(a.botPresent) || String(a.name).localeCompare(String(b.name)));
-      return res.json(list);
+      return res.json(sanitizeForJson(list));
     } catch (e) {
       if (e && e.status === 401) {
-        return res.status(401).json({ errore: 'Sessione Discord scaduta: rieffettua il login.' });
+        return res.status(401).json({ errore: 'Sessione Discord scaduta: rieffettua il login.', relogin: true });
       }
-      console.error('[Dashboard] /api/guilds:', e.message);
+      if (e && e.status === 403) {
+        return res.status(401).json({ errore: 'Scope Discord mancante (guilds): riaccedi effettuando di nuovo il login.', relogin: true });
+      }
+      logDashboardError('/api/guilds', e);
       return res.status(500).json({ errore: 'Impossibile leggere le guild Discord.' });
     }
   });
@@ -247,10 +320,74 @@ function createApiRouter(client) {
           id: r.id, name: r.name, color: r.color, managed: Boolean(r.managed),
         }));
       roles.sort((a, b) => String(a.name).localeCompare(String(b.name)));
-      return res.json({ channels, roles });
+      return res.json(sanitizeForJson({ channels, roles }));
     } catch (e) {
-      console.error('[Dashboard] meta:', e.message);
+      logDashboardError('meta', e);
       return res.status(500).json({ errore: 'Impossibile leggere canali/ruoli.' });
+    }
+  });
+
+  // ---- GET /api/guilds/:gid/diag (backend-only, mai chiamata dal frontend) --
+  // Dietro requireAuth+loadAccess: ritorna step-by-step per capire i 500.
+  router.get('/guilds/:gid/diag', loadAccess, (req, res) => {
+    try {
+      const gid = req.params.gid;
+      const entry = req.access && req.access.entry;
+      const guild = req.access && req.access.guild;
+      let canManage = false;
+      try { canManage = hasManageGuild(entry); } catch { canManage = false; }
+      const dbModules = {
+        guildConfig: '../database/guildConfig',
+        tickets: '../database/tickets',
+        levels: '../database/levels',
+        economy: '../database/economy',
+        analytics: '../database/analytics',
+        tempvoice: '../database/tempvoice',
+        aiConfig: '../database/aiConfig',
+        customPerms: '../database/customPerms',
+        autorole: '../database/autorole',
+        starboard: '../database/starboard',
+        confessioni: '../database/confessioni',
+        autoresponder: '../database/autoresponder',
+        customCommands: '../database/customCommands',
+        levelRewards: '../database/levelRewards',
+      };
+      const dbOk = {};
+      for (const [name, rel] of Object.entries(dbModules)) {
+        try {
+          dbOk[name] = Boolean(safeRequire(rel));
+        } catch {
+          dbOk[name] = false;
+        }
+      }
+      try {
+        const xm = safeRequire('./modules-extra');
+        dbOk['modules-extra'] = Boolean(xm);
+      } catch {
+        dbOk['modules-extra'] = false;
+      }
+      let counts = {};
+      try {
+        counts = {
+          members: guild.memberCount ?? null,
+          channels: guild.channels.cache.size,
+          roles: Math.max(guild.roles.cache.size - 1, 0),
+        };
+      } catch {
+        counts = {};
+      }
+      return res.json(sanitizeForJson({
+        gid,
+        tokenOk: Boolean(req.discordToken),
+        guildsOk: Boolean(entry),
+        botPresent: Boolean(guild),
+        canManage,
+        dbOk,
+        counts,
+      }));
+    } catch (e) {
+      logDashboardError('/api/guilds/:gid/diag', e);
+      return res.status(500).json({ errore: 'Diagnostica fallita, riprova.' });
     }
   });
 
@@ -299,7 +436,11 @@ function createApiRouter(client) {
       try { ticketStats = tickets ? tickets.getStats(gid) : null; } catch { ticketStats = null; }
       let openTickets = 0;
       try {
-        if (tickets && typeof tickets.getOpenTickets === 'function') {
+        if (tickets && typeof tickets.openTickets === 'function') {
+          const open = tickets.openTickets(gid);
+          openTickets = Array.isArray(open) ? open.length
+            : (typeof open === 'number' ? open : 0);
+        } else if (tickets && typeof tickets.getOpenTickets === 'function') {
           const open = tickets.getOpenTickets(gid);
           openTickets = Array.isArray(open) ? open.length : 0;
         } else if (ticketStats && typeof ticketStats.open === 'number') {
@@ -323,7 +464,62 @@ function createApiRouter(client) {
       const automod = cfg.automod || {};
       const badWordsArr = Array.isArray(automod.badWords) ? automod.badWords : [];
 
-      return res.json({
+      const modules = {
+        general: {
+          language: cfg.language ?? 'it',
+          logChannelId: cfg.logChannelId ?? null,
+          suggestChannelId: cfg.suggestChannelId ?? null,
+          levelupChannelId: cfg.levelupChannelId ?? null,
+          levelupEnabled: cfg.levelupEnabled ?? true,
+        },
+        welcome: {
+          welcomeChannelId: cfg.welcomeChannelId ?? null,
+          welcomeMessage: cfg.welcomeMessage ?? null,
+          goodbyeChannelId: cfg.goodbyeChannelId ?? null,
+          goodbyeMessage: cfg.goodbyeMessage ?? null,
+        },
+        automod: {
+          enabled: automod.enabled ?? false,
+          antiSpam: automod.antiSpam ?? true,
+          antiLink: automod.antiLink ?? true,
+          antiInvite: automod.antiInvite ?? true,
+          maxMentions: automod.maxMentions ?? 5,
+          maxCapsPercent: automod.maxCapsPercent ?? 80,
+          badWords: badWordsArr.join(', '),
+        },
+        autorole: arCfg || { enabled: true, roleIds: [], delaySeconds: 0 },
+        starboard: sbCfg
+          ? { channelId: sbCfg.channelId ?? null, threshold: sbCfg.threshold ?? 3, emoji: sbCfg.emoji ?? '⭐' }
+          : { channelId: null, threshold: 3, emoji: '⭐' },
+        confessioni: cfCfg || { channelId: null },
+        levels: {
+          levelupEnabled: cfg.levelupEnabled ?? true,
+          levelupChannelId: cfg.levelupChannelId ?? null,
+        },
+        tickets: tcfg,
+        tempvoice: tv,
+        ai,
+        logging: { logChannelId: cfg.logChannelId ?? null },
+      };
+      const lists = {
+        autoresponder: Array.isArray(arList) ? arList.slice(0, 50) : [],
+        customCommands: Array.isArray(ccList) ? ccList.slice(0, 20) : [],
+        levelRewards: Array.isArray(rwList) ? rwList : [],
+      };
+      // Hook moduli extra (require-safe: se il file manca, comportamento identico a oggi).
+      try {
+        const xm = safeRequire('./modules-extra');
+        if (xm && typeof xm.readExtra === 'function') {
+          const extraData = xm.readExtra(gid);
+          if (extraData && typeof extraData === 'object') {
+            const { listsExtra, ...extraModules } = extraData;
+            Object.assign(modules, extraModules);
+            if (listsExtra && typeof listsExtra === 'object') Object.assign(lists, listsExtra);
+          }
+        }
+      } catch { /* extra opzionale: mai 500 per questo */ }
+
+      return res.json(sanitizeForJson({
         guild: {
           id: guild.id,
           name: guild.name,
@@ -336,48 +532,8 @@ function createApiRouter(client) {
           roles: Math.max(guild.roles.cache.size - 1, 0),
           commands: (client && typeof client.commands?.size === 'number') ? client.commands.size : 0,
         },
-        modules: {
-          general: {
-            language: cfg.language ?? 'it',
-            logChannelId: cfg.logChannelId ?? null,
-            suggestChannelId: cfg.suggestChannelId ?? null,
-            levelupChannelId: cfg.levelupChannelId ?? null,
-            levelupEnabled: cfg.levelupEnabled ?? true,
-          },
-          welcome: {
-            welcomeChannelId: cfg.welcomeChannelId ?? null,
-            welcomeMessage: cfg.welcomeMessage ?? null,
-            goodbyeChannelId: cfg.goodbyeChannelId ?? null,
-            goodbyeMessage: cfg.goodbyeMessage ?? null,
-          },
-          automod: {
-            enabled: automod.enabled ?? false,
-            antiSpam: automod.antiSpam ?? true,
-            antiLink: automod.antiLink ?? true,
-            antiInvite: automod.antiInvite ?? true,
-            maxMentions: automod.maxMentions ?? 5,
-            maxCapsPercent: automod.maxCapsPercent ?? 80,
-            badWords: badWordsArr.join(', '),
-          },
-          autorole: arCfg || { enabled: true, roleIds: [], delaySeconds: 0 },
-          starboard: sbCfg
-            ? { channelId: sbCfg.channelId ?? null, threshold: sbCfg.threshold ?? 3, emoji: sbCfg.emoji ?? '⭐' }
-            : { channelId: null, threshold: 3, emoji: '⭐' },
-          confessioni: cfCfg || { channelId: null },
-          levels: {
-            levelupEnabled: cfg.levelupEnabled ?? true,
-            levelupChannelId: cfg.levelupChannelId ?? null,
-          },
-          tickets: tcfg,
-          tempvoice: tv,
-          ai,
-          logging: { logChannelId: cfg.logChannelId ?? null },
-        },
-        lists: {
-          autoresponder: Array.isArray(arList) ? arList.slice(0, 50) : [],
-          customCommands: Array.isArray(ccList) ? ccList.slice(0, 20) : [],
-          levelRewards: Array.isArray(rwList) ? rwList : [],
-        },
+        modules,
+        lists,
         perms,
         stats: {
           levels: levelTop,
@@ -386,9 +542,9 @@ function createApiRouter(client) {
           tickets: ticketStats,
           openTickets,
         },
-      });
+      }));
     } catch (e) {
-      console.error('[Dashboard] guild detail:', e.message);
+      logDashboardError('guild detail', e);
       return res.status(500).json({ errore: 'Impossibile leggere la configurazione.' });
     }
   });
@@ -398,7 +554,8 @@ function createApiRouter(client) {
   // (section, description, icon, placeholder, help, options, multiline)
   // che il frontend usa per tab e controlli ricchi. Vecchi client ignorano i nuovi campi.
   router.get('/guilds/:gid/schema', loadAccess, (req, res) => {
-    return res.json([
+    try {
+      const baseSchema = [
       {
         module: 'general', title: 'Generale', icon: '⚙️', section: 'Generale',
         description: 'Lingua, log, suggerimenti e annunci level-up.',
@@ -512,7 +669,19 @@ function createApiRouter(client) {
         fields: [],
         custom: 'commands',
       },
-    ]);
+      ];
+      // Hook moduli extra: accoda EXTRA_SCHEMA se presente (require-safe).
+      try {
+        const xm = safeRequire('./modules-extra');
+        if (xm && Array.isArray(xm.EXTRA_SCHEMA) && xm.EXTRA_SCHEMA.length > 0) {
+          return res.json(sanitizeForJson(baseSchema.concat(xm.EXTRA_SCHEMA)));
+        }
+      } catch { /* extra opzionale: mai 500 per questo */ }
+      return res.json(sanitizeForJson(baseSchema));
+    } catch (e) {
+      logDashboardError('/api/guilds/:gid/schema', e);
+      return res.status(500).json({ errore: 'Impossibile leggere lo schema.' });
+    }
   });
 
   // ---- PUT /api/guilds/:gid/modules/:mod ---------------------------------
@@ -528,6 +697,26 @@ function createApiRouter(client) {
 
       const spec = MODULE_FIELDS[mod];
       if (!spec || mod === 'autoresponder' || mod === 'commands' || mod === 'rewards') {
+        // Hook moduli extra: se MODULE_FIELDS non conosce il modulo, delega a writeExtra.
+        try {
+          const xm = safeRequire('./modules-extra');
+          if (xm && typeof xm.writeExtra === 'function') {
+            const extraBody = req.body && typeof req.body === 'object' ? req.body : {};
+            try {
+              const extraCfg = await xm.writeExtra(gid, mod, extraBody, guild);
+              if (extraCfg === null || extraCfg === undefined) {
+                return res.status(400).json({ errore: `Modulo sconosciuto: ${mod}.` });
+              }
+              return res.json(sanitizeForJson({ ok: true, module: mod, config: extraCfg }));
+            } catch (we) {
+              const st = we && Number.isFinite(we.status) ? we.status : 500;
+              const msg = we && we.message ? we.message : 'Scrittura modulo extra fallita.';
+              if (st !== 500) return res.status(st).json({ errore: msg });
+              logDashboardError('PUT module extra', we);
+              return res.status(500).json({ errore: 'Salvataggio fallito, riprova.' });
+            }
+          }
+        } catch { /* extra opzionale: fallback al 400 sotto */ }
         return res.status(400).json({ errore: `Modulo sconosciuto: ${mod}.` });
       }
       const body = req.body && typeof req.body === 'object' ? req.body : {};
@@ -649,9 +838,9 @@ function createApiRouter(client) {
         default:
           return res.status(400).json({ errore: `Modulo sconosciuto: ${mod}.` });
       }
-      return res.json({ ok: true, module: mod, config: updated });
+      return res.json(sanitizeForJson({ ok: true, module: mod, config: updated }));
     } catch (e) {
-      console.error('[Dashboard] PUT module:', e.message);
+      logDashboardError('PUT module', e);
       return res.status(500).json({ errore: 'Salvataggio fallito, riprova.' });
     }
   });
@@ -774,7 +963,7 @@ function createApiRouter(client) {
       else return res.status(501).json({ errore: 'Modulo permessi senza API di scrittura.' });
       return res.json({ ok: true, command, perms: result });
     } catch (e) {
-      console.error('[Dashboard] PUT perms:', e.message);
+      logDashboardError('PUT perms', e);
       return res.status(500).json({ errore: 'Salvataggio permessi fallito, riprova.' });
     }
   });
