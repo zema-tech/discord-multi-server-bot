@@ -32,7 +32,12 @@ EXPOSE 3000
 #  - DASHBOARD_PORT non impostata -> exit 0 (liveness = container in esecuzione;
 #    i crash sono coperti da `restart: unless-stopped` nel compose).
 #  - DASHBOARD_PORT impostata     -> /healthz (o /) deve rispondere 2xx.
+# NB: nel Dockerfile la forma shell è `CMD <comando>`; `CMD-SHELL` esiste solo
+# nel campo `test:` di docker-compose e fa fallire il build (es. su Render).
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD-SHELL node -e "const p=process.env.DASHBOARD_PORT;if(!p)process.exit(0);const u='http://127.0.0.1:'+p;fetch(u+'/healthz').then(r=>{if(r.ok)process.exit(0);return fetch(u+'/')}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "const p=process.env.DASHBOARD_PORT;if(!p)process.exit(0);const u='http://127.0.0.1:'+p;fetch(u+'/healthz').then(r=>{if(r.ok)process.exit(0);return fetch(u+'/')}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-CMD ["node", "src/index.js"]
+# Avvio: prima registra gli slash command su Discord (serve DISCORD_TOKEN + CLIENT_ID),
+# poi avvia il bot. Il `;` (non `&&`) fa partire il bot anche se la registrazione
+# fallisce. Utile su hosting senza shell (es. Render free).
+CMD ["sh", "-c", "node deploy-commands.js; exec node src/index.js"]
