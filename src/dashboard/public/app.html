@@ -27,9 +27,21 @@
           <div class="userbox-name" id="user-name">Caricamento…</div>
           <div class="userbox-sub" id="user-sub">connessione…</div>
         </div>
+        <a class="btn btn-secondary btn-sm" href="/logout" title="Esci">Esci</a>
       </div>
 
-      <h2 id="guilds-heading">I tuoi server</h2>
+      <div class="side-search">
+        <label class="visually-hidden" for="guild-search">Cerca server</label>
+        <input type="search" id="guild-search" placeholder="🔍 Cerca server…" autocomplete="off">
+      </div>
+
+      <div class="chips" role="group" aria-label="Filtro server">
+        <button type="button" class="chip is-active" data-filter="all" aria-pressed="true">Tutti</button>
+        <button type="button" class="chip" data-filter="bot" aria-pressed="false">Con bot</button>
+        <button type="button" class="chip" data-filter="missing" aria-pressed="false">Da aggiungere</button>
+      </div>
+
+      <h2 id="guilds-heading">I tuoi server <span class="count-pill" id="guild-count"></span></h2>
       <ul class="guild-list" id="guild-list" aria-labelledby="guilds-heading">
         <li class="guild-empty">Caricamento server…</li>
       </ul>
@@ -43,45 +55,131 @@
     <main class="main" id="pannello">
       <div class="main-head">
         <button class="btn btn-secondary btn-sm nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="sidebar">☰ Server</button>
-        <h1 id="guild-title">Seleziona un server</h1>
-        <p id="guild-sub">Scegli dalla lista un server dove il bot è presente.</p>
+        <div class="guild-hero" id="guild-hero" hidden>
+          <span class="guild-icon guild-icon-lg" id="guild-hero-icon" aria-hidden="true">?</span>
+          <div>
+            <h1 id="guild-title">Seleziona un server</h1>
+            <p id="guild-sub">Scegli dalla lista un server dove il bot è presente.</p>
+          </div>
+          <a class="btn btn-secondary btn-sm" id="guild-open-discord" href="#" hidden>Apri impostazioni</a>
+        </div>
+        <div id="guild-hero-empty">
+          <h1 id="guild-title-empty">I tuoi server</h1>
+          <p class="muted">Entra in un server per configurare il bot: benvenuto, automod, livelli, ticket, AI e permessi.</p>
+        </div>
       </div>
 
       <p class="status-line" id="status" role="status" aria-live="polite"></p>
 
-      <section class="panel" aria-labelledby="stats-h">
-        <h2 id="stats-h">Statistiche</h2>
-        <p>Dati live del server selezionato.</p>
-        <div class="stats-cards" id="stats">
-          <div class="stat-card"><div class="k">Server</div><div class="v">—</div></div>
-        </div>
+      <!-- Panoramica account: visibile finché nessun server è selezionato -->
+      <section class="panel" id="overview-panel" aria-labelledby="overview-h">
+        <h2 id="overview-h">Panoramica</h2>
+        <p>Tutti i server dove hai il permesso Gestisci Server.</p>
+        <div class="stats-cards" id="overview-stats"></div>
+        <div class="ov-grid" id="overview-grid"></div>
       </section>
 
-      <section class="panel" aria-labelledby="modules-h">
-        <h2 id="modules-h">Moduli</h2>
-        <p>Configurazione guidata dallo schema del server: modifica e salva ogni modulo.</p>
-        <div class="modules" id="modules"></div>
-      </section>
+      <!-- Dettaglio server: visibile dopo la selezione -->
+      <div id="guild-detail" hidden>
+        <nav class="tabs" id="tabs" aria-label="Sezioni configurazione"></nav>
 
-      <section class="panel" aria-labelledby="perms-h">
-        <h2 id="perms-h">Permessi custom</h2>
-        <p>Scegli un comando e i ruoli autorizzati a usarlo, poi salva.</p>
-        <form id="perms-form" class="card">
-          <div class="field">
-            <label for="perm-command">Comando</label>
-            <select id="perm-command" name="command" required></select>
+        <section class="panel tab-panel" data-tabpanel="panoramica" aria-labelledby="stats-h">
+          <h2 id="stats-h">📊 Panoramica server</h2>
+          <p>Dati live e classifiche del server selezionato.</p>
+          <div class="stats-cards" id="stats"></div>
+          <div class="ov-grid two">
+            <div class="card" id="top-levels-card">
+              <h3>🏆 Top livelli</h3>
+              <ol class="toplist" id="top-levels"><li class="muted">—</li></ol>
+            </div>
+            <div class="card" id="top-eco-card">
+              <h3>💰 Top economy</h3>
+              <ol class="toplist" id="top-eco"><li class="muted">—</li></ol>
+            </div>
           </div>
-          <div class="field">
-            <span id="perm-roles-label">Ruoli autorizzati</span>
-            <div class="roles-checks" id="perm-roles" role="group" aria-labelledby="perm-roles-label"></div>
+        </section>
+
+        <section class="panel tab-panel" data-tabpanel="moduli" aria-labelledby="modules-h" hidden>
+          <h2 id="modules-h">🧩 Moduli</h2>
+          <p>Configurazione guidata: modifica e salva ogni modulo. Usa le tab qui sotto per filtrare.</p>
+          <div class="chips" id="module-filter" role="group" aria-label="Filtra moduli"></div>
+          <div class="modules" id="modules"></div>
+        </section>
+
+        <section class="panel tab-panel" data-tabpanel="liste" aria-labelledby="lists-h" hidden>
+          <h2 id="lists-h">📝 Liste: risposte, comandi e ricompense</h2>
+          <p>Trigger automatici, comandi <code>!nome</code> e ruoli premio per livello.</p>
+          <div class="lists-grid">
+            <div class="card" id="card-autoresponder">
+              <h3>💬 Risposte automatiche</h3>
+              <ul class="itemlist" id="ar-list"><li class="muted">Nessun trigger.</li></ul>
+              <form id="ar-form" class="stack">
+                <div class="field">
+                  <label for="ar-match">Parola / frase trigger</label>
+                  <input type="text" id="ar-match" maxlength="200" placeholder="es. benvenuto" required>
+                </div>
+                <div class="field">
+                  <label for="ar-response">Risposta del bot</label>
+                  <textarea id="ar-response" maxlength="1500" placeholder="Ciao! …" required></textarea>
+                </div>
+                <button class="btn btn-primary btn-sm" type="submit">Aggiungi risposta</button>
+              </form>
+            </div>
+            <div class="card" id="card-commands">
+              <h3>⌨️ Comandi custom (!nome)</h3>
+              <ul class="itemlist" id="cc-list"><li class="muted">Nessun comando.</li></ul>
+              <form id="cc-form" class="stack">
+                <div class="field">
+                  <label for="cc-name">Nome (2-20 caratteri, a-z 0-9 -)</label>
+                  <input type="text" id="cc-name" maxlength="20" placeholder="es. regole" required>
+                </div>
+                <div class="field">
+                  <label for="cc-response">Risposta (variabili: {user} {server} {count})</label>
+                  <textarea id="cc-response" maxlength="1500" placeholder="!regole → …" required></textarea>
+                </div>
+                <button class="btn btn-primary btn-sm" type="submit">Salva comando</button>
+              </form>
+            </div>
+            <div class="card" id="card-rewards">
+              <h3>🏅 Ricompense livello</h3>
+              <ul class="itemlist" id="rw-list"><li class="muted">Nessuna ricompensa.</li></ul>
+              <form id="rw-form" class="stack">
+                <div class="row2">
+                  <div class="field">
+                    <label for="rw-level">Livello (1-100)</label>
+                    <input type="number" id="rw-level" min="1" max="100" step="1" required>
+                  </div>
+                  <div class="field">
+                    <label for="rw-role">Ruolo premio</label>
+                    <select id="rw-role" required></select>
+                  </div>
+                </div>
+                <button class="btn btn-primary btn-sm" type="submit">Assegna ricompensa</button>
+              </form>
+            </div>
           </div>
-          <button class="btn btn-primary btn-sm" type="submit" id="perm-save">Salva permessi</button>
-          <div class="perms-current" aria-live="polite">
-            <strong>Permessi attuali</strong>
-            <ul id="perms-list"><li>Nessun dato.</li></ul>
-          </div>
-        </form>
-      </section>
+        </section>
+
+        <section class="panel tab-panel" data-tabpanel="permessi" aria-labelledby="perms-h" hidden>
+          <h2 id="perms-h">🔐 Permessi custom</h2>
+          <p>Scegli un comando e i ruoli autorizzati a usarlo, poi salva. Lista vuota = reset.</p>
+          <form id="perms-form" class="card">
+            <div class="field">
+              <label for="perm-command">Comando</label>
+              <select id="perm-command" name="command" required></select>
+            </div>
+            <div class="field">
+              <span id="perm-roles-label">Ruoli autorizzati</span>
+              <div class="roles-checks" id="perm-roles" role="group" aria-labelledby="perm-roles-label"></div>
+            </div>
+            <button class="btn btn-primary btn-sm" type="submit" id="perm-save">Salva permessi</button>
+            <div class="perms-current" aria-live="polite">
+              <strong>Permessi attuali</strong>
+              <ul id="perms-list"><li>Nessun dato.</li></ul>
+            </div>
+          </form>
+        </section>
+      </div>
     </main>
   </div>
 
