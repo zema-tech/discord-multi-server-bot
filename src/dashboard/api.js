@@ -161,6 +161,88 @@ function inviteUrl(clientId, guildId) {
     `&permissions=${perms}&scope=bot%20applications.commands&guild_id=${encodeURIComponent(guildId)}`;
 }
 
+/**
+ * Aggregati per la card server nella home globale (solo letture locali:
+ * DB + niente rete). Ritorna null se i moduli mancano.
+ * { messages7, joins7, leaves7, openTickets, triggers, commands, spark[7] }
+ */
+function guildCardStats(gid) {
+  try {
+    const analytics = safeRequire('../database/analytics');
+    const tickets = safeRequire('../database/tickets');
+    const autoresponder = safeRequire('../database/autoresponder');
+    const customCommands = safeRequire('../database/customCommands');
+    let messages7 = 0, joins7 = 0, leaves7 = 0, spark = [];
+    try {
+      if (analytics && typeof analytics.getDays === 'function') {
+        const days = analytics.getDays(gid, 7) || [];
+        spark = days.map((d) => Math.max(0, Math.floor(Number(d.messages) || 0)));
+        for (const d of days) {
+          messages7 += Math.max(0, Math.floor(Number(d.messages) || 0));
+          joins7 += Math.max(0, Math.floor(Number(d.joins) || 0));
+          leaves7 += Math.max(0, Math.floor(Number(d.leaves) || 0));
+        }
+      }
+    } catch { /* analytics assente: zeri */ }
+    let openTickets = 0;
+    try {
+      if (tickets && typeof tickets.openTickets === 'function') {
+        const open = tickets.openTickets(gid);
+        openTickets = Array.isArray(open) ? open.length : 0;
+      } else if (tickets && typeof tickets.getStats === 'function') {
+        const st = tickets.getStats(gid) || {};
+        openTickets = typeof st.open === 'number' ? st.open : 0;
+      }
+    } catch { /* resta 0 */ }
+    let triggers = 0, commands = 0;
+    try { triggers = autoresponder ? autoresponder.listTriggers(gid).length : 0; } catch { triggers = 0; }
+    try { commands = customCommands ? customCommands.list(gid).length : 0; } catch { commands = 0; }
+    return { messages7, joins7, leaves7, openTickets, triggers, commands, spark };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Punteggio completamento configurazione (home globale): voci essenziali
+ * spuntate sui moduli reali. { done, total }. Mai lanciare.
+ */
+function guildSetupScore(gid) {
+  try {
+    const guildConfig = safeRequire('../database/guildConfig');
+    const tickets = safeRequire('../database/tickets');
+    const autorole = safeRequire('../database/autorole');
+    const tempvoice = safeRequire('../database/tempvoice');
+    const aiConfig = safeRequire('../database/aiConfig');
+    const starboard = safeRequire('../database/starboard');
+    let cfg = {};
+    try { cfg = guildConfig ? guildConfig.getGuild(gid) : {}; } catch { cfg = {}; }
+    let tcfg = {};
+    try { tcfg = tickets ? tickets.getConfig(gid) : {}; } catch { tcfg = {}; }
+    let arcfg = null;
+    try { arcfg = autorole ? autorole.getConfig(gid) : null; } catch { arcfg = null; }
+    let tvcfg = null;
+    try { tvcfg = tempvoice ? tempvoice.getConfig(gid) : null; } catch { tvcfg = null; }
+    let aicfg = null;
+    try { aicfg = aiConfig && typeof aiConfig.getConfig === 'function' ? aiConfig.getConfig(gid) : null; } catch { aicfg = null; }
+    let sbcfg = null;
+    try { sbcfg = starboard ? starboard.getStarboard(gid) : null; } catch { sbcfg = null; }
+    const checks = [
+      Boolean(cfg.welcomeChannelId),
+      Boolean(cfg.logChannelId),
+      Boolean(cfg.automod && cfg.automod.enabled),
+      Boolean(arcfg && Array.isArray(arcfg.roleIds) && arcfg.roleIds.length > 0),
+      Boolean(tcfg && tcfg.logChannelId),
+      Boolean(tvcfg && tvcfg.lobbyChannelId),
+      Boolean(aicfg && (aicfg.mentionReply || aicfg.automodAI || aicfg.ticketAI)),
+      Boolean(sbcfg && sbcfg.channelId),
+    ];
+    return { done: checks.filter(Boolean).length, total: checks.length };
+  } catch {
+    return null;
+  }
+}
+
 function createApiRouter(client) {
   // Lazy: solo qui (mai a top-level) così lo smoke test passa senza express.
   const express = require('express');
@@ -282,6 +364,17 @@ function createApiRouter(client) {
             if (botGuild.icon) icon = iconUrl(botGuild.id, botGuild.icon) || icon;
           } catch { /* cache parziale: resta il dato OAuth */ }
         }
+        // Home globale: per i server con il bot, aggregati locali (DB + cache,
+        // nessuna chiamata Discord extra): attività 7g, sparkline, ticket aperti,
+        // automazioni e punteggio di completamento configurazione.
+        let stats = null;
+        let setup = null;
+        if (botPresent) {
+          try {
+            stats = guildCardStats(g.id);
+            setup = guildSetupScore(g.id);
+          } catch { stats = null; setup = null; }
+        }
         return {
           id: g.id,
           name: g.name,
@@ -290,6 +383,8 @@ function createApiRouter(client) {
           canManage,
           memberCount,
           inviteUrl: (!botPresent && canManage) ? inviteUrl(clientId, g.id) : null,
+          stats,
+          setup,
         };
       });
       // Prima i server con il bot, poi gli altri; alfabetici a parità.

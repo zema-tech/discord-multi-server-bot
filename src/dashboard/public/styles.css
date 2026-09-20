@@ -640,6 +640,43 @@ svg.chart .chart-empty-sub { fill: var(--muted); font-size: 12px; }
 .tip-row { display: flex; align-items: center; gap: 0.4rem; color: var(--muted); }
 .tip-row strong { margin-left: auto; color: var(--text); font-variant-numeric: tabular-nums; }
 
+/* ---------- Home globale: classifica, sparkline, setup, stato ---------- */
+.rank-card { padding: 1.1rem 1.2rem; }
+.rank-list { display: flex; flex-direction: column; margin-top: 0.7rem; }
+.rank-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--card-border);
+}
+.rank-row:first-child { border-top: 0; }
+.rank-txt { flex: 1; min-width: 0; }
+.rank-txt strong { display: block; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spark {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 28px;
+  flex: none;
+}
+.spark-bar { width: 5px; border-radius: 2px; background: var(--accent); opacity: 0.85; }
+.setup-wrap { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.3rem; }
+.setup-bar {
+  flex: 1;
+  min-width: 60px;
+  max-width: 160px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg0);
+  overflow: hidden;
+}
+.setup-bar > span { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+.setup-label { font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
+.status-line-v { display: flex; align-items: center; gap: 0.5rem; }
+.status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted-dim); flex: none; }
+.status-dot.on { background: var(--green); box-shadow: 0 0 8px rgba(87, 242, 135, 0.7); }
+
 /* ---------- Overview / top ---------- */
 .ov-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 0.9rem; }
 .ov-grid.two { margin-top: 1rem; }

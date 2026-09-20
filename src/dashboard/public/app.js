@@ -75,7 +75,8 @@
     permsBaseline: {},
     permsDraft: {},
     dirtyPerms: {},
-    trends: []
+    trends: [],
+    apiMs: null
   };
 
   var NUMBER_RANGES = { maxMentions: [1, 20], maxPerUser: [1, 10], autoCloseDays: [0, 90], maxCapsPercent: [10, 100], threshold: [1, 100], delaySeconds: [0, 3600] };
@@ -575,7 +576,10 @@
   }
 
   function loadGuilds() {
+    var t0 = 0;
+    try { t0 = performance.now(); } catch (e) { t0 = 0; }
     return getJSON("/api/guilds").then(function (guilds) {
+      try { state.apiMs = t0 ? Math.round(performance.now() - t0) : null; } catch (e) { state.apiMs = null; }
       state.guilds = Array.isArray(guilds) ? guilds : [];
       renderGuildList();
       renderOverview();
@@ -587,8 +591,8 @@
     });
   }
 
-  /* ---------- Panoramica account ---------- */
-  function overviewStat(iconName, label, raw) {
+  /* ---------- Home globale ---------- */
+  function overviewStat(iconName, label, raw, sub) {
     var card = document.createElement("div");
     card.className = "stat-card";
     var top = document.createElement("div");
@@ -608,7 +612,53 @@
     } else {
       vv.textContent = String(raw);
     }
+    if (sub) {
+      var ss = document.createElement("div");
+      ss.className = "stat-sub";
+      ss.textContent = sub;
+      card.appendChild(ss);
+    }
     return card;
+  }
+
+  function statusCard() {
+    var card = document.createElement("div");
+    card.className = "stat-card";
+    var top = document.createElement("div");
+    top.className = "stat-top";
+    top.appendChild(iconEl("server"));
+    var kk = document.createElement("span");
+    kk.className = "k";
+    kk.textContent = "Stato bot";
+    top.appendChild(kk);
+    card.appendChild(top);
+    var vv = document.createElement("div");
+    vv.className = "v status-line-v";
+    var dot = document.createElement("span");
+    dot.className = "status-dot on";
+    dot.setAttribute("aria-hidden", "true");
+    vv.appendChild(dot);
+    vv.appendChild(document.createTextNode("Online"));
+    card.appendChild(vv);
+    var ss = document.createElement("div");
+    ss.className = "stat-sub";
+    ss.textContent = (typeof state.apiMs === "number") ? "Risposta in " + state.apiMs + " ms" : "Pannello collegato";
+    card.appendChild(ss);
+    return card;
+  }
+
+  function sparkEl(values, max) {
+    var s = document.createElement("span");
+    s.className = "spark";
+    s.setAttribute("aria-hidden", "true");
+    (values || []).slice(-7).forEach(function (v) {
+      var b = document.createElement("span");
+      b.className = "spark-bar";
+      var h = max > 0 ? Math.max(8, Math.round((v / max) * 100)) : 8;
+      b.style.height = h + "%";
+      s.appendChild(b);
+    });
+    return s;
   }
 
   function renderOverview() {
@@ -617,11 +667,18 @@
     var members = withBot.reduce(function (acc, g) {
       return acc + (typeof g.memberCount === "number" ? g.memberCount : 0);
     }, 0);
+    function stNum(g, k) {
+      return (g.stats && typeof g.stats[k] === "number") ? g.stats[k] : 0;
+    }
+    var msg7 = withBot.reduce(function (a, g) { return a + stNum(g, "messages7"); }, 0);
+    var openT = withBot.reduce(function (a, g) { return a + stNum(g, "openTickets"); }, 0);
     var box = $("overview-stats");
     clear(box);
-    box.appendChild(overviewStat("server", "Server gestiti", withBot.length));
-    box.appendChild(overviewStat("users", "Membri totali", members));
-    box.appendChild(overviewStat("plus", "Da collegare", missing.length));
+    box.appendChild(overviewStat("server", "Server gestiti", withBot.length, null));
+    box.appendChild(overviewStat("users", "Membri totali", members, null));
+    box.appendChild(overviewStat("message", "Messaggi (7g)", msg7, withBot.length + (withBot.length === 1 ? " server" : " server")));
+    box.appendChild(overviewStat("ticket", "Ticket aperti", openT, null));
+    box.appendChild(statusCard());
     var grid = $("overview-grid");
     clear(grid);
     if (withBot.length === 0 && missing.length === 0) {
@@ -630,35 +687,80 @@
         [{ label: "Accedi con Discord", href: "/login", primary: true }]));
       return;
     }
-    withBot.slice(0, 6).forEach(function (g) {
-      var card = document.createElement("button");
-      card.type = "button";
-      card.className = "card ov-card";
-      var top = document.createElement("div");
-      top.className = "ov-top";
-      top.appendChild(guildIconEl(g));
-      var nm = document.createElement("strong");
-      nm.textContent = g.name || g.id;
-      top.appendChild(nm);
-      card.appendChild(top);
-      var meta = document.createElement("div");
-      meta.className = "muted small";
-      meta.textContent = (typeof g.memberCount === "number")
-        ? fmtNum(g.memberCount) + " membri — apri gestione" : "Apri gestione";
-      card.appendChild(meta);
-      card.addEventListener("click", function () { selectGuild(g.id, g.name); });
-      grid.appendChild(card);
-    });
+    if (withBot.length > 0) {
+      var rank = document.createElement("div");
+      rank.className = "card rank-card";
+      var h = document.createElement("h3");
+      h.textContent = "Server per attività";
+      rank.appendChild(h);
+      var hp = document.createElement("p");
+      hp.className = "muted small";
+      hp.textContent = "Messaggi degli ultimi 7 giorni e stato di configurazione.";
+      rank.appendChild(hp);
+      var ordered = withBot.slice().sort(function (a, b) { return stNum(b, "messages7") - stNum(a, "messages7"); });
+      var maxMsg = 1;
+      ordered.forEach(function (g) {
+        var m = stNum(g, "messages7");
+        if (m > maxMsg) maxMsg = m;
+      });
+      var list = document.createElement("div");
+      list.className = "rank-list";
+      ordered.slice(0, 8).forEach(function (g) {
+        var row = document.createElement("div");
+        row.className = "rank-row";
+        row.appendChild(guildIconEl(g));
+        var tx = document.createElement("div");
+        tx.className = "rank-txt";
+        var nm = document.createElement("strong");
+        nm.textContent = g.name || g.id;
+        tx.appendChild(nm);
+        var meta = document.createElement("div");
+        meta.className = "muted small";
+        var bits = [];
+        if (typeof g.memberCount === "number") bits.push(fmtNum(g.memberCount) + " membri");
+        bits.push(fmtNum(stNum(g, "messages7")) + " messaggi");
+        if (stNum(g, "openTickets") > 0) bits.push(stNum(g, "openTickets") + " ticket aperti");
+        meta.textContent = bits.join(" · ");
+        tx.appendChild(meta);
+        if (g.setup && typeof g.setup.done === "number" && typeof g.setup.total === "number" && g.setup.total > 0) {
+          var setupWrap = document.createElement("div");
+          setupWrap.className = "setup-wrap";
+          var bar = document.createElement("div");
+          bar.className = "setup-bar";
+          var fill = document.createElement("span");
+          fill.style.width = Math.round((g.setup.done / g.setup.total) * 100) + "%";
+          bar.appendChild(fill);
+          setupWrap.appendChild(bar);
+          var lb = document.createElement("span");
+          lb.className = "setup-label";
+          lb.textContent = g.setup.done === g.setup.total ? "Configurato" : "Configurazione " + g.setup.done + "/" + g.setup.total;
+          setupWrap.appendChild(lb);
+          tx.appendChild(setupWrap);
+        }
+        row.appendChild(tx);
+        row.appendChild(sparkEl(g.stats && g.stats.spark, maxMsg));
+        var go = document.createElement("button");
+        go.type = "button";
+        go.className = "btn btn-secondary btn-sm";
+        go.textContent = "Gestisci";
+        go.setAttribute("aria-label", "Gestisci " + (g.name || g.id));
+        go.addEventListener("click", function () { selectGuild(g.id, g.name); });
+        row.appendChild(go);
+        list.appendChild(row);
+      });
+      rank.appendChild(list);
+      grid.appendChild(rank);
+    }
     if (missing.length > 0) {
       var miss = document.createElement("div");
       miss.className = "card";
-      var h = document.createElement("h3");
-      h.textContent = "Server senza bot";
-      miss.appendChild(h);
-      var hp = document.createElement("p");
-      hp.className = "muted small";
-      hp.textContent = "Installa il bot per sbloccare la gestione.";
-      miss.appendChild(hp);
+      var mh = document.createElement("h3");
+      mh.textContent = "Server senza bot";
+      miss.appendChild(mh);
+      var mhp = document.createElement("p");
+      mhp.className = "muted small";
+      mhp.textContent = "Installa il bot per sbloccare la gestione.";
+      miss.appendChild(mhp);
       missing.slice(0, 5).forEach(function (g) {
         var row = document.createElement("div");
         row.className = "ov-miss";
