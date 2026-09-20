@@ -8,8 +8,12 @@ module.exports = {
     console.log(`📡 Presente su ${client.guilds.cache.size} server`);
     console.log(`📦 Comandi: ${client.commands.size}`);
 
-    const update = () =>
-      client.user.setActivity(`${client.guilds.cache.size} server | /help`, { type: ActivityType.Watching }).catch(() => {});
+    // setActivity in discord.js v14 NON restituisce una Promise: niente .catch, solo try/catch.
+    const update = () => {
+      try {
+        client.user.setActivity(`${client.guilds.cache.size} server | /help`, { type: ActivityType.Watching });
+      } catch (e) { /* presenza non critica */ }
+    };
     update();
     setInterval(update, 10 * 60 * 1000).unref?.();
 
