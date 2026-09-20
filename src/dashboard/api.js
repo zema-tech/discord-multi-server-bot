@@ -432,6 +432,8 @@ function createApiRouter(client) {
       try { ecoTop = economy ? economy.getLeaderboard(gid, 5) : []; } catch { ecoTop = []; }
       let analyticsTotals = null;
       try { analyticsTotals = analytics ? analytics.totals(gid, 7) : null; } catch { analyticsTotals = null; }
+      let trends = [];
+      try { trends = analytics && typeof analytics.getDays === 'function' ? analytics.getDays(gid, 30) : []; } catch { trends = []; }
       let ticketStats = null;
       try { ticketStats = tickets ? tickets.getStats(gid) : null; } catch { ticketStats = null; }
       let openTickets = 0;
@@ -539,6 +541,7 @@ function createApiRouter(client) {
           levels: levelTop,
           economy: ecoTop,
           analytics: analyticsTotals,
+          trends: Array.isArray(trends) ? trends : [],
           tickets: ticketStats,
           openTickets,
         },

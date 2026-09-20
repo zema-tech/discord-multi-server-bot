@@ -3,40 +3,40 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Dashboard di configurazione del bot per i tuoi server Discord.">
-  <meta name="theme-color" content="#12131a">
-  <title>Dashboard — Multi-Server Bot</title>
+  <meta name="description" content="Pannello di gestione del bot per i tuoi server Discord.">
+  <title>Pannello — Multi-Server Bot</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
   <script src="/app.js" defer></script>
 </head>
 <body>
-  <a class="skip-link" href="#pannello">Salta al pannello</a>
+  <a class="skip-link" href="#pannello">Salta al contenuto</a>
 
   <div class="app-layout">
     <aside class="sidebar" id="sidebar" aria-label="Lista server" tabindex="-1">
       <a class="brand" href="/" aria-label="Torna alla home">
-        <span class="brand-dot" aria-hidden="true"></span>
-        <span class="brand-name">Multi-Server Bot</span>
-        <span class="pro-badge" aria-hidden="true">PRO</span>
+        <svg class="brand-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9"/><path d="M17 7h3"/><circle cx="15" cy="7" r="2"/><path d="M4 17h3"/><path d="M11 17h9"/><circle cx="9" cy="17" r="2"/></svg>
+        <span>Multi-Server Bot</span>
       </a>
 
       <div class="userbox" aria-live="polite">
         <div class="userbox-avatar" id="user-avatar" aria-hidden="true">?</div>
         <div class="userbox-txt">
           <div class="userbox-name" id="user-name">Caricamento…</div>
-          <div class="userbox-sub" id="user-sub">connessione…</div>
+          <div class="userbox-sub" id="user-sub">Connessione…</div>
         </div>
-        <a class="btn btn-secondary btn-sm" href="/logout" title="Esci">Esci</a>
+        <a class="icon-btn" href="/logout" title="Esci" aria-label="Esci">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+        </a>
       </div>
 
       <div class="side-search">
         <label class="visually-hidden" for="guild-search">Cerca server</label>
-        <span class="search-ico" aria-hidden="true">⌕</span>
-        <input type="search" id="guild-search" placeholder="Cerca server…" autocomplete="off" aria-describedby="search-hint">
-        <kbd class="search-kbd" id="search-hint" title="Premi / per cercare">/</kbd>
+        <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input type="search" id="guild-search" placeholder="Cerca server…" autocomplete="off">
+        <kbd class="search-kbd" title="Premi / per cercare">/</kbd>
       </div>
 
       <div class="chips" role="group" aria-label="Filtro server">
@@ -45,179 +45,181 @@
         <button type="button" class="chip" data-filter="missing" aria-pressed="false">Da aggiungere</button>
       </div>
 
-      <h2 id="guilds-heading">I tuoi server <span class="count-pill" id="guild-count"></span></h2>
+      <h2 id="guilds-heading">Server <span class="count-pill" id="guild-count"></span></h2>
       <ul class="guild-list" id="guild-list" aria-labelledby="guilds-heading">
         <li class="guild-empty">Caricamento server…</li>
       </ul>
 
       <div class="sidebar-foot">
-        <a class="btn btn-secondary btn-sm" href="/">← Landing</a>
+        <a class="btn btn-secondary btn-sm" href="/">Home</a>
         <a class="btn btn-secondary btn-sm" href="/login">Cambia account</a>
       </div>
     </aside>
 
     <main class="main" id="pannello" tabindex="-1">
-      <div class="main-head">
-        <button class="btn btn-secondary btn-sm nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="sidebar">☰ Server</button>
-        <div class="guild-hero is-empty" id="guild-hero" hidden>
-          <span class="hero-glow" aria-hidden="true"></span>
-          <span class="guild-icon guild-icon-lg" id="guild-hero-icon" aria-hidden="true">?</span>
-          <div class="hero-txt">
-            <h1 id="guild-title">Seleziona un server</h1>
-            <p id="guild-sub">Scegli dalla lista un server dove il bot è presente.</p>
-          </div>
-          <a class="btn btn-secondary btn-sm hero-act" id="guild-open-discord" href="#" hidden>Apri impostazioni</a>
+      <div class="subheader" id="subheader" hidden>
+        <button class="btn btn-secondary btn-sm nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="sidebar" aria-label="Apri lista server">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
+        </button>
+        <span class="guild-icon" id="guild-hero-icon" aria-hidden="true">?</span>
+        <div class="subheader-txt">
+          <h1 id="guild-title">Seleziona un server</h1>
+          <p id="guild-sub">Scegli un server dalla lista.</p>
         </div>
-        <div class="guild-hero hero-welcome" id="guild-hero-empty">
-          <span class="hero-glow" aria-hidden="true"></span>
-          <span class="guild-icon guild-icon-lg hero-logo" aria-hidden="true">✦</span>
-          <div class="hero-txt">
-            <p class="hero-eyebrow">Dashboard · stile Nitro</p>
-            <h1 id="guild-title-empty">I tuoi server</h1>
-            <p class="muted">Benvenuto, automod, livelli, ticket, AI e permessi — tutto da un unico pannello.</p>
-          </div>
+        <nav class="tabs" id="tabs" aria-label="Sezioni" role="tablist"></nav>
+      </div>
+
+      <div class="overview-head" id="overview-head">
+        <div>
+          <h1>I tuoi server</h1>
+          <p class="muted">Gestisci il bot: moderazione, livelli, ticket, risposte automatiche e permessi.</p>
         </div>
       </div>
 
       <p class="status-line" id="status" role="status" aria-live="polite"></p>
 
-      <!-- Panoramica account: visibile finché nessun server è selezionato -->
       <section class="panel" id="overview-panel" aria-labelledby="overview-h">
-        <div class="panel-head">
-          <div>
-            <h2 id="overview-h">Panoramica</h2>
-            <p>Tutti i server dove hai il permesso Gestisci Server.</p>
-          </div>
-        </div>
+        <h2 id="overview-h" class="visually-hidden">Panoramica account</h2>
         <div class="stats-cards" id="overview-stats"></div>
         <div class="ov-grid" id="overview-grid"></div>
       </section>
 
-      <!-- Dettaglio server: visibile dopo la selezione -->
       <div id="guild-detail" hidden>
-        <nav class="tabs" id="tabs" aria-label="Sezioni configurazione" role="tablist"><span class="tab-indicator" id="tab-indicator" aria-hidden="true"></span></nav>
-
         <section class="panel tab-panel" data-tabpanel="panoramica" aria-labelledby="stats-h">
-          <div class="panel-head">
-            <div>
-              <h2 id="stats-h">Panoramica server</h2>
-              <p>Dati live e classifiche del server selezionato.</p>
+          <div class="card chart-card">
+            <div class="chart-head">
+              <div>
+                <h2 id="stats-h">Attività ultimi 30 giorni</h2>
+                <p class="muted small" id="chart-summary">Messaggi, ingressi e uscite giornalieri.</p>
+              </div>
+              <div class="legend" aria-hidden="true">
+                <span class="legend-item"><span class="sw sw-msg"></span>Messaggi</span>
+                <span class="legend-item"><span class="sw sw-join"></span>Ingressi</span>
+                <span class="legend-item"><span class="sw sw-leave"></span>Uscite</span>
+              </div>
+            </div>
+            <div class="chart-wrap" id="chart-wrap">
+              <div class="chart-tip" id="chart-tip" hidden></div>
             </div>
           </div>
           <div class="stats-cards" id="stats"></div>
           <div class="ov-grid two">
-            <div class="card rank-card" id="top-levels-card">
-              <h3>🏆 Top livelli</h3>
+            <div class="card" id="top-levels-card">
+              <h3>Top livelli</h3>
               <ol class="toplist" id="top-levels"><li class="muted">—</li></ol>
             </div>
-            <div class="card rank-card" id="top-eco-card">
-              <h3>💰 Top economy</h3>
+            <div class="card" id="top-eco-card">
+              <h3>Top economy</h3>
               <ol class="toplist" id="top-eco"><li class="muted">—</li></ol>
             </div>
           </div>
         </section>
 
         <section class="panel tab-panel" data-tabpanel="moduli" aria-labelledby="modules-h" hidden>
-          <div class="panel-head">
-            <div>
-              <h2 id="modules-h">Moduli</h2>
-              <p>Configurazione guidata: modifica e salva ogni modulo. Usa i filtri per sezione.</p>
+          <h2 id="modules-h" class="visually-hidden">Moduli</h2>
+          <div class="mod-toolbar">
+            <div class="mod-search">
+              <label class="visually-hidden" for="module-search">Cerca impostazione o modulo</label>
+              <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+              <input type="search" id="module-search" placeholder="Cerca impostazione…" autocomplete="off">
+            </div>
+            <div class="chips" id="module-sections" role="group" aria-label="Filtra per sezione"></div>
+          </div>
+          <div class="mod-layout">
+            <nav class="mod-nav" id="module-nav" aria-label="Moduli"></nav>
+            <div class="mod-detail" id="module-detail">
+              <div class="modules" id="modules"></div>
             </div>
           </div>
-          <div class="chips" id="module-filter" role="group" aria-label="Filtra moduli"></div>
-          <div class="modules" id="modules"></div>
         </section>
 
         <section class="panel tab-panel" data-tabpanel="liste" aria-labelledby="lists-h" hidden>
-          <div class="panel-head">
-            <div>
-              <h2 id="lists-h">Liste: risposte, comandi e ricompense</h2>
-              <p>Trigger automatici, comandi <code>!nome</code> e ruoli premio per livello.</p>
-            </div>
-          </div>
+          <h2 id="lists-h" class="visually-hidden">Liste</h2>
           <div class="lists-grid">
-            <div class="card list-card" id="card-autoresponder">
-              <div class="list-head list-ar"><h3>💬 Risposte automatiche</h3></div>
+            <div class="card" id="card-autoresponder">
+              <h3>Risposte automatiche</h3>
+              <p class="muted small">Associa una parola o frase a una risposta del bot.</p>
               <ul class="itemlist" id="ar-list"><li class="muted">Nessun trigger.</li></ul>
               <form id="ar-form" class="stack">
                 <div class="field">
-                  <label for="ar-match">Parola / frase trigger</label>
-                  <input type="text" id="ar-match" maxlength="200" placeholder="es. benvenuto" required>
+                  <label for="ar-match">Parola o frase</label>
+                  <input type="text" id="ar-match" maxlength="200" placeholder="es. orari" required>
                 </div>
                 <div class="field">
-                  <label for="ar-response">Risposta del bot</label>
-                  <textarea id="ar-response" maxlength="1500" placeholder="Ciao! …" required></textarea>
+                  <label for="ar-response">Risposta</label>
+                  <textarea id="ar-response" maxlength="1500" placeholder="Il server apre alle…" required></textarea>
                 </div>
-                <button class="btn btn-primary btn-sm" type="submit">Aggiungi risposta</button>
+                <button class="btn btn-primary btn-sm" type="submit">Aggiungi</button>
               </form>
             </div>
-            <div class="card list-card" id="card-commands">
-              <div class="list-head list-cc"><h3>⌨️ Comandi custom (!nome)</h3></div>
+            <div class="card" id="card-commands">
+              <h3>Comandi personalizzati</h3>
+              <p class="muted small">Comandi <code>!nome</code> con variabili {user} {server} {count}.</p>
               <ul class="itemlist" id="cc-list"><li class="muted">Nessun comando.</li></ul>
               <form id="cc-form" class="stack">
                 <div class="field">
-                  <label for="cc-name">Nome (2-20 caratteri, a-z 0-9 -)</label>
+                  <label for="cc-name">Nome (2–20 caratteri: a-z, 0–9, -)</label>
                   <input type="text" id="cc-name" maxlength="20" placeholder="es. regole" required>
                 </div>
                 <div class="field">
-                  <label for="cc-response">Risposta (variabili: {user} {server} {count})</label>
-                  <textarea id="cc-response" maxlength="1500" placeholder="!regole → …" required></textarea>
+                  <label for="cc-response">Risposta</label>
+                  <textarea id="cc-response" maxlength="1500" placeholder="…" required></textarea>
                 </div>
                 <button class="btn btn-primary btn-sm" type="submit">Salva comando</button>
               </form>
             </div>
-            <div class="card list-card" id="card-rewards">
-              <div class="list-head list-rw"><h3>🏅 Ricompense livello</h3></div>
+            <div class="card" id="card-rewards">
+              <h3>Ricompense di livello</h3>
+              <p class="muted small">Ruolo assegnato al raggiungimento di un livello.</p>
               <ul class="itemlist" id="rw-list"><li class="muted">Nessuna ricompensa.</li></ul>
               <form id="rw-form" class="stack">
                 <div class="row2">
                   <div class="field">
-                    <label for="rw-level">Livello (1-100)</label>
+                    <label for="rw-level">Livello (1–100)</label>
                     <input type="number" id="rw-level" min="1" max="100" step="1" required>
                   </div>
                   <div class="field">
-                    <label for="rw-role">Ruolo premio</label>
+                    <label for="rw-role">Ruolo</label>
                     <select id="rw-role" required></select>
                   </div>
                 </div>
-                <button class="btn btn-primary btn-sm" type="submit">Assegna ricompensa</button>
+                <button class="btn btn-primary btn-sm" type="submit">Assegna</button>
               </form>
             </div>
           </div>
         </section>
 
         <section class="panel tab-panel" data-tabpanel="permessi" aria-labelledby="perms-h" hidden>
-          <div class="panel-head">
-            <div>
-              <h2 id="perms-h">Permessi custom</h2>
-              <p>Scegli un comando e i ruoli autorizzati a usarlo, poi salva. Lista vuota = reset.</p>
+          <h2 id="perms-h" class="visually-hidden">Permessi</h2>
+          <div class="card">
+            <h3>Chi può usare cosa</h3>
+            <p class="muted small">Seleziona i ruoli ammessi per ogni comando. Riga vuota = nessun limite. Le modifiche si salvano dalla barra in basso.</p>
+            <div class="matrix-scroll">
+              <table class="matrix" id="perms-matrix">
+                <thead id="perms-head"></thead>
+                <tbody id="perms-body"></tbody>
+              </table>
             </div>
           </div>
-          <form id="perms-form" class="card perm-card">
-            <div class="field">
-              <label for="perm-command">Comando</label>
-              <select id="perm-command" name="command" required></select>
-            </div>
-            <div class="field">
-              <span id="perm-roles-label">Ruoli autorizzati</span>
-              <div class="roles-checks" id="perm-roles" role="group" aria-labelledby="perm-roles-label"></div>
-            </div>
-            <button class="btn btn-primary btn-sm" type="submit" id="perm-save">Salva permessi</button>
-            <div class="perms-current" aria-live="polite">
-              <strong>Permessi attuali</strong>
-              <ul id="perms-list"><li>Nessun dato.</li></ul>
-            </div>
-          </form>
         </section>
       </div>
     </main>
+  </div>
+
+  <div class="dirty-bar" id="dirty-bar" hidden>
+    <span class="dirty-dot" aria-hidden="true"></span>
+    <span id="dirty-count" role="status">Modifiche non salvate</span>
+    <span class="dirty-actions">
+      <button class="btn btn-secondary btn-sm" type="button" id="dirty-discard">Annulla</button>
+      <button class="btn btn-primary btn-sm" type="button" id="dirty-save">Salva tutto</button>
+    </span>
   </div>
 
   <div class="nav-overlay" id="nav-overlay" hidden></div>
 
   <div class="modal-backdrop" id="confirm-backdrop" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-msg">
-      <h2 id="confirm-title">Confermi il salvataggio?</h2>
+      <h2 id="confirm-title">Confermi?</h2>
       <p id="confirm-msg"></p>
       <div class="modal-actions">
         <button class="btn btn-secondary btn-sm" type="button" id="confirm-cancel">Annulla</button>
