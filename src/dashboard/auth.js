@@ -359,7 +359,7 @@ function registerAuthRoutes(app) {
         sessionCookieHeader(createSession(token.access_token), SESSION_DAYS * 24 * 3600),
         clearStateCookieHeader(),
       ]);
-      return res.redirect('/');
+      return res.redirect('/app.html');
     } catch (e) {
       console.error('[Dashboard] OAuth callback fallito:', e.message);
       return res.status(500).json({ errore: 'Login Discord fallito, riprova.' });

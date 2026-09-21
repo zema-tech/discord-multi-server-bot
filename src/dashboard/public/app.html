@@ -13,43 +13,39 @@
   <script src="/app.js" defer></script>
 </head>
 <body>
-  <a class="skip-link" href="#pannello">Salta al contenuto</a>
+  <a class="skip-link" href="#view">Salta al contenuto</a>
 
-  <div class="app-layout">
-    <aside class="sidebar" id="sidebar" aria-label="Lista server" tabindex="-1">
-      <a class="brand" href="/" aria-label="Torna alla home">
+  <div class="app">
+    <aside id="sidebar" aria-label="Lista server">
+      <a class="brand" href="/">
         <svg class="brand-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9"/><path d="M17 7h3"/><circle cx="15" cy="7" r="2"/><path d="M4 17h3"/><path d="M11 17h9"/><circle cx="9" cy="17" r="2"/></svg>
         <span>Multi-Server Bot</span>
       </a>
 
-      <div class="userbox" aria-live="polite">
-        <div class="userbox-avatar" id="user-avatar" aria-hidden="true">?</div>
-        <div class="userbox-txt">
-          <div class="userbox-name" id="user-name">Caricamento…</div>
-          <div class="userbox-sub" id="user-sub">Connessione…</div>
+      <div id="user-chip">
+        <img id="user-avatar" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="Avatar utente">
+        <div>
+          <div id="user-name">Caricamento…</div>
+          <div id="user-sub">Connessione…</div>
         </div>
-        <a class="icon-btn" href="/logout" title="Esci" aria-label="Esci">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
-        </a>
+        <a id="logout-link" href="/logout" title="Esci">Esci</a>
       </div>
 
       <div class="side-search">
         <label class="visually-hidden" for="guild-search">Cerca server</label>
         <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input type="search" id="guild-search" placeholder="Cerca server…" autocomplete="off" aria-keyshortcuts="/">
-        <kbd class="search-kbd" title="Premi / per cercare">/</kbd>
+        <input type="search" id="guild-search" placeholder="Cerca server…" autocomplete="off">
+        <kbd class="search-kbd">/</kbd>
       </div>
 
       <div class="chips" role="group" aria-label="Filtro server">
-        <button type="button" class="chip is-active" data-filter="all" aria-pressed="true">Tutti</button>
-        <button type="button" class="chip" data-filter="bot" aria-pressed="false">Con bot</button>
-        <button type="button" class="chip" data-filter="missing" aria-pressed="false">Da aggiungere</button>
+        <button type="button" class="chip is-active" data-filter="all">Tutti</button>
+        <button type="button" class="chip" data-filter="bot">Con bot</button>
+        <button type="button" class="chip" data-filter="missing">Da aggiungere</button>
       </div>
 
-      <h2 id="guilds-heading">Server <span class="count-pill" id="guild-count"></span></h2>
-      <ul class="guild-list" id="guild-list" aria-labelledby="guilds-heading">
-        <li class="guild-empty">Caricamento server…</li>
-      </ul>
+      <h2>Server <span id="guild-count" class="count-pill"></span></h2>
+      <ul id="guild-list"></ul>
 
       <div class="sidebar-foot">
         <a class="btn btn-secondary btn-sm" href="/">Home</a>
@@ -57,196 +53,194 @@
       </div>
     </aside>
 
-    <main class="main" id="pannello" tabindex="-1">
-      <button class="btn btn-secondary btn-sm nav-toggle main-nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="sidebar" aria-label="Apri lista server">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
-      </button>
-      <div class="subheader" id="subheader" hidden>
-        <span class="guild-icon" id="guild-hero-icon" aria-hidden="true">?</span>
-        <div class="subheader-txt">
-          <h1 id="guild-title">Seleziona un server</h1>
-          <p id="guild-sub">Scegli un server dalla lista.</p>
-        </div>
-        <span class="status-pill" id="server-status" hidden><span class="dot"></span><span class="status-txt">Online</span></span>
-        <nav class="tabs" id="tabs" aria-label="Sezioni" role="tablist"></nav>
-      </div>
-
-      <div class="overview-head" id="overview-head">
-        <div>
-          <h1>I tuoi server</h1>
-          <p class="muted">Gestisci il bot: moderazione, livelli, ticket, risposte automatiche e permessi.</p>
-        </div>
-        <span class="status-pill" id="home-status" hidden><span class="dot"></span><span class="status-txt">Online</span></span>
-      </div>
-
-      <p class="status-line" id="status" role="status" aria-live="polite"></p>
-
-      <section class="panel" id="overview-panel" aria-labelledby="overview-h">
-        <h2 id="overview-h" class="visually-hidden">Panoramica account</h2>
-        <div class="stats-cards" id="overview-stats"></div>
-        <div class="ov-grid" id="overview-grid"></div>
-      </section>
-
-      <div id="guild-detail" hidden>
-        <section class="panel tab-panel" data-tabpanel="panoramica" aria-labelledby="stats-h">
-          <div class="card chart-card">
-            <div class="chart-head">
-              <div>
-                <h2 id="stats-h">Attività ultimi 30 giorni</h2>
-                <p class="muted small" id="chart-summary">Messaggi, ingressi e uscite giornalieri.</p>
-              </div>
-              <div class="legend" aria-hidden="true">
-                <span class="legend-item"><span class="sw sw-msg"></span>Messaggi</span>
-                <span class="legend-item"><span class="sw sw-join"></span>Ingressi</span>
-                <span class="legend-item"><span class="sw sw-leave"></span>Uscite</span>
-              </div>
-            </div>
-            <div class="chart-wrap" id="chart-wrap">
-              <div class="chart-tip" id="chart-tip" hidden></div>
-            </div>
+    <div class="main-col">
+      <header id="topbar">
+        <button id="nav-toggle" class="btn btn-secondary btn-sm" type="button" aria-expanded="false" aria-controls="sidebar" aria-label="Apri lista server">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
+        </button>
+        <div id="ctx">
+          <span id="ctx-icon" class="guild-icon" aria-hidden="true">?</span>
+          <div>
+            <h1 id="ctx-name">I tuoi server</h1>
+            <p id="ctx-sub">Scegli un server dalla lista.</p>
           </div>
-          <div class="stats-cards" id="stats"></div>
-          <div class="ov-grid two">
-            <div class="card" id="top-levels-card">
-              <h3>Top livelli</h3>
-              <ol class="toplist" id="top-levels"><li class="muted">—</li></ol>
-            </div>
-            <div class="card" id="top-eco-card">
-              <h3>Top economy</h3>
-              <ol class="toplist" id="top-eco"><li class="muted">—</li></ol>
-            </div>
-          </div>
+        </div>
+        <span id="top-status" class="status-pill" hidden><span class="dot"></span><span class="status-txt">Online</span></span>
+        <img id="top-avatar" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="Avatar utente">
+        <a id="top-logout" class="icon-btn" href="/logout" title="Esci" aria-label="Esci">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+        </a>
+      </header>
+
+      <main id="view" tabindex="-1">
+        <p id="status" class="status-line" role="status"></p>
+
+        <section id="view-home">
+          <div id="overview-stats" class="stats-cards"></div>
+          <div id="overview-grid" class="ov-grid"></div>
         </section>
 
-        <section class="panel tab-panel" data-tabpanel="moduli" aria-labelledby="modules-h" hidden>
-          <h2 id="modules-h" class="visually-hidden">Moduli</h2>
-          <div class="mod-toolbar">
+        <section id="view-server" hidden>
+          <aside id="module-side">
             <div class="mod-search">
-              <label class="visually-hidden" for="module-search">Cerca plugin</label>
+              <label class="visually-hidden" for="module-search">Cerca modulo</label>
               <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-              <input type="search" id="module-search" placeholder="Cerca plugin…" autocomplete="off" aria-keyshortcuts="/">
+              <input type="search" id="module-search" placeholder="Cerca modulo…" autocomplete="off">
             </div>
-            <div class="chips" id="module-sections" role="group" aria-label="Filtra per sezione"></div>
-          </div>
-          <div class="plugin-grid" id="plugin-grid"></div>
-          <div class="mod-detail" id="module-detail" hidden>
-            <div class="modules" id="modules"></div>
-          </div>
-        </section>
+            <div id="module-sections" class="chips" role="group" aria-label="Filtra moduli per sezione"></div>
+            <nav id="module-list" aria-label="Moduli"></nav>
+          </aside>
 
-        <section class="panel tab-panel" data-tabpanel="liste" aria-labelledby="lists-h" hidden>
-          <h2 id="lists-h" class="visually-hidden">Liste</h2>
-          <div class="lists-grid">
-            <div class="card" id="card-autoresponder">
-              <h3>Risposte automatiche</h3>
-              <p class="muted small">Associa una parola o frase a una risposta del bot.</p>
-              <ul class="itemlist" id="ar-list"><li class="muted">Nessun trigger.</li></ul>
-              <form id="ar-form" class="stack">
-                <div class="field">
-                  <label for="ar-match">Parola o frase</label>
-                  <input type="text" id="ar-match" maxlength="200" placeholder="es. orari" required>
-                </div>
-                <div class="field">
-                  <label for="ar-response">Risposta</label>
-                  <textarea id="ar-response" maxlength="1500" placeholder="Il server apre alle…" required></textarea>
-                </div>
-                <button class="btn btn-primary btn-sm" type="submit">Aggiungi</button>
-              </form>
-            </div>
-            <div class="card" id="card-commands">
-              <h3>Comandi personalizzati</h3>
-              <p class="muted small">Comandi <code>!nome</code> con variabili {user} {server} {count}.</p>
-              <ul class="itemlist" id="cc-list"><li class="muted">Nessun comando.</li></ul>
-              <form id="cc-form" class="stack">
-                <div class="field">
-                  <label for="cc-name">Nome (2–20 caratteri: a-z, 0–9, -)</label>
-                  <input type="text" id="cc-name" maxlength="20" placeholder="es. regole" required>
-                </div>
-                <div class="field">
-                  <label for="cc-response">Risposta</label>
-                  <textarea id="cc-response" maxlength="1500" placeholder="…" required></textarea>
-                </div>
-                <button class="btn btn-primary btn-sm" type="submit">Salva comando</button>
-              </form>
-            </div>
-            <div class="card" id="card-rewards">
-              <h3>Ricompense di livello</h3>
-              <p class="muted small">Ruolo assegnato al raggiungimento di un livello.</p>
-              <ul class="itemlist" id="rw-list"><li class="muted">Nessuna ricompensa.</li></ul>
-              <form id="rw-form" class="stack">
-                <div class="row2">
-                  <div class="field">
-                    <label for="rw-level">Livello (1–100)</label>
-                    <input type="number" id="rw-level" min="1" max="100" step="1" required>
+          <div id="module-main">
+            <section id="sec-panoramica">
+              <div class="card chart-card">
+                <div class="chart-head">
+                  <div>
+                    <h2 id="stats-h">Attività ultimi 30 giorni</h2>
+                    <p id="chart-summary" class="muted small">Messaggi, ingressi e uscite giornalieri.</p>
                   </div>
-                  <div class="field">
-                    <label for="rw-role">Ruolo</label>
-                    <select id="rw-role" required></select>
+                  <div class="legend">
+                    <span class="legend-item"><span class="sw sw-msg"></span>Messaggi</span>
+                    <span class="legend-item"><span class="sw sw-join"></span>Ingressi</span>
+                    <span class="legend-item"><span class="sw sw-leave"></span>Uscite</span>
                   </div>
                 </div>
-                <button class="btn btn-primary btn-sm" type="submit">Assegna</button>
-              </form>
-            </div>
-            <div class="card" id="card-shop">
-              <h3>Negozio ruoli</h3>
-              <p class="muted small">Ruoli acquistabili con le monete del server.</p>
-              <ul class="itemlist" id="sh-list"><li class="muted">Negozio vuoto.</li></ul>
-              <form id="sh-form" class="stack">
-                <div class="row2">
-                  <div class="field">
-                    <label for="sh-role">Ruolo in vendita</label>
-                    <select id="sh-role" required></select>
-                  </div>
-                  <div class="field">
-                    <label for="sh-price">Prezzo (monete)</label>
-                    <input type="number" id="sh-price" min="1" max="10000000" step="1" required>
-                  </div>
+                <div id="chart-wrap" class="chart-wrap">
+                  <div id="chart-tip" class="chart-tip" hidden></div>
                 </div>
-                <button class="btn btn-primary btn-sm" type="submit">Metti in vendita</button>
-              </form>
-            </div>
-          </div>
-        </section>
+              </div>
+              <div id="stats" class="stats-cards"></div>
+              <div class="ov-grid two">
+                <div class="card">
+                  <h3>Top livelli</h3>
+                  <ol id="top-levels" class="toplist"></ol>
+                </div>
+                <div class="card">
+                  <h3>Top economy</h3>
+                  <ol id="top-eco" class="toplist"></ol>
+                </div>
+              </div>
+            </section>
 
-        <section class="panel tab-panel" data-tabpanel="permessi" aria-labelledby="perms-h" hidden>
-          <h2 id="perms-h" class="visually-hidden">Permessi</h2>
-          <div class="card">
-            <h3>Chi può usare cosa</h3>
-            <p class="muted small">Seleziona i ruoli ammessi per ogni comando. Riga vuota = nessun limite. Le modifiche si salvano dalla barra in basso.</p>
-            <div class="matrix-scroll" tabindex="0" role="region" aria-label="Matrice permessi: scorri orizzontalmente per vedere tutti i ruoli">
-              <table class="matrix" id="perms-matrix">
-                <thead id="perms-head"></thead>
-                <tbody id="perms-body"></tbody>
-              </table>
-            </div>
+            <section id="sec-module" hidden>
+              <div id="module-detail">
+                <div id="modules"></div>
+              </div>
+            </section>
+
+            <section id="sec-lists" hidden>
+              <div class="lists-grid">
+                <div class="card">
+                  <h3>Risposte automatiche</h3>
+                  <p class="muted small">Associa una parola o frase a una risposta del bot.</p>
+                  <ul id="ar-list" class="itemlist"></ul>
+                  <form id="ar-form" class="stack">
+                    <div class="field">
+                      <label for="ar-match">Parola o frase</label>
+                      <input type="text" id="ar-match" maxlength="200" placeholder="es. orari" required>
+                    </div>
+                    <div class="field">
+                      <label for="ar-response">Risposta</label>
+                      <textarea id="ar-response" maxlength="1500" placeholder="Il server apre alle…" required></textarea>
+                    </div>
+                    <button class="btn btn-primary btn-sm" type="submit">Aggiungi</button>
+                  </form>
+                </div>
+                <div class="card">
+                  <h3>Comandi personalizzati</h3>
+                  <p class="muted small">Comandi con nome breve e risposta personalizzata.</p>
+                  <ul id="cc-list" class="itemlist"></ul>
+                  <form id="cc-form" class="stack">
+                    <div class="field">
+                      <label for="cc-name">Nome comando</label>
+                      <input type="text" id="cc-name" maxlength="20" placeholder="es. regole" required>
+                    </div>
+                    <div class="field">
+                      <label for="cc-response">Risposta</label>
+                      <textarea id="cc-response" maxlength="1500" placeholder="Leggi il regolamento…" required></textarea>
+                    </div>
+                    <button class="btn btn-primary btn-sm" type="submit">Salva comando</button>
+                  </form>
+                </div>
+                <div class="card">
+                  <h3>Ricompense di livello</h3>
+                  <p class="muted small">Ruolo assegnato al raggiungimento di un livello.</p>
+                  <ul id="rw-list" class="itemlist"></ul>
+                  <form id="rw-form" class="stack">
+                    <div class="row2">
+                      <div class="field">
+                        <label for="rw-level">Livello</label>
+                        <input type="number" id="rw-level" min="1" max="100" step="1" required>
+                      </div>
+                      <div class="field">
+                        <label for="rw-role">Ruolo</label>
+                        <select id="rw-role" required></select>
+                      </div>
+                    </div>
+                    <button class="btn btn-primary btn-sm" type="submit">Assegna</button>
+                  </form>
+                </div>
+                <div class="card">
+                  <h3>Negozio ruoli</h3>
+                  <p class="muted small">Ruoli acquistabili con le monete del server.</p>
+                  <ul id="sh-list" class="itemlist"></ul>
+                  <form id="sh-form" class="stack">
+                    <div class="row2">
+                      <div class="field">
+                        <label for="sh-role">Ruolo in vendita</label>
+                        <select id="sh-role" required></select>
+                      </div>
+                      <div class="field">
+                        <label for="sh-price">Prezzo</label>
+                        <input type="number" id="sh-price" min="1" max="10000000" step="1" required>
+                      </div>
+                    </div>
+                    <button class="btn btn-primary btn-sm" type="submit">Metti in vendita</button>
+                  </form>
+                </div>
+              </div>
+            </section>
+
+            <section id="sec-perms" hidden>
+              <div class="card">
+                <h3>Chi può usare cosa</h3>
+                <p class="muted small">Seleziona i ruoli ammessi per ogni comando. Riga vuota uguale nessun limite.</p>
+                <div class="matrix-scroll">
+                  <table id="perms-matrix" class="matrix">
+                    <thead id="perms-head"></thead>
+                    <tbody id="perms-body"></tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
           </div>
         </section>
-      </div>
-    </main>
+      </main>
+    </div>
   </div>
 
-  <div class="dirty-bar" id="dirty-bar" hidden role="region" aria-label="Modifiche non salvate">
+  <div id="dirty-bar" class="dirty-bar" hidden>
     <span class="dirty-dot" aria-hidden="true"></span>
     <span id="dirty-count" role="status">Modifiche non salvate</span>
     <span class="dirty-actions">
-      <button class="btn btn-secondary btn-sm" type="button" id="dirty-discard">Annulla</button>
-      <button class="btn btn-primary btn-sm" type="button" id="dirty-save">Salva tutto</button>
+      <button id="dirty-discard" class="btn btn-secondary btn-sm" type="button">Annulla</button>
+      <button id="dirty-save" class="btn btn-primary btn-sm" type="button">Salva tutto</button>
     </span>
   </div>
 
-  <div class="nav-overlay" id="nav-overlay" hidden></div>
+  <div id="nav-overlay" hidden></div>
 
-  <div class="modal-backdrop" id="confirm-backdrop" hidden>
+  <div id="confirm-backdrop" class="modal-backdrop" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-msg">
       <h2 id="confirm-title">Confermi?</h2>
       <p id="confirm-msg"></p>
       <div class="modal-actions">
-        <button class="btn btn-secondary btn-sm" type="button" id="confirm-cancel">Annulla</button>
-        <button class="btn btn-primary btn-sm" type="button" id="confirm-ok">Conferma</button>
+        <button id="confirm-cancel" class="btn btn-secondary btn-sm" type="button">Annulla</button>
+        <button id="confirm-ok" class="btn btn-primary btn-sm" type="button">Conferma</button>
       </div>
     </div>
   </div>
 
-  <div class="toast-wrap" id="toasts" aria-live="polite" aria-atomic="false"></div>
+  <div id="toasts" class="toast-wrap" aria-live="polite"></div>
 </body>
 </html>
