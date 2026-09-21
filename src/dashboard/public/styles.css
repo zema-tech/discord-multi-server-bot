@@ -535,7 +535,23 @@ code {
   white-space: nowrap;
 }
 .subheader-txt p { margin: 0; color: var(--muted); font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.overview-head { margin-bottom: 1.1rem; }
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: none;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.status-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px rgba(87, 242, 135, 0.7); flex: none; }
+.overview-head { margin-bottom: 1.1rem; display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
 .overview-head h1 { margin: 0 0 0.15rem; font-size: clamp(1.4rem, 3vw, 1.8rem); letter-spacing: -0.02em; }
 .overview-head p { margin: 0; color: var(--muted); font-size: 0.92rem; }
 
@@ -742,6 +758,22 @@ svg.chart .chart-empty-sub { fill: var(--muted); font-size: 12px; }
 .mod-item.is-active { background: var(--accent-soft); border-color: var(--accent); }
 .mod-item .svg-ico { width: 15px; height: 15px; color: var(--muted); }
 .mod-item.is-active .svg-ico { color: var(--accent); }
+.mod-item .mod-chev { width: 14px; height: 14px; color: var(--muted-dim); margin-left: auto; }
+.mod-item.is-active .mod-chev { color: var(--accent); }
+.mod-status {
+  flex: none;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--bg0);
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  padding: 0.12rem 0.55rem;
+}
+.mod-status.st-on { color: var(--green); border-color: var(--green-dim); background: rgba(87, 242, 135, 0.07); }
+.mod-form-head .mod-status { margin-left: auto; align-self: flex-start; }
 .mod-item-txt { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .mod-item-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mod-item-sec { font-size: 0.7rem; font-weight: 500; color: var(--muted); }

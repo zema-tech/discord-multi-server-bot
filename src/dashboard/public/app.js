@@ -54,7 +54,8 @@
     info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="8" r="1.2" fill="currentColor"/></svg>',
     server: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><circle cx="7" cy="7.5" r="1" fill="currentColor"/><circle cx="7" cy="16.5" r="1" fill="currentColor"/></svg>',
     clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>',
-    cart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2l2.4 11h10.2L21 8H7"/><circle cx="9.5" cy="20" r="1.4"/><circle cx="16.5" cy="20" r="1.4"/></svg>'
+    cart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2l2.4 11h10.2L21 8H7"/><circle cx="9.5" cy="20" r="1.4"/><circle cx="16.5" cy="20" r="1.4"/></svg>',
+    chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>'
   };
 
   var state = {
@@ -595,6 +596,7 @@
       state.guilds = Array.isArray(guilds) ? guilds : [];
       renderGuildList();
       renderOverview();
+      refreshStatusPills();
       var deep = readHashGid();
       if (deep) {
         var found = state.guilds.filter(function (g) { return g && g.id === deep && g.botPresent; })[0];
@@ -937,6 +939,7 @@
     } else {
       icon.textContent = initials(guild.name || fallbackName);
     }
+    refreshStatusPills();
   }
 
   /* ---------- Panoramica server: grafico + stat ---------- */
@@ -1215,6 +1218,61 @@
         " ingressi, " + fmtNum(sumKey(trends, "leaves")) + " uscite)";
     }
   }
+  /* ---------- Stato moduli (on/off dai valori reali) ---------- */
+  function moduleStatus(modName) {
+    var v = (state.modulesCache && state.modulesCache[modName]) || {};
+    switch (modName) {
+      case "general":
+        return Boolean(v.logChannelId || v.suggestChannelId);
+      case "welcome":
+        return Boolean(v.welcomeChannelId || v.goodbyeChannelId);
+      case "automod":
+        return Boolean(v.enabled);
+      case "autorole":
+        return Boolean(v.enabled && Array.isArray(v.roleIds) && v.roleIds.length > 0);
+      case "levels":
+        return v.levelupEnabled !== false;
+      case "tickets":
+        return Boolean(v.logChannelId);
+      case "ticketsPlus":
+        return Boolean(v.panelChannelId);
+      case "tempvoice":
+        return Boolean(v.lobbyChannelId);
+      case "ai":
+        return Boolean(v.mentionReply || v.automodAI || v.ticketAI || v.funAI);
+      case "aiPlus":
+        return Array.isArray(v.mentionChannels) && v.mentionChannels.length > 0;
+      case "starboard":
+        return Boolean(v.channelId);
+      case "confessioni":
+        return Boolean(v.channelId);
+      case "reactionRoles":
+        return Boolean(v.channelId);
+      case "logging":
+        return Boolean(v.logChannelId);
+      default:
+        return false;
+    }
+  }
+
+  function statusPill(on) {
+    var s = document.createElement("span");
+    s.className = "mod-status" + (on ? " st-on" : "");
+    s.textContent = on ? "Attivo" : "Spento";
+    return s;
+  }
+
+  function refreshStatusPills() {
+    var txt = (typeof state.apiMs === "number") ? "Online · " + state.apiMs + " ms" : "Online";
+    [["home-status", true], ["server-status", !!state.gid]].forEach(function (pair) {
+      var el = $(pair[0]);
+      if (!el) return;
+      el.hidden = !pair[1];
+      var t = el.querySelector(".status-txt");
+      if (t) t.textContent = txt;
+    });
+  }
+
   /* ---------- Moduli: un modulo alla volta ---------- */
   function sectionOf(mod) {
     return mod.section || "Altro";
@@ -1242,16 +1300,17 @@
   function buildModuleSections() {
     var box = $("module-sections");
     clear(box);
-    var sections = [];
+    var counts = {};
     editableModules().forEach(function (m) {
       var s = sectionOf(m);
-      if (sections.indexOf(s) === -1) sections.push(s);
+      counts[s] = (counts[s] || 0) + 1;
     });
+    var sections = Object.keys(counts);
     [{ v: "all", l: "Tutte" }].concat(sections.map(function (s) { return { v: s, l: s }; })).forEach(function (o) {
       var b = document.createElement("button");
       b.type = "button";
       b.className = "chip" + (state.moduleSection === o.v ? " is-active" : "");
-      b.textContent = o.l;
+      b.textContent = o.v === "all" ? o.l : o.l + " · " + counts[o.v];
       b.setAttribute("aria-pressed", state.moduleSection === o.v ? "true" : "false");
       b.addEventListener("click", function () {
         state.moduleSection = o.v;
@@ -1296,6 +1355,10 @@
       ss.textContent = sectionOf(mod);
       tx.appendChild(ss);
       b.appendChild(tx);
+      b.appendChild(statusPill(moduleStatus(mod.module)));
+      var chev = iconEl("chev");
+      chev.classList.add("mod-chev");
+      b.appendChild(chev);
       if (state.dirtyModules[mod.module]) {
         var dot = document.createElement("span");
         dot.className = "dirty-dot";
@@ -1456,6 +1519,7 @@
       ht.appendChild(d);
     }
     head.appendChild(ht);
+    head.appendChild(statusPill(moduleStatus(mod.module)));
     card.appendChild(head);
     var cached = (state.modulesCache && state.modulesCache[mod.module]) || {};
     var values = state.pending[mod.module] || cached;
@@ -1809,6 +1873,7 @@
       });
     });
     chain.then(function () {
+      renderModuleNav();
       toast("Modifiche salvate.", "ok");
     }).catch(function (err) {
       if (err && (err.message === "unauthorized" || err.message === "cancelled")) return;
