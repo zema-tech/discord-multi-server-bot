@@ -69,6 +69,7 @@
     schema: [],
     activeTab: "panoramica",
     activeModule: null,
+    moduleOpen: null,
     moduleSection: "all",
     modSearch: "",
     baseline: {},
@@ -300,20 +301,26 @@
         stats.appendChild(card);
       }
     }
-    var det = $("modules");
-    if (det) {
-      clear(det);
-      det.setAttribute("aria-busy", "true");
-      var m = document.createElement("div");
-      m.className = "card is-loading";
-      m.setAttribute("aria-hidden", "true");
-      m.appendChild(skeletonLine("40%"));
-      det.appendChild(m);
+    var grid = $("plugin-grid");
+    if (grid) {
+      clear(grid);
+      grid.setAttribute("aria-busy", "true");
+      for (var k = 0; k < 4; k++) {
+        var m = document.createElement("div");
+        m.className = "plugin-card is-loading";
+        m.setAttribute("aria-hidden", "true");
+        m.appendChild(skeletonLine("60%"));
+        var sp = document.createElement("div");
+        sp.style.height = "0.5rem";
+        m.appendChild(sp);
+        m.appendChild(skeletonLine("90%"));
+        grid.appendChild(m);
+      }
     }
   }
 
   function clearBusy() {
-    ["guild-list", "stats", "modules", "module-detail"].forEach(function (id) {
+    ["guild-list", "stats", "modules", "module-detail", "plugin-grid"].forEach(function (id) {
       var el = $(id);
       if (el) el.setAttribute("aria-busy", "false");
     });
@@ -837,6 +844,7 @@
     state.gid = gid;
     state.activeTab = "panoramica";
     state.activeModule = null;
+    state.moduleOpen = null;
     state.baseline = {};
     state.pending = {};
     state.dirtyModules = {};
@@ -1314,63 +1322,62 @@
       b.setAttribute("aria-pressed", state.moduleSection === o.v ? "true" : "false");
       b.addEventListener("click", function () {
         state.moduleSection = o.v;
-        buildModuleSections();
-        renderModuleNav();
-        renderActiveModule();
+        renderModuleSection();
       });
       box.appendChild(b);
     });
   }
 
-  function renderModuleNav() {
-    var nav = $("module-nav");
-    clear(nav);
+  function renderPluginGallery() {
+    var grid = $("plugin-grid");
+    clear(grid);
     var list = filteredModules();
-    if (state.activeModule && list.every(function (m) { return m.module !== state.activeModule; })) {
-      state.activeModule = list.length ? list[0].module : null;
-    }
-    if (!state.activeModule && list.length) state.activeModule = list[0].module;
     if (list.length === 0) {
-      var p = document.createElement("p");
-      p.className = "muted small";
-      p.textContent = "Nessun modulo trovato.";
-      nav.appendChild(p);
+      grid.appendChild(emptyBox("search", "Nessun plugin trovato", "Prova a cambiare sezione o ricerca.", null));
       return;
     }
     list.forEach(function (mod) {
+      var on = moduleStatus(mod.module);
       var b = document.createElement("button");
       b.type = "button";
-      b.className = "mod-item" + (state.activeModule === mod.module ? " is-active" : "");
+      b.className = "plugin-card" + (on ? "" : " is-off");
       b.dataset.module = mod.module;
-      b.setAttribute("aria-current", state.activeModule === mod.module ? "true" : "false");
-      b.appendChild(iconEl(MODULE_ICONS[mod.module] || "sliders"));
+      b.setAttribute("aria-label", "Configura " + (mod.title || mod.module));
+      var ico = document.createElement("span");
+      ico.className = "plugin-ico";
+      ico.appendChild(iconEl(MODULE_ICONS[mod.module] || "sliders"));
+      b.appendChild(ico);
       var tx = document.createElement("span");
-      tx.className = "mod-item-txt";
+      tx.className = "plugin-txt";
       var tt = document.createElement("span");
-      tt.className = "mod-item-title";
+      tt.className = "plugin-title";
       tt.textContent = mod.title || mod.module;
       tx.appendChild(tt);
-      var ss = document.createElement("span");
-      ss.className = "mod-item-sec";
-      ss.textContent = sectionOf(mod);
-      tx.appendChild(ss);
+      if (mod.description) {
+        var dd = document.createElement("span");
+        dd.className = "plugin-desc";
+        dd.textContent = mod.description;
+        tx.appendChild(dd);
+      }
       b.appendChild(tx);
-      b.appendChild(statusPill(moduleStatus(mod.module)));
-      var chev = iconEl("chev");
-      chev.classList.add("mod-chev");
-      b.appendChild(chev);
+      var side = document.createElement("span");
+      side.className = "plugin-side";
+      side.appendChild(statusPill(on));
       if (state.dirtyModules[mod.module]) {
         var dot = document.createElement("span");
         dot.className = "dirty-dot";
         dot.setAttribute("aria-label", "Modifiche non salvate");
-        b.appendChild(dot);
+        side.appendChild(dot);
       }
+      b.appendChild(side);
       b.addEventListener("click", function () {
         state.activeModule = mod.module;
-        renderModuleNav();
-        renderActiveModule();
+        state.moduleOpen = mod.module;
+        renderModuleSection();
+        var det = $("module-detail");
+        if (det) det.scrollIntoView({ block: "start", behavior: prefersReduced() ? "auto" : "smooth" });
       });
-      nav.appendChild(b);
+      grid.appendChild(b);
     });
   }
 
@@ -1499,9 +1506,18 @@
     var mod = null;
     editableModules().forEach(function (m) { if (m.module === state.activeModule) mod = m; });
     if (!mod) {
-      box.appendChild(emptyBox("grid", "Seleziona un modulo", "Scegli un modulo dalla lista per modificarlo.", null));
+      box.appendChild(emptyBox("grid", "Plugin non trovato", "Torna alla lista plugin.", null));
       return;
     }
+    var back = document.createElement("button");
+    back.type = "button";
+    back.className = "btn btn-secondary btn-sm back-btn";
+    back.textContent = "← Tutti i plugin";
+    back.addEventListener("click", function () {
+      state.moduleOpen = null;
+      renderModuleSection();
+    });
+    box.appendChild(back);
     var card = document.createElement("form");
     card.className = "mod-form";
     card.dataset.module = mod.module;
@@ -1551,14 +1567,14 @@
         clearFieldError(t);
         state.pending[mod.module] = readValues(card);
         syncDirty(mod.module);
-        renderModuleNavDots();
+        refreshGalleryStates();
         updateDirtyBar();
       }
     });
     card.addEventListener("change", function () {
       state.pending[mod.module] = readValues(card);
       syncDirty(mod.module);
-      renderModuleNavDots();
+      refreshGalleryStates();
       updateDirtyBar();
     });
     box.appendChild(card);
@@ -1569,12 +1585,17 @@
 
   function renderModuleSection() {
     buildModuleSections();
-    var list = filteredModules();
-    if (!state.activeModule || list.every(function (m) { return m.module !== state.activeModule; })) {
-      state.activeModule = list.length ? list[0].module : null;
+    renderPluginGallery();
+    var det = $("module-detail");
+    if (state.moduleOpen) {
+      var stillThere = editableModules().some(function (m) { return m.module === state.moduleOpen; });
+      if (!stillThere) state.moduleOpen = null;
     }
-    renderModuleNav();
-    renderActiveModule();
+    if (det) det.hidden = !state.moduleOpen;
+    if (state.moduleOpen) {
+      state.activeModule = state.moduleOpen;
+      renderActiveModule();
+    }
   }
 
   function formOf(modName) {
@@ -1640,15 +1661,23 @@
     return ctl.value;
   }
 
-  function renderModuleNavDots() {
-    document.querySelectorAll("#module-nav .mod-item").forEach(function (b) {
+  function refreshGalleryStates() {
+    document.querySelectorAll("#plugin-grid .plugin-card").forEach(function (b) {
+      var on = moduleStatus(b.dataset.module);
+      var pill = b.querySelector(".mod-status");
+      if (pill) {
+        pill.classList.toggle("st-on", on);
+        pill.textContent = on ? "Attivo" : "Spento";
+      }
+      b.classList.toggle("is-off", !on);
+      var side = b.querySelector(".plugin-side");
       var has = b.querySelector(".dirty-dot");
       if (state.dirtyModules[b.dataset.module]) {
-        if (!has) {
+        if (!has && side) {
           var dot = document.createElement("span");
           dot.className = "dirty-dot";
           dot.setAttribute("aria-label", "Modifiche non salvate");
-          b.appendChild(dot);
+          side.appendChild(dot);
         }
       } else if (has) {
         has.parentNode.removeChild(has);
@@ -1752,8 +1781,8 @@
   function focusModule(modName) {
     if (state.activeTab !== "moduli") switchTab("moduli");
     state.activeModule = modName;
-    renderModuleNav();
-    renderActiveModule();
+    state.moduleOpen = modName;
+    renderModuleSection();
   }
 
   function setBarSaving(saving) {
@@ -1863,7 +1892,7 @@
           delete state.pending[modName];
           delete state.dirtyModules[modName];
           updateDirtyBar();
-          renderModuleNavDots();
+          refreshGalleryStates();
         });
       });
     });
@@ -1873,7 +1902,7 @@
       });
     });
     chain.then(function () {
-      renderModuleNav();
+      renderModuleSection();
       toast("Modifiche salvate.", "ok");
     }).catch(function (err) {
       if (err && (err.message === "unauthorized" || err.message === "cancelled")) return;
@@ -1891,8 +1920,7 @@
       if (!ok) return;
       state.pending = {};
       state.dirtyModules = {};
-      renderModuleNav();
-      renderActiveModule();
+      renderModuleSection();
       renderMatrixFromDraft(true);
       updateDirtyBar();
       toast("Modifiche annullate.", "ok");
@@ -2460,13 +2488,7 @@
     });
     $("module-search").addEventListener("input", function (ev) {
       state.modSearch = ev.target.value || "";
-      renderModuleNav();
-      var first = filteredModules()[0];
-      if (first && (!state.activeModule || filteredModules().every(function (m) { return m.module !== state.activeModule; }))) {
-        state.activeModule = first.module;
-        renderModuleNav();
-        renderActiveModule();
-      }
+      renderModuleSection();
     });
   }
 

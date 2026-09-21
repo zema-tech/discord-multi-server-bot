@@ -122,17 +122,15 @@
           <h2 id="modules-h" class="visually-hidden">Moduli</h2>
           <div class="mod-toolbar">
             <div class="mod-search">
-              <label class="visually-hidden" for="module-search">Cerca impostazione o modulo</label>
+              <label class="visually-hidden" for="module-search">Cerca plugin</label>
               <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-              <input type="search" id="module-search" placeholder="Cerca impostazione…" autocomplete="off" aria-keyshortcuts="/">
+              <input type="search" id="module-search" placeholder="Cerca plugin…" autocomplete="off" aria-keyshortcuts="/">
             </div>
             <div class="chips" id="module-sections" role="group" aria-label="Filtra per sezione"></div>
           </div>
-          <div class="mod-layout">
-            <nav class="mod-nav" id="module-nav" aria-label="Moduli"></nav>
-            <div class="mod-detail" id="module-detail">
-              <div class="modules" id="modules"></div>
-            </div>
+          <div class="plugin-grid" id="plugin-grid"></div>
+          <div class="mod-detail" id="module-detail" hidden>
+            <div class="modules" id="modules"></div>
           </div>
         </section>
 
