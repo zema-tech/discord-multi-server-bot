@@ -264,6 +264,42 @@ function createApiRouter(client) {
     }
   }
 
+  // Cache guild OAuth per token: evita di richiamare /users/@me/guilds a ogni
+  // richiesta (la pagina di un server ne lancia 3 in parallelo -> 429 Discord).
+  // Le richieste in corso vengono unite; se Discord fallisce si usa l'ultimo
+  // valore noto (stale) invece di rispondere 503.
+  const GUILDS_TTL_MS = 45_000;
+  const GUILDS_STALE_MS = 10 * 60_000;
+  const guildsCache = new Map();
+  const guildsInflight = new Map();
+
+  async function getUserGuilds(token) {
+    const now = Date.now();
+    const hit = guildsCache.get(token);
+    if (hit && hit.exp > now) return hit.data;
+    const pending = guildsInflight.get(token);
+    if (pending) return pending;
+    const p = (async () => {
+      try {
+        const data = await apiWithRetry(token, '/users/@me/guilds');
+        guildsCache.set(token, { data, exp: Date.now() + GUILDS_TTL_MS, stale: Date.now() + GUILDS_STALE_MS });
+        if (guildsCache.size > 200) {
+          for (const [k, v] of guildsCache) if (v.stale <= Date.now()) guildsCache.delete(k);
+        }
+        return data;
+      } catch (e) {
+        const old = guildsCache.get(token);
+        const st = e && e.status;
+        if (old && old.stale > Date.now() && (st === 429 || isDiscordUnavailable(e))) return old.data;
+        throw e;
+      } finally {
+        guildsInflight.delete(token);
+      }
+    })();
+    guildsInflight.set(token, p);
+    return p;
+  }
+
   // Cache token -> user id con TTL, popolata dal GET /me (che il frontend
   // chiama a ogni load): l'audit log usa l'id reale senza nuove chiamate
   // Discord nel percorso caldo. Fallback 'oauth-user'.
@@ -304,7 +340,7 @@ function createApiRouter(client) {
       const gid = req.params.gid;
       let userGuilds;
       try {
-        userGuilds = await apiWithRetry(token, '/users/@me/guilds');
+        userGuilds = await getUserGuilds(token);
       } catch (e) {
         if (e && e.status === 401) {
           return res.status(401).json({ errore: 'Sessione Discord scaduta: rieffettua il login.', relogin: true });
@@ -427,7 +463,7 @@ function createApiRouter(client) {
   // icona dalla cache; per quelli gestibili SENZA bot aggiunge inviteUrl.
   router.get('/guilds', async (req, res) => {
     try {
-      const userGuilds = await apiWithRetry(req.discordToken, '/users/@me/guilds');
+      const userGuilds = await getUserGuilds(req.discordToken);
       const clientId = process.env.CLIENT_ID || '';
       const list = (Array.isArray(userGuilds) ? userGuilds : []).map((g) => {
         const botGuild = client && client.guilds && client.guilds.cache
