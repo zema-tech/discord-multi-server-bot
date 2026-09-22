@@ -95,8 +95,13 @@ function resolveDbBackend() {
 function buildHealthPayload(client) {
   let guilds = 0;
   try {
-    guilds = (client && client.guilds && client.guilds.cache && typeof client.guilds.cache.size === 'number')
-      ? client.guilds.cache.size : 0;
+    const guildsMod = require('./guilds');
+    if (guildsMod.isSource(client)) {
+      const list = client.listGuilds();
+      guilds = Array.isArray(list) ? list.length : 0;
+    } else if (client && client.guilds && client.guilds.cache && typeof client.guilds.cache.size === 'number') {
+      guilds = client.guilds.cache.size;
+    }
   } catch { guilds = 0; }
   let commands = 0;
   try {
@@ -117,7 +122,9 @@ function buildHealthPayload(client) {
 }
 
 function startDashboard(client) {
-  // Lazy: se express manca, lancia qui dentro (index.js lo cattura, il bot resta su).
+  // client = Client discord.js (stesso processo del bot) OPPURE source guilds
+  // (processo dashboard standalone, vedi dashboard/index.js + guilds.js).
+  // Lazy: se express manca, lancia qui dentro (il chiamante lo cattura).
   const express = require('express');
   const auth = require('./auth');
   const { createApiRouter } = require('./api');

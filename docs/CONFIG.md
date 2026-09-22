@@ -30,7 +30,7 @@ La configurazione per-server (lingua, canali, welcome, automod, ticket, livelli,
 | `SELF_IMPROVE_TIME` | no | `22:00` | `src/jobs/selfImprove.js` | Ora locale di esecuzione. |
 | `SELF_IMPROVE_DRY_RUN` | no | off | `src/jobs/selfImprove.js` | `=1`: solo report, nessuna patch applicata. |
 | `SELF_IMPROVE_GUILD_ID` | no | — (solo log) | `src/jobs/selfImprove.js` | Server dove inviare il report notturno. |
-| `DASHBOARD_PORT` | no | — (dashboard spenta) | `src/index.js`, `src/dashboard/server.js` | Se impostato avvia Express nello stesso processo (`\|\| 3000` se stringa non numerica). |
+| `DASHBOARD_PORT` | no | — (dashboard spenta) | `src/dashboard/index.js` | Richiesta da `npm run dashboard` (processo separato); senza, la dashboard non parte. |
 | `SESSION_SECRET` | sì (se dashboard) | — | `src/dashboard/auth.js` | Segreto sessione, almeno 32 caratteri casuali. |
 | `CLIENT_SECRET` | sì (se dashboard) | — | `src/dashboard/auth.js` | Client secret dell'app Discord (OAuth2). |
 | `BASE_URL` | sì (se dashboard) | — | `src/dashboard/auth.js`, comando `/help` | URL pubblico (es. `http://localhost:3000`); deve combaciare col redirect OAuth2 `<BASE_URL>/callback`. Usato anche nel footer di `/help`. |

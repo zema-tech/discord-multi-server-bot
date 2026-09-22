@@ -200,9 +200,11 @@ function mountAudit(app, client, auth) {
       if (!entry || !hasManageGuild(entry)) {
         return res.status(403).json({ errore: 'Serve il permesso Gestisci Server su questa guild.' });
       }
-      const guild = client && client.guilds && client.guilds.cache
-        ? client.guilds.cache.get(gid)
-        : null;
+      const guildsMod = safeRequire('./guilds');
+      const source = guildsMod && guildsMod.isSource(client)
+        ? client
+        : (guildsMod ? guildsMod.fromClient(client) : null);
+      const guild = source ? await source.getGuild(gid) : null;
       if (!guild) {
         return res.status(403).json({ errore: 'Il bot non è presente in questa guild.' });
       }

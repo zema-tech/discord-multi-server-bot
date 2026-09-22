@@ -29,5 +29,22 @@ module.exports = {
         NODE_ENV: 'production',
       },
     },
+    {
+      name: 'discord-dashboard',
+      script: 'src/dashboard/index.js', // coerente con package.json "dashboard"
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      max_restarts: 10,
+      min_uptime: '10s',
+      restart_delay: 3000,
+      max_memory_restart: '256M',
+      error_file: 'logs/pm2-dashboard-error.log',
+      out_file: 'logs/pm2-dashboard-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      env: {
+        NODE_ENV: 'production',
+      },
+    },
   ],
 };

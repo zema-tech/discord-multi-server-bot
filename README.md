@@ -168,7 +168,7 @@ npm test   # = node scripts/smoke-test.js (comandi, eventi, database, customId)
 
 Per l'AI nessun setup obbligatorio: di default usa l'endpoint gratuito Pollinations. Per un'AI più potente basta **una sola chiave** nel `.env` (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY` o `OPENROUTER_API_KEY`) — il bot la rileva da solo (`AI_PROVIDER=auto`, `AI_MODEL` opzionale, vedi `.env.example`). Le funzioni per-server (`mentionReply`, `automodAI`, `ticketAI`, `funAI`, prompt di sistema) si configurano con `/ai-config` (serve Gestisci Server) o dalla dashboard.
 
-## 🌐 Dashboard web (opzionale, stesso processo del bot)
+## 🌐 Dashboard web (opzionale, processo separato dal bot)
 
 Pannello web per configurare ogni server senza comandi: moduli (welcome, automod, ticket, livelli, AI, log, vocali temporanee), permessi custom e statistiche.
 
@@ -190,7 +190,8 @@ BASE_URL=http://localhost:3000
 **Avvio e URL**:
 ```bash
 npm install   # serve express (già in package.json)
-npm start     # la dashboard parte SOLO se DASHBOARD_PORT è impostato; un suo errore non spegne mai il bot
+npm start     # solo il bot (mai dashboard qui dentro)
+npm run dashboard  # solo la dashboard (richiede DASHBOARD_PORT; stesso .env e stesso DB del bot)
 ```
 - `http://localhost:3000/` → landing con login · `/login` → OAuth2 Discord (con `state` anti-CSRF su cookie) · `/logout`
 - API (richiedono login + Gestisci Server sulla guild + bot presente): `GET /api/me` · `GET /api/guilds` (icone come URL CDN completi) · `GET /api/guilds/:gid` · `GET /api/guilds/:gid/schema` · `GET /api/guilds/:gid/meta` · `PUT /api/guilds/:gid/modules/:mod` · `PUT /api/guilds/:gid/perms`
@@ -215,7 +216,7 @@ npm start     # la dashboard parte SOLO se DASHBOARD_PORT è impostato; un suo e
 │   ├── brain/           # cervello Obsidian: skills/ (md con trigger), memory/<guild>/ (note [[linkate]]), files/<guild>/, kernel (contesto AI), paths
 │   ├── jobs/            # ticketAutoclose (auto-chiusura ticket inattivi), backup (snapshot notturno ore 03:00 in backups/, retention 7 giorni, avviato da ready.js)
 │   ├── locales/         # it.js, en.js (stringhe i18n; nomi/descrizioni slash restano in IT)
-│   ├── dashboard/       # server.js (startDashboard, lazy express), api.js (REST /api/*), auth.js (OAuth2 + sessione su cookie firmato con state anti-CSRF)
+│   ├── dashboard/       # index.js (processo standalone `npm run dashboard`), server.js (startDashboard, lazy express), api.js (REST /api/*), auth.js (OAuth2 + sessione su cookie firmato con state anti-CSRF), guilds.js (source dati client/REST), presence.js (roster bot→dashboard), discordRest.js (letture REST Bot token)
 │   │   └── public/      # index.html, app.html, app.js (vanilla JS, solo textContent), styles.css
 │   ├── utils/           # helpers (embed, log, gerarchia ruoli), ai, aiProviders, antiRaid, snipeCache, blueprints (template/costruisci), transcript, wizardSteps, i18n (mini-i18n IT/EN), logger (JSON-lines su console + logs/), player (singleton discord-player lazy con fallback), codebase (indice per /codice)
 │   └── database/        # JSON: economy, levels, warnings, guildConfig (+language), tickets (+ autoCloseDays), autorole, lockdown, starboard, reactionRoles, autoresponder, invites, tempvoice, stanze, levelRewards, analytics, aiConfig, customPerms, shop, lotteria, rep, sfide, confessioni, cases (storico moderazione), customCommands (+ store.js compat json/sqlite, postgres-schema.sql solo schema futuro)

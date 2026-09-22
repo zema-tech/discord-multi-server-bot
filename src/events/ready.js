@@ -17,6 +17,17 @@ module.exports = {
     update();
     setInterval(update, 10 * 60 * 1000).unref?.();
 
+    // PRESENCE: roster guild per la dashboard standalone (processo separato).
+    // Best-effort: la dashboard legge dallo store condiviso (vedi dashboard/presence.js).
+    const writePresence = () => {
+      try {
+        require('../dashboard/presence').writePresence(client);
+      } catch (e) { /* presence non critica */ }
+    };
+    writePresence();
+    const presenceTimer = setInterval(writePresence, 10 * 60 * 1000);
+    if (typeof presenceTimer.unref === 'function') presenceTimer.unref();
+
     // PEAK: auto-chiusura ticket inattivi ogni 15 minuti (interval con unref dentro il job).
     try {
       require('../jobs/ticketAutoclose').startTicketAutoclose(client);

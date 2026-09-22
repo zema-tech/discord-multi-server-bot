@@ -9,7 +9,7 @@ quanto implementato, non a intenzioni future.
 Bot Discord multi-server basato su **discord.js v14**, **CommonJS**,
 **singolo processo Node** (`node src/index.js`). Comandi slash organizzati
 per categoria-cartella, stato persistente in JSON (con backend SQLite
-opzionale), dashboard web opzionale nello stesso processo, job periodici
+opzionale), dashboard web in processo separato, job periodici
 avviati all'evento ready. Dettaglio variabili in `CONFIG.md`, comandi in
 `COMMANDS.md` (generato con `node scripts/gen-docs.js`).
 
@@ -22,7 +22,7 @@ avviati all'evento ready. Dettaglio variabili in `CONFIG.md`, comandi in
 | `src/events/*.js` | Un file per listener (`name` + `execute` + `once?`); vedi pattern multi-listener sotto |
 | `src/handlers/` | `ticketHandler.js`, `reactionRoleHandler.js`: gestiscono select/modali/bottoni prima dei comandi |
 | `src/database/` | `store.js` + `jsonDb.js` (infrastruttura) + ~25 moduli di dominio (`economy.js`, `levels.js`, …) + rispettivi `<nome>.json` |
-| `src/dashboard/` | `server.js`, `auth.js`, `api.js`, `public/`: web app Express nello stesso processo |
+| `src/dashboard/` | `index.js` (processo standalone), `server.js`, `auth.js`, `api.js`, `guilds.js` (source client/REST), `presence.js` (roster), `discordRest.js` (letture REST), `public/`: web app Express separata dal bot |
 | `src/jobs/` | `ticketAutoclose.js`, `backup.js`, `selfImprove.js`: timer avviati da `events/ready.js`, mai avviati altrove |
 | `src/utils/` | `logger.js`, `i18n.js`, `ai.js`/`aiProviders.js`, `player.js`, `codebase.js`, `helpers.js`, `transcript.js`, … |
 | `src/locales/` | `it.js`, `en.js` per `utils/i18n.js` |
@@ -49,8 +49,8 @@ avviati all'evento ready. Dettaglio variabili in `CONFIG.md`, comandi in
    saltati con warning.
 6. Handler `unhandledRejection`/`uncaughtException`: log console + logger
    strutturato, mai crash.
-7. `client.login(DISCORD_TOKEN)`, poi dashboard solo se `DASHBOARD_PORT`
-   impostato, dentro try/catch (un fallimento non spegne il bot).
+7. `client.login(DISCORD_TOKEN)`; il bot scrive anche il roster guild
+   (presence) per la dashboard standalone. Mai logica dashboard qui.
 
 ## Flusso interaction → comando (`src/events/interactionCreate.js`)
 
@@ -117,12 +117,13 @@ fallisce). Altri listener singoli notevoli: `aiMention.js`,
   `levelRewards`, `analytics`, `customPerms`, `customCommands`,
   `aiConfig`, `starboard`, …) funzionano invariati su entrambi i backend.
 
-## Dashboard stesso-processo (`src/dashboard/`)
+## Dashboard processo separato (`src/dashboard/`)
 
-- Avviata da `index.js` solo se `DASHBOARD_PORT` è impostato; `express` è
-  `require`d **lazy dentro `startDashboard()`** così lo smoke test passa
-  anche senza express installato.
-- Legge gli **stessi JSON DB del bot** (nessuna sincronizzazione).
+- Avviata con `npm run dashboard` (`src/dashboard/index.js`, richiede
+  `DASHBOARD_PORT`); `express` è `require`d **lazy dentro `startDashboard()`**
+  così lo smoke test passa anche senza express installato.
+- Legge lo **stesso store DB del bot** (nessuna sincronizzazione) + roster
+  presence scritto dal bot; dettagli Discord live via REST con Bot token.
 - `server.js`: JSON limit 256kb, static `public/`, route auth, `/api`
   protetta da `auth.requireAuth`, landing con fallback inline se
   `public/index.html` manca, 404 JSON, error handler che non crasha mai.

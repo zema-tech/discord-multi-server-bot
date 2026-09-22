@@ -19,15 +19,15 @@ RUN mkdir -p /app/data /app/logs /app/backups && chown -R node:node /app
 # Esegui come utente non-root (utente "node" incluso nell'immagine ufficiale).
 USER node
 
-# Porta dashboard (usata SOLO se DASHBOARD_PORT è impostato, vedi src/index.js).
+# Porta dashboard (processo separato: npm run dashboard / src/dashboard/index.js).
 EXPOSE 3000
 
 # ---- HEALTHCHECK (scelta documentata) ----
-# Il bot NON espone endpoint HTTP di default: la dashboard parte solo se
-# DASHBOARD_PORT è impostato (src/index.js). Quando attiva, la dashboard
-# espone GET /healthz pubblico (prima di auth/rate-limit, 200 + JSON
-# {ok,uptimeSec,guilds,...}); il probe usa /healthz con fallback a /
-# (coordinato con l'agente dashboard). Non richiede curl nell'immagine
+# Il bot (src/index.js) NON espone endpoint HTTP: la dashboard gira separata
+# (profilo compose "dashboard" con DASHBOARD_PORT impostata). Quando attiva, espone
+# GET /healthz pubblico (prima di auth/rate-limit, 200 + JSON
+# {ok,uptimeSec,guilds,...}); il probe usa /healthz con fallback a /.
+# Non richiede curl nell'immagine
 # (usa node, che ha fetch globale da Node 18+):
 #  - DASHBOARD_PORT non impostata -> exit 0 (liveness = container in esecuzione;
 #    i crash sono coperti da `restart: unless-stopped` nel compose).

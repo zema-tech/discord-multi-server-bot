@@ -21,12 +21,11 @@ if (!envCheck.ok) {
   process.exit(1);
 }
 
-// Banner di avvio.
+// Banner di avvio (solo bot: la dashboard è un processo separato).
 {
-  const dashInfo = env.DASHBOARD_PORT ? `attiva (porta ${env.DASHBOARD_PORT})` : 'disattiva';
   console.log('============================================================');
   console.log(`  🤖 ${pkg.name} v${pkg.version}`);
-  console.log(`  Node ${process.version} | DB backend: ${env.DB_BACKEND} | Dashboard: ${dashInfo}`);
+  console.log(`  Node ${process.version} | DB backend: ${env.DB_BACKEND} | Dashboard: separata (npm run dashboard)`);
   console.log('  Avvio in corso...');
   console.log('============================================================');
 }
@@ -115,15 +114,9 @@ process.on('uncaughtException', (e) => {
 
 client.login(env.DISCORD_TOKEN);
 
-// Dashboard web (stesso processo del bot). Parte solo se DASHBOARD_PORT è impostato;
-// un fallimento qui non deve mai spegnere il bot.
-if (env.DASHBOARD_PORT) {
-  try {
-    require('./dashboard/server').startDashboard(client);
-  } catch (e) {
-    console.error('[Dashboard] avvio fallito:', e.message);
-  }
-}
+// NOTA: la dashboard web gira in un processo SEPARATO (npm run dashboard,
+// vedi src/dashboard/index.js) e condivide solo lo store DB + il roster
+// presence. Questo file resta solo-bot: nessuna logica dashboard qui.
 
 // Graceful shutdown (SIGINT/SIGTERM): chiude storage e client, poi esce con 0.
 // Il force-timer garantisce l'uscita entro 5s anche se qualcosa si blocca.

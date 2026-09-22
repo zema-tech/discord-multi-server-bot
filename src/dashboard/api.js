@@ -249,6 +249,35 @@ function createApiRouter(client) {
   const auth = require('./auth');
   const router = express.Router();
 
+  // Sorgente dati guild: client discord.js (stesso processo del bot) oppure
+  // adapter REST (processo dashboard standalone). Il resto del file non distingue.
+  const guildsMod = require('./guilds');
+  const source = guildsMod.isSource(client) ? client : guildsMod.fromClient(client);
+
+  // Guild "compat" per i validatori legacy (Map al posto delle Collection di
+  // discord.js): modules-extra.js e resolve* usano solo .cache.get(id).
+  async function guildLike(gid) {
+    let channels = [];
+    let roles = [];
+    try {
+      const [ch, rl] = await Promise.all([
+        source.getChannels(gid).catch(() => []),
+        source.getRoles(gid).catch(() => []),
+      ]);
+      if (Array.isArray(ch)) channels = ch;
+      if (Array.isArray(rl)) roles = rl;
+    } catch { /* liste vuote: i validatori diranno "non trovato" */ }
+    const cmap = new Map();
+    for (const c of channels) {
+      if (c && c.id) cmap.set(String(c.id), c);
+    }
+    const rmap = new Map();
+    for (const r of roles) {
+      if (r && r.id) rmap.set(String(r.id), r);
+    }
+    return { id: String(gid), channels: { cache: cmap }, roles: { cache: rmap } };
+  }
+
   /**
    * Wrapper locale con retry UNA volta solo su errori di rete senza status HTTP
    * (timeout, ECONNRESET, fetch fallita). Mai su errori HTTP (401/403/429/...).
@@ -363,8 +392,7 @@ function createApiRouter(client) {
       if (!entry || !hasManageGuild(entry)) {
         return res.status(403).json({ errore: 'Serve il permesso Gestisci Server su questa guild.' });
       }
-      const guild = client && client.guilds && client.guilds.cache
-        ? client.guilds.cache.get(gid) : null;
+      const guild = await source.getGuild(gid);
       if (!guild) {
         return res.status(403).json({ errore: 'Il bot non è presente in questa guild.' });
       }
@@ -479,11 +507,13 @@ function createApiRouter(client) {
     try {
       const userGuilds = await getUserGuilds(req.discordToken);
       const clientId = process.env.CLIENT_ID || '';
+      // Roster bot dalla source (cache processo o presence+REST in standalone).
+      const roster = source.listGuilds();
+      const byId = new Map((Array.isArray(roster) ? roster : []).map((x) => [x.id, x]));
       const list = (Array.isArray(userGuilds) ? userGuilds : [])
         .filter((g) => g && typeof g === 'object' && typeof g.id === 'string')
         .map((g) => {
-        const botGuild = client && client.guilds && client.guilds.cache
-          ? client.guilds.cache.get(g.id) : null;
+        const botGuild = byId.get(g.id) || null;
         const botPresent = Boolean(botGuild);
         const canManage = hasManageGuild(g);
         let memberCount = null;
@@ -537,23 +567,23 @@ function createApiRouter(client) {
   });
 
   // ---- GET /api/guilds/:gid/meta -----------------------------------------
-  router.get('/guilds/:gid/meta', loadAccess, (req, res) => {
+  router.get('/guilds/:gid/meta', loadAccess, async (req, res) => {
     try {
-      const guild = req.access.guild;
-      // Guild parziali (cache incomplete): niente 500, liste vuote.
-      const chCache = guild && guild.channels && guild.channels.cache ? guild.channels.cache : null;
-      const roleCache = guild && guild.roles && guild.roles.cache ? guild.roles.cache : null;
-      const channels = chCache ? [...chCache.values()]
+      const gid = req.params.gid;
+      const [channelsRaw, rolesRaw] = await Promise.all([
+        source.getChannels(gid).catch(() => []),
+        source.getRoles(gid).catch(() => []),
+      ]);
+      const channels = (Array.isArray(channelsRaw) ? channelsRaw : [])
         .filter((c) => c && typeof c.id === 'string')
         .map((c) => ({
           id: c.id, name: c.name, type: c.type,
-        })) : [];
-      const roles = roleCache ? [...roleCache.values()]
+        }));
+      const roles = (Array.isArray(rolesRaw) ? rolesRaw : [])
         .filter((r) => r && typeof r.id === 'string')
-        .filter((r) => r.id !== guild.id)
         .map((r) => ({
           id: r.id, name: r.name, color: r.color, managed: Boolean(r.managed),
-        })) : [];
+        }));
       roles.sort((a, b) => String(a.name).localeCompare(String(b.name)));
       return res.json(sanitizeForJson({ channels, roles }));
     } catch (e) {
@@ -564,7 +594,7 @@ function createApiRouter(client) {
 
   // ---- GET /api/guilds/:gid/diag (backend-only, mai chiamata dal frontend) --
   // Dietro requireAuth+loadAccess: ritorna step-by-step per capire i 500.
-  router.get('/guilds/:gid/diag', loadAccess, (req, res) => {
+  router.get('/guilds/:gid/diag', loadAccess, async (req, res) => {
     try {
       const gid = req.params.gid;
       const entry = req.access && req.access.entry;
@@ -603,10 +633,11 @@ function createApiRouter(client) {
       }
       let counts = {};
       try {
+        const c = await source.counts(gid).catch(() => null);
         counts = {
           members: guild.memberCount ?? null,
-          channels: cacheSize(guild.channels && guild.channels.cache),
-          roles: Math.max(cacheSize(guild.roles && guild.roles.cache) - 1, 0),
+          channels: c && Number.isFinite(c.channels) ? c.channels : 0,
+          roles: c && Number.isFinite(c.roles) ? c.roles : 0,
         };
       } catch {
         counts = {};
@@ -627,9 +658,13 @@ function createApiRouter(client) {
   });
 
   // ---- GET /api/guilds/:gid ----------------------------------------------
-  router.get('/guilds/:gid', loadAccess, (req, res) => {
+  router.get('/guilds/:gid', loadAccess, async (req, res) => {
     const gid = req.params.gid;
     const guild = req.access.guild;
+    let liveCounts = null;
+    try {
+      liveCounts = await source.counts(gid).catch(() => null);
+    } catch { liveCounts = null; }
     try {
       const guildConfig = safeRequire('../database/guildConfig');
       const tickets = safeRequire('../database/tickets');
@@ -774,9 +809,9 @@ function createApiRouter(client) {
         },
         counts: {
           members: guild.memberCount ?? null,
-          channels: cacheSize(guild.channels && guild.channels.cache),
-          roles: Math.max(cacheSize(guild.roles && guild.roles.cache) - 1, 0),
-          commands: (client && typeof client.commands?.size === 'number') ? client.commands.size : 0,
+          channels: liveCounts && Number.isFinite(liveCounts.channels) ? liveCounts.channels : 0,
+          roles: liveCounts && Number.isFinite(liveCounts.roles) ? liveCounts.roles : 0,
+          commands: liveCounts && Number.isFinite(liveCounts.commands) ? liveCounts.commands : 0,
         },
         modules,
         lists,
@@ -936,6 +971,8 @@ function createApiRouter(client) {
     const gid = req.params.gid;
     const mod = req.params.mod;
     const guild = req.access.guild;
+    // Vista compat canali/ruoli per i validatori (cache o REST).
+    const gl = await guildLike(gid);
     // Audit best-effort: logga solo le scritture riuscite ({ok:true}).
     // Vale anche per gli handler delegati (stesso oggetto res).
     const origJsonMod = res.json.bind(res);
@@ -949,7 +986,7 @@ function createApiRouter(client) {
       // --- Moduli lista (action-based): bypassano MODULE_FIELDS generico ---
       if (mod === 'autoresponder') return handleAutoresponder(gid, req, res);
       if (mod === 'commands') return handleCustomCommands(gid, req, res);
-      if (mod === 'rewards') return handleRewards(gid, guild, req, res);
+      if (mod === 'rewards') return handleRewards(gid, gl, req, res);
 
       const spec = Object.prototype.hasOwnProperty.call(MODULE_FIELDS, mod) ? MODULE_FIELDS[mod] : undefined;
       if (!spec || mod === 'autoresponder' || mod === 'commands' || mod === 'rewards') {
@@ -959,7 +996,7 @@ function createApiRouter(client) {
           if (xm && typeof xm.writeExtra === 'function') {
             const extraBody = req.body && typeof req.body === 'object' ? req.body : {};
             try {
-              const extraCfg = await xm.writeExtra(gid, mod, extraBody, guild);
+              const extraCfg = await xm.writeExtra(gid, mod, extraBody, gl);
               if (extraCfg === null || extraCfg === undefined) {
                 return res.status(400).json({ errore: `Modulo sconosciuto: ${mod}.` });
               }
@@ -1010,12 +1047,12 @@ function createApiRouter(client) {
           if (!isSnowflake(v)) {
             return res.status(400).json({ errore: `Canale non valido per ${k}.` });
           }
-          const r = await resolveChannel(guild, v);
+          const r = await resolveChannel(gl, v);
           if (r.invalid || r.missing) {
             return res.status(400).json({ errore: `Canale non trovato in questo server per ${k}.` });
           }
         } else if (spec[k] === 'roles') {
-          const r = resolveRoles(guild, v);
+          const r = resolveRoles(gl, v);
           if (r.invalid) return res.status(400).json({ errore: 'ID ruolo non valido.' });
           if (r.missing) return res.status(400).json({ errore: 'Un ruolo selezionato non esiste più: ricarica la pagina.' });
           if (r.managed) return res.status(400).json({ errore: 'I ruoli dei bot non possono essere autorole.' });
@@ -1213,9 +1250,10 @@ function createApiRouter(client) {
   }
 
   // ---- PUT /api/guilds/:gid/perms ----------------------------------------
-  router.put('/guilds/:gid/perms', loadAccess, (req, res) => {
+  router.put('/guilds/:gid/perms', loadAccess, async (req, res) => {
     const gid = req.params.gid;
     const guild = req.access.guild;
+    const gl = await guildLike(gid);
     const origJsonPerms = res.json.bind(res);
     res.json = (body) => {
       try {
@@ -1246,7 +1284,7 @@ function createApiRouter(client) {
       if (roleIds.length > 5) {
         return res.status(400).json({ errore: 'Max 5 ruoli per comando.' });
       }
-      const roleCache = guild && guild.roles && guild.roles.cache ? guild.roles.cache : null;
+      const roleCache = gl.roles.cache;
       const cleanRoleIds = [];
       for (const id of roleIds) {
         if (!isSnowflake(id)) return res.status(400).json({ errore: 'ID ruolo non valido nei permessi.' });

@@ -29,11 +29,13 @@ services:
       - ./backups:/app/backups
 
   # Variante con dashboard web pubblicata (profilo opzionale).
-  # Stesso build/env/volumi del servizio bot + porta pubblicata.
+  # Processo SEPARATO dal bot (npm run dashboard): condivide solo .env,
+  # DB_BACKEND e i volumi ./data (store + roster presence) e ./logs.
   bot-dashboard:
     build: .
     image: discord-multi-server-bot:latest
     container_name: discord-bot-dashboard
+    command: ["node", "src/dashboard/index.js"]
     restart: unless-stopped
     profiles:
       - dashboard
