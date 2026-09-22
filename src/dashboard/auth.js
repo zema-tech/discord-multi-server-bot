@@ -80,11 +80,16 @@ function verifySession(value) {
     const parts = String(value).split('.');
     if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
     const [payload, sig] = parts;
+    // Cap anti-DoS: il cookie di sessione resta < 4KB, mai parsare payload enormi.
+    if (payload.length > 8192 || sig.length > 512) return null;
     const expected = crypto.createHmac('sha256', sessionSecret).update(payload).digest();
     const got = b64urlDecode(sig);
     if (got.length !== expected.length || !crypto.timingSafeEqual(got, expected)) return null;
     const data = JSON.parse(b64urlDecode(payload).toString('utf8'));
     if (!data || typeof data.at !== 'string' || !data.at || !Number.isFinite(data.exp)) return null;
+    // Token opaco: rigetta control-char/whitespace (anti header-injection via
+    // `Authorization: Bearer ...`) e lunghezze assurde; il formato reale resta libero.
+    if (data.at.length > 2048 || /[\s\x00-\x1f\x7f]/.test(data.at)) return null;
     const now = Date.now();
     if (data.exp <= now) return null;
     // Sessione hardened: valida v/iat solo se almeno uno è presente
@@ -121,6 +126,28 @@ function parseCookies(req) {
   return out;
 }
 
+function secureSuffix() {
+  try {
+    return cfg().baseUrl.startsWith('https://') ? '; Secure' : '';
+  } catch {
+    return '';
+  }
+}
+
+/** Confronto constant-time per lo state OAuth (anti login-CSRF). */
+function safeEqualState(a, b) {
+  try {
+    if (typeof a !== 'string' || typeof b !== 'string') return false;
+    if (!a || !b || a.length > 512 || b.length > 512) return false;
+    const ba = Buffer.from(a, 'utf8');
+    const bb = Buffer.from(b, 'utf8');
+    if (ba.length !== bb.length) return false;
+    return crypto.timingSafeEqual(ba, bb);
+  } catch {
+    return false;
+  }
+}
+
 function sessionCookieHeader(value, maxAgeSec) {
   const { baseUrl } = cfg();
   const secure = baseUrl.startsWith('https://') ? '; Secure' : '';
@@ -139,11 +166,17 @@ function stateCookieHeader(state) {
 }
 
 function clearStateCookieHeader() {
-  return `${STATE_COOKIE}=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax`;
+  // Specchia Secure come in stateCookieHeader: senza, il browser non cancella
+  // il cookie Secure impostato su BASE_URL https.
+  return `${STATE_COOKIE}=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax${secureSuffix()}`;
+}
+
+function clearSessionCookieHeader() {
+  return `${COOKIE_NAME}=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax${secureSuffix()}`;
 }
 
 function clearSessionCookie(res) {
-  res.setHeader('Set-Cookie', `${COOKIE_NAME}=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax`);
+  res.setHeader('Set-Cookie', clearSessionCookieHeader());
 }
 
 /** Middleware express: verifica firma+scadenza, mette req.discordToken. */
@@ -350,7 +383,9 @@ function registerAuthRoutes(app) {
       }
       const qState = req.query && req.query.state;
       const cState = parseCookies(req)[STATE_COOKIE];
-      if (!qState || typeof qState !== 'string' || !cState || qState !== cState) {
+      if (!safeEqualState(qState, cState)) {
+        // Consuma lo state one-time anche in caso di mismatch (anti replay).
+        try { res.setHeader('Set-Cookie', clearStateCookieHeader()); } catch { /* best-effort */ }
         return res.status(400).json({ errore: 'Callback OAuth2: state non valido (possibile CSRF, riprova il login).' });
       }
       const token = await exchangeCode(code);
@@ -367,15 +402,19 @@ function registerAuthRoutes(app) {
   });
 
   app.get('/logout', async (req, res) => {
-    // Best-effort: revoca il token OAuth, poi pulisci sempre il cookie.
+    // Best-effort: revoca il token OAuth, poi pulisci sempre i cookie.
     // Mai loggare il token, mai far fallire il logout per errori di rete.
     try {
       const session = verifySession(parseCookies(req)[COOKIE_NAME]);
       if (session) await revokeToken(session.at);
     } catch {
-      // ignora: il clear del cookie sotto deve avvenire comunque
+      // ignora: il clear dei cookie sotto deve avvenire comunque
     }
-    clearSessionCookie(res);
+    try {
+      res.setHeader('Set-Cookie', [clearSessionCookieHeader(), clearStateCookieHeader()]);
+    } catch {
+      clearSessionCookie(res);
+    }
     return res.redirect(302, '/login');
   });
 }

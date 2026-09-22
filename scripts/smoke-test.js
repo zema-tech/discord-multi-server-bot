@@ -1791,11 +1791,20 @@ try {
   //  3. le righe con '+' vengono ricomposte in un template unico dove ogni
   //     espressione dinamica diventa :p, poi verificato contro il contratto.
   // Endpoint extra -> FAIL.
+  // Contratto FE<->BE: scansiona app.js (legacy/stub) + tutti i public/js/*.js.
+  // File candidati: app.js se contiene codice (oltre i commenti), più ogni js/*.js.
+  const dashFiles = [];
   const dashApp = path.join(ROOT, 'src', 'dashboard', 'public', 'app.js');
-  if (!fs.existsSync(dashApp)) {
+  if (fs.existsSync(dashApp)) dashFiles.push(dashApp);
+  const dashJsDir = path.join(ROOT, 'src', 'dashboard', 'public', 'js');
+  if (fs.existsSync(dashJsDir)) {
+    for (const f of fs.readdirSync(dashJsDir).filter((f) => f.endsWith('.js')).sort()) {
+      dashFiles.push(path.join(dashJsDir, f));
+    }
+  }
+  if (dashFiles.length === 0) {
     warn('dashboard/app.js: file non ancora presente (src/dashboard/public/app.js) — skip (lavori in corso)');
   } else {
-    const rawSrc = fs.readFileSync(dashApp, 'utf8');
     // Contratto: solo questi pattern (path, senza query).
     const allowed = [
       /^\/api\/me\/?$/,
@@ -1805,18 +1814,28 @@ try {
       /^\/api\/guilds\/[^/]+\/schema\/?$/,
       /^\/api\/guilds\/[^/]+\/modules\/[^/]+\/?$/, // PUT modules/:mod
       /^\/api\/guilds\/[^/]+\/perms\/?$/, // PUT perms
+      /^\/api\/guilds\/[^/]+\/audit\/?$/, // registro modifiche (sola lettura)
     ];
-    // Spoglia commenti block + line (i commenti di app.js citano gli endpoint).
-    const code = rawSrc.replace(/\/\*[\s\S]*?\*\//g, '')
-      .split('\n')
-      .map((ln) => ln.replace(/\/\/.*$/, ''))
-      .join('\n');
+    // Spoglia commenti block + line (i commenti citano gli endpoint).
+    const perFile = [];
+    for (const f of dashFiles) {
+      const rawSrc = fs.readFileSync(f, 'utf8');
+      const code = rawSrc.replace(/\/\*[\s\S]*?\*\//g, '')
+        .split('\n')
+        .map((ln) => ln.replace(/\/\/.*$/, ''))
+        .join('\n');
+      perFile.push({ file: path.relative(ROOT, f), code });
+    }
     // Righe che costruiscono/chiamano endpoint (fetch, helper getJSON/putJSON, o literal /api/).
-    const lines = code.split('\n')
-      .map((ln) => ln.trim())
-      .filter((ln) => ln && /fetch|getJSON|putJSON|\/api\//.test(ln));
+    const lines = [];
+    for (const { file, code } of perFile) {
+      code.split('\n')
+        .map((ln) => ln.trim())
+        .filter((ln) => ln && /fetch|getJSON|putJSON|\/api\//.test(ln))
+        .forEach((ln) => lines.push({ file, ln }));
+    }
     let checked = 0;
-    for (const ln of lines) {
+    for (const { file, ln } of lines) {
       // Literal su singola riga (niente backtick multilinea: solo ' e ").
       const lits = [];
       const qRe = /"([^"\n]*)"|'([^'\n]*)'/g;
@@ -1842,10 +1861,10 @@ try {
       checked += 1;
       const ok = allowed.some((re) => re.test(pathOnly));
       if (!ok) {
-        fail(`dashboard/app.js: endpoint FUORI CONTRATTO (riga: ${ln.slice(0, 120)}) => template "${pathOnly}" — consentiti solo GET /api/me, /api/guilds, /api/guilds/:gid, /meta, /schema, PUT modules/:mod, PUT perms`);
+        fail(`dashboard/${file}: endpoint FUORI CONTRATTO (riga: ${ln.slice(0, 120)}) => template "${pathOnly}" — consentiti solo GET /api/me, /api/guilds, /api/guilds/:gid, /meta, /schema, PUT modules/:mod, PUT perms, GET audit`);
       }
     }
-    console.log(`dashboard/app.js: righe endpoint scansionate: ${checked}`);
+    console.log(`dashboard FE: righe endpoint scansionate: ${checked} (${dashFiles.length} file)`);
   }
 } catch (e) {
   fail(`dashboard lotto: ${e.message.split('\n')[0]}`);

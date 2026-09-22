@@ -28,14 +28,17 @@
  *                        Tipo schema 'text' (ID separati da virgola) perché il
  *                        contratto non prevede un tipo lista-canali; in write
  *                        si accettano array OPPURE stringa "id1, id2".
- *   3. reactionRoles   <- database/reactionRoles.js (getPanel/setPanel;
- *                        defaultPanel reale: channelId/title/description).
+ *   3. reactionRoles   <- database/reactionRoles.js (getPanel/setPanel/
+ *                        addOption/removeOption reali; defaultPanel reale:
+ *                        channelId/title/description).
  *                        Limiti dal comando /reactionroles crea: titolo max 100,
- *                        descrizione max 500 (cap dashboard, il comando ammette
- *                        1000 ma 500 bastano per un pannello web). messageId e
- *                        options sono gestiti dai comandi (pubblica/aggiungi):
- *                        in read si espongono solo messageId + optionsCount
- *                        informativi, in write si rifiutano.
+ *                        descrizione max 1000 (cap dashboard allineato al
+ *                        comando, il DB non tronca). messageId resta gestito
+ *                        da /reactionroles pubblica: in read si espongono
+ *                        messageId + optionsCount informativi, in write si
+ *                        rifiuta. Opzioni via action add-option/remove-option/
+ *                        clear-options (clear = loop sul removeOption esistente,
+ *                        solo cache guild, mai fetch).
  *   4. lockdown        <- database/lockdown.js (getLockdown: snapshot { motivo,
  *                        by, byTag, at, channels }). SOLA LETTURA: la dashboard
  *                        mostra attivo/non attivo + motivo/autore/data/conteggio
@@ -247,7 +250,7 @@ const EXTRA_SCHEMA = [
         type: 'text',
         multiline: true,
         placeholder: 'Seleziona un ruolo dal menu qui sotto…',
-        help: 'Max 500 caratteri.',
+        help: 'Max 1000 caratteri.',
       },
     ],
   },
@@ -322,7 +325,7 @@ function readReactionRoles(gid) {
     return {
       channelId: asIdOrNull(p.channelId),
       title: typeof p.title === 'string' && p.title ? p.title.slice(0, 100) : fallback.title,
-      description: typeof p.description === 'string' ? p.description.slice(0, 500) : '',
+      description: typeof p.description === 'string' ? p.description.slice(0, 1000) : '',
       messageId: asIdOrNull(p.messageId),
       optionsCount: Array.isArray(p.options) ? p.options.length : 0,
     };
@@ -473,6 +476,9 @@ function writeReactionRoles(gid, patch, guild) {
   if (patch.action === 'add-option' || patch.action === 'remove-option') {
     return writeRROption(gid, patch, guild, rr);
   }
+  if (patch.action === 'clear-options') {
+    return writeRRClear(gid, rr);
+  }
   const keys = Object.keys(patch);
   if (keys.length === 0) fail('Body vuoto: niente da salvare.');
   const allowed = ['channelId', 'title', 'description'];
@@ -489,7 +495,7 @@ function writeReactionRoles(gid, patch, guild) {
     clean.title = t;
   }
   if (patch.description !== undefined) {
-    const d = checkText('description', patch.description, 500, false).trim().slice(0, 500);
+    const d = checkText('description', patch.description, 1000, false).trim().slice(0, 1000);
     if (!d) fail('description non può essere vuota.');
     clean.description = d;
   }
@@ -521,6 +527,28 @@ function writeRROption(gid, patch, guild, rr) {
     fail('Salvataggio opzione fallito.');
   }
   return { added: !!r.added, updated: !!r.updated, roleId };
+}
+
+/** Svuota tutte le opzioni via loop sul removeOption esistente. Idempotente. */
+function writeRRClear(gid, rr) {
+  if (!gid) fail('guildId mancante.');
+  if (!rr || typeof rr.getPanel !== 'function' || typeof rr.removeOption !== 'function') {
+    failUnavailable('reactionRoles');
+  }
+  const panel = rr.getPanel(gid) || {};
+  const ids = Array.isArray(panel.options)
+    ? [...new Set(
+      panel.options
+        .filter((o) => o && typeof o.roleId === 'string' && o.roleId)
+        .map((o) => o.roleId)
+    )]
+    : [];
+  let cleared = 0;
+  for (const roleId of ids) {
+    const r = rr.removeOption(gid, roleId);
+    if (r && r.removed === true) cleared += 1;
+  }
+  return { cleared };
 }
 
 /** Prezzo shop: intero 1..SHOP_MAX_PRICE (stile api.js: range con 400). */

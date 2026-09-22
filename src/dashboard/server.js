@@ -12,8 +12,11 @@ const fs = require('fs');
 
 // ---- Hardening dashboard (zero dipendenze, require-safe senza express) ----
 
-const CSP_VALUE = "default-src 'self'; img-src 'self' data: https:; " +
-  "font-src https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline'";
+const CSP_VALUE = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; " +
+  "form-action 'self'; img-src 'self' data: https:; font-src 'self' data: https:; " +
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline'; connect-src 'self'";
+// public/index.html + public/login.html usano <style>/<script> inline + Google Fonts,
+// public/app.html usa /styles.css + js/*.js (defer) + SVG inline + avatar data:/https::
 // public/index.html + public/app.html usano <script> inline / defer + Google Fonts:
 // per questo style/script 'unsafe-inline' è necessario (verificato su public/*).
 // style-src include fonts.googleapis.com (foglio di stile Inter), font-src https:
@@ -145,6 +148,14 @@ function startDashboard(client) {
   auth.registerAuthRoutes(app);
   app.use('/api', createApiRateLimiter(), auth.requireAuth, createApiRouter(client));
 
+  // Registro audit: best-effort, mai bloccare l'avvio se il modulo manca.
+  try {
+    const { mountAudit } = require('./auditRoutes');
+    if (typeof mountAudit === 'function') mountAudit(app, client, auth);
+  } catch (e) {
+    console.error('[Dashboard] auditRoutes non montato:', e && e.message ? e.message : e);
+  }
+
   // Landing: se un altro agente fornisce public/index.html, lo serve lo static;
   // altrimenti fallback inline (mai crashare).
   app.get('/', (req, res) => {
@@ -165,20 +176,33 @@ function startDashboard(client) {
   // Error handler: mai crashare su guild assente o input imprevisti.
   // eslint-disable-next-line no-unused-vars
   app.use((err, req, res, next) => {
+    let status = 500;
     try {
+      const raw = err && err.status !== undefined ? Number(err.status) : NaN;
+      if (Number.isFinite(raw)) status = Math.floor(raw);
+      // body-parser segnala anche via err.type senza status affidabile.
+      if (err && err.type === 'entity.parse.failed') status = 400;
+      if (err && err.type === 'entity.too.large') status = 413;
+      if (status < 400 || status > 599) status = 500;
       const msg = err && err.message ? err.message : String(err);
-      const st = err && Number.isFinite(err.status) ? err.status : 500;
-      console.error(`[Dashboard] error-handler: ${msg} | status=${st}`);
+      console.error(`[Dashboard] error-handler: ${msg} | status=${status}`);
     } catch {
       try { console.error('[Dashboard] error-handler: unknown | status=500'); } catch { /* mai rompere */ }
+      status = 500;
     }
     if (res.headersSent) return next(err);
-    const status = err && Number.isFinite(err.status) ? err.status : 500;
     // body-parser: JSON malformato (400) o body oltre il limite (413) sono errori
     // client, non "interni": messaggio specifico invece del generico 500.
+    // Mai riflettere err.message al client (info-leak): solo stringhe fisse.
     if (status === 400) return res.status(400).json({ errore: 'Richiesta non valida: JSON malformato.' });
+    if (status === 401) return res.status(401).json({ errore: 'Non autenticato: effettua il login con Discord.' });
+    if (status === 403) return res.status(403).json({ errore: 'Accesso negato.' });
+    if (status === 404) return res.status(404).json({ errore: 'Non trovato.' });
+    if (status === 409) return res.status(409).json({ errore: 'Conflitto: risorsa già esistente.' });
     if (status === 413) return res.status(413).json({ errore: 'Richiesta troppo grande.' });
-    return res.status(status).json({ errore: 'Errore interno, riprova.' });
+    if (status === 429) return res.status(429).json({ errore: 'Troppe richieste: riprova tra qualche minuto.' });
+    if (status >= 400 && status < 500) return res.status(status).json({ errore: 'Richiesta non valida.' });
+    return res.status(status >= 500 && status <= 599 ? status : 500).json({ errore: 'Errore interno, riprova.' });
   });
 
   const server = app.listen(PORT, () => {

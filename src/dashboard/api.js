@@ -286,6 +286,11 @@ function createApiRouter(client) {
         if (guildsCache.size > 200) {
           for (const [k, v] of guildsCache) if (v.stale <= Date.now()) guildsCache.delete(k);
         }
+        // Tetto rigido anti-crescita infinita (Map in ordine d'inserimento: via i più vecchi).
+        while (guildsCache.size > 500) {
+          const oldest = guildsCache.keys().next().value;
+          guildsCache.delete(oldest);
+        }
         return data;
       } catch (e) {
         const old = guildsCache.get(token);
@@ -354,7 +359,7 @@ function createApiRouter(client) {
         }
         throw e;
       }
-      const entry = Array.isArray(userGuilds) ? userGuilds.find((g) => g.id === gid) : null;
+      const entry = Array.isArray(userGuilds) ? userGuilds.find((g) => g && g.id === gid) : null;
       if (!entry || !hasManageGuild(entry)) {
         return res.status(403).json({ errore: 'Serve il permesso Gestisci Server su questa guild.' });
       }
@@ -429,17 +434,26 @@ function createApiRouter(client) {
   router.get('/me', async (req, res) => {
     try {
       const me = await apiWithRetry(req.discordToken, '/users/@me');
+      if (!me || typeof me !== 'object' || typeof me.id !== 'string') {
+        logDashboardError('/api/me', new Error('profilo Discord malformato'));
+        return res.status(500).json({ errore: 'Impossibile leggere il profilo Discord.' });
+      }
       try {
-        if (me && me.id && req.discordToken) {
+        if (req.discordToken) {
+          if (userIdByToken.size > 500) {
+            const oldest = userIdByToken.keys().next().value;
+            userIdByToken.delete(oldest);
+          }
           userIdByToken.set(req.discordToken, { id: me.id, exp: Date.now() + 600000 });
         }
       } catch { /* cache best-effort */ }
+      const avatar = typeof me.avatar === 'string' && me.avatar ? me.avatar : null;
       return res.json({
         id: me.id,
-        username: me.username,
-        avatar: me.avatar,
-        avatarUrl: me.avatar && me.id
-          ? `https://cdn.discordapp.com/avatars/${me.id}/${me.avatar}.png`
+        username: typeof me.username === 'string' ? me.username : null,
+        avatar,
+        avatarUrl: avatar
+          ? `https://cdn.discordapp.com/avatars/${me.id}/${avatar}.${avatar.startsWith('a_') ? 'gif' : 'png'}`
           : null,
       });
     } catch (e) {
@@ -465,7 +479,9 @@ function createApiRouter(client) {
     try {
       const userGuilds = await getUserGuilds(req.discordToken);
       const clientId = process.env.CLIENT_ID || '';
-      const list = (Array.isArray(userGuilds) ? userGuilds : []).map((g) => {
+      const list = (Array.isArray(userGuilds) ? userGuilds : [])
+        .filter((g) => g && typeof g === 'object' && typeof g.id === 'string')
+        .map((g) => {
         const botGuild = client && client.guilds && client.guilds.cache
           ? client.guilds.cache.get(g.id) : null;
         const botPresent = Boolean(botGuild);
@@ -524,14 +540,20 @@ function createApiRouter(client) {
   router.get('/guilds/:gid/meta', loadAccess, (req, res) => {
     try {
       const guild = req.access.guild;
-      const channels = [...guild.channels.cache.values()].map((c) => ({
-        id: c.id, name: c.name, type: c.type,
-      }));
-      const roles = [...guild.roles.cache.values()]
+      // Guild parziali (cache incomplete): niente 500, liste vuote.
+      const chCache = guild && guild.channels && guild.channels.cache ? guild.channels.cache : null;
+      const roleCache = guild && guild.roles && guild.roles.cache ? guild.roles.cache : null;
+      const channels = chCache ? [...chCache.values()]
+        .filter((c) => c && typeof c.id === 'string')
+        .map((c) => ({
+          id: c.id, name: c.name, type: c.type,
+        })) : [];
+      const roles = roleCache ? [...roleCache.values()]
+        .filter((r) => r && typeof r.id === 'string')
         .filter((r) => r.id !== guild.id)
         .map((r) => ({
           id: r.id, name: r.name, color: r.color, managed: Boolean(r.managed),
-        }));
+        })) : [];
       roles.sort((a, b) => String(a.name).localeCompare(String(b.name)));
       return res.json(sanitizeForJson({ channels, roles }));
     } catch (e) {
@@ -676,7 +698,16 @@ function createApiRouter(client) {
       let rwList = [];
       try { rwList = levelRewards ? levelRewards.listRewards(gid) : []; } catch { rwList = []; }
 
-      const automod = cfg.automod || {};
+      // DB/cache parziali: normalizza prima di comporre la risposta (mai 500, mai chiavi sparite).
+      if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) cfg = {};
+      if (!tcfg || typeof tcfg !== 'object' || Array.isArray(tcfg)) tcfg = {};
+      if (!Array.isArray(levelTop)) levelTop = [];
+      if (!Array.isArray(ecoTop)) ecoTop = [];
+      if (analyticsTotals === undefined) analyticsTotals = null;
+      if (ticketStats === undefined) ticketStats = null;
+      if (!perms || typeof perms !== 'object' || Array.isArray(perms)) perms = {};
+
+      const automod = (cfg.automod && typeof cfg.automod === 'object' && !Array.isArray(cfg.automod)) ? cfg.automod : {};
       const badWordsArr = Array.isArray(automod.badWords) ? automod.badWords : [];
 
       const modules = {
@@ -920,7 +951,7 @@ function createApiRouter(client) {
       if (mod === 'commands') return handleCustomCommands(gid, req, res);
       if (mod === 'rewards') return handleRewards(gid, guild, req, res);
 
-      const spec = MODULE_FIELDS[mod];
+      const spec = Object.prototype.hasOwnProperty.call(MODULE_FIELDS, mod) ? MODULE_FIELDS[mod] : undefined;
       if (!spec || mod === 'autoresponder' || mod === 'commands' || mod === 'rewards') {
         // Hook moduli extra: se MODULE_FIELDS non conosce il modulo, delega a writeExtra.
         try {
@@ -948,17 +979,21 @@ function createApiRouter(client) {
       const keys = Object.keys(body);
       if (keys.length === 0) return res.status(400).json({ errore: 'Body vuoto: niente da salvare.' });
       for (const k of keys) {
-        if (!spec[k]) return res.status(400).json({ errore: `Chiave non valida per ${mod}: ${k}.` });
+        if (!Object.prototype.hasOwnProperty.call(spec, k)) return res.status(400).json({ errore: `Chiave non valida per ${mod}: ${k}.` });
         if (!checkType(spec[k], body[k])) {
           return res.status(400).json({ errore: `Tipo non valido per ${k}: atteso ${spec[k]}.` });
         }
       }
+      // Range allineati ai clamp dei DB (mai più larghi di loro):
+      // tickets sanitizza maxPerUser 1..20 e autoCloseDays 0..365,
+      // starboard threshold 1..100, autorole delaySeconds 0..3600.
       const NUMBER_RANGES = {
-        maxMentions: [1, 20], maxPerUser: [1, 10], autoCloseDays: [0, 90],
+        maxMentions: [1, 20], maxPerUser: [1, 20], autoCloseDays: [0, 365],
         maxCapsPercent: [10, 100], threshold: [1, 100], delaySeconds: [0, 3600],
       };
+      // aiConfig tronca systemPrompt a MAX_SYSTEM_PROMPT=2000: stesso tetto qui.
       const TEXT_LIMITS = {
-        welcomeMessage: 500, goodbyeMessage: 500, systemPrompt: 1000, badWords: 1000,
+        welcomeMessage: 500, goodbyeMessage: 500, systemPrompt: 2000, badWords: 1000,
       };
       const patch = {};
       for (const k of keys) {
@@ -1078,9 +1113,15 @@ function createApiRouter(client) {
     if (action === 'add') {
       const match = typeof body.match === 'string' ? body.match.trim().slice(0, 200) : '';
       const response = typeof body.response === 'string' ? body.response.slice(0, 1500) : '';
-      const mode = body.mode === 'exact' || body.mode === 'regex' ? body.mode : 'include';
+      const mode = body.mode === undefined ? 'include' : body.mode;
+      if (mode !== 'include' && mode !== 'exact' && mode !== 'regex') {
+        return res.status(400).json({ errore: 'Modalità non valida (usa: include, exact o regex).' });
+      }
+      if (body.caseSensitive !== undefined && typeof body.caseSensitive !== 'boolean') {
+        return res.status(400).json({ errore: 'caseSensitive deve essere true o false.' });
+      }
       if (!match || !response) return res.status(400).json({ errore: 'Parola e risposta sono obbligatorie.' });
-      const r = autoresponder.addTrigger(gid, { match, response, mode });
+      const r = autoresponder.addTrigger(gid, { match, response, mode, caseSensitive: body.caseSensitive === true });
       if (!r || !r.ok) return res.status(400).json({ errore: (r && r.error) || 'Creazione trigger fallita.' });
       return res.json(sanitizeForJson({ ok: true, module: 'autoresponder', trigger: r.trigger, list: autoresponder.listTriggers(gid) }));
     }
@@ -1090,7 +1131,14 @@ function createApiRouter(client) {
       if (!ok) return res.status(404).json({ errore: 'Trigger non trovato.' });
       return res.json(sanitizeForJson({ ok: true, module: 'autoresponder', list: autoresponder.listTriggers(gid) }));
     }
-    return res.status(400).json({ errore: 'Action non valida (add/remove).' });
+    if (action === 'clear') {
+      if (typeof autoresponder.clearTriggers !== 'function') {
+        return res.status(501).json({ errore: 'Azione clear non supportata dal modulo.' });
+      }
+      autoresponder.clearTriggers(gid);
+      return res.json(sanitizeForJson({ ok: true, module: 'autoresponder', list: autoresponder.listTriggers(gid) }));
+    }
+    return res.status(400).json({ errore: 'Action non valida (add/remove/clear).' });
   }
 
   function handleCustomCommands(gid, req, res) {
@@ -1102,6 +1150,15 @@ function createApiRouter(client) {
       const name = typeof body.name === 'string' ? body.name.trim().toLowerCase().slice(0, 20) : '';
       const response = typeof body.response === 'string' ? body.response.slice(0, 1500) : '';
       if (!name || !response) return res.status(400).json({ errore: 'Nome e risposta sono obbligatorie.' });
+      if (action === 'update') {
+        if (typeof customCommands.validateName === 'function') {
+          const nv = customCommands.validateName(name);
+          if (!nv || nv.ok === false) return res.status(400).json({ errore: (nv && nv.error) || 'Nome comando non valido.' });
+        }
+        if (typeof customCommands.exists === 'function' && !customCommands.exists(gid, name)) {
+          return res.status(404).json({ errore: 'Comando non trovato.' });
+        }
+      }
       const r = action === 'create'
         ? customCommands.create(gid, name, response, null)
         : customCommands.update(gid, name, response);

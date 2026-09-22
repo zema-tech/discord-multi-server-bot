@@ -68,7 +68,7 @@
       overflow-wrap: break-word;
     }
     .error.visible { display: block; }
-    .btn-login {
+    .btn {
       display: flex;
       align-items: center;
       justify-content: center;
@@ -83,9 +83,8 @@
       text-decoration: none;
       transition: background 0.15s ease, transform 0.15s ease;
     }
-    .btn-login:hover { background: var(--accent-hover); }
-    .btn-login:active { transform: translateY(1px); }
-    .btn-login svg { width: 22px; height: 22px; flex-shrink: 0; }
+    .btn:hover { background: var(--accent-hover); }
+    .btn:active { transform: translateY(1px); }
     .scopes { margin-top: 1.25rem; font-size: 0.8rem; color: var(--muted); }
     .scopes code {
       background: var(--bg);
@@ -98,7 +97,7 @@
     .home { margin-top: 1.25rem; font-size: 0.9rem; }
     .home a { color: var(--accent); text-decoration: none; font-weight: 500; }
     .home a:hover { text-decoration: underline; }
-    a:focus-visible, .btn-login:focus-visible {
+    a:focus-visible, .btn:focus-visible {
       outline: 2px solid var(--accent);
       outline-offset: 3px;
       border-radius: 6px;
@@ -115,7 +114,7 @@
 <body>
   <main class="card">
     <span class="logo" aria-hidden="true">
-      <svg viewBox="0 0 32 32" fill="none" stroke="#5865F2" stroke-width="2.4" stroke-linecap="round" role="img">
+      <svg viewBox="0 0 32 32" fill="none" stroke="#5865F2" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
         <line x1="5" y1="10" x2="27" y2="10" stroke="#2a2e38"></line>
         <line x1="5" y1="16" x2="27" y2="16" stroke="#2a2e38"></line>
         <line x1="5" y1="22" x2="27" y2="22" stroke="#2a2e38"></line>
@@ -126,15 +125,8 @@
     </span>
     <h1>Accedi</h1>
     <p class="sub">Accedi per gestire i tuoi server Discord.</p>
-    <p class="error" id="login-error" role="alert"></p>
-    <a class="btn-login" href="/login">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M4 6.5C7.5 4.8 11 4.8 12 4.8s4.5 0 8 1.7l.9 8.1c0 2.3-1.5 3.9-2.4 3.9l-1.9-1.7h-2.1l.5 1H8.9l.5-1H7.3L5.4 18.5c-.9 0-2.4-1.6-2.4-3.9L4 6.5Z"></path>
-        <circle cx="9.3" cy="12.2" r="1.1" fill="currentColor" stroke="none"></circle>
-        <circle cx="14.7" cy="12.2" r="1.1" fill="currentColor" stroke="none"></circle>
-      </svg>
-      Accedi con Discord
-    </a>
+    <p class="error" id="error" role="alert"></p>
+    <a class="btn" href="/login">Accedi con Discord</a>
     <p class="scopes">L'accesso usa solo gli ambiti <code>identify</code> + <code>guilds</code>.</p>
     <p class="home"><a href="/">← Torna alla home</a></p>
   </main>
@@ -144,7 +136,7 @@
         var params = new URLSearchParams(window.location.search);
         var err = params.get("error");
         if (err) {
-          var box = document.getElementById("login-error");
+          var box = document.getElementById("error");
           box.textContent = err;
           box.classList.add("visible");
         }
