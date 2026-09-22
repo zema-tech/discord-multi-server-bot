@@ -12,6 +12,10 @@ module.exports = {
       if (!member || member.user.bot) return;
 
       const guild = newState.guild || oldState.guild;
+      // Controller feature 'tempvoice' (default on, mai crashare).
+      try {
+        if (guild && !require('../modules/registry').isEnabled(guild.id, 'tempvoice')) return;
+      } catch {}
       if (!guild) return;
 
       const guildId = guild.id;

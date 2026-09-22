@@ -18,6 +18,11 @@ module.exports = {
   async execute(reaction, user, client) {
     try {
       if (user.bot) return;
+      // Controller feature 'starboard' (default on, mai crashare).
+      try {
+        const gid = reaction?.message?.guild?.id;
+        if (gid && !require('../modules/registry').isEnabled(gid, 'starboard')) return;
+      } catch {}
 
       // I partials Reaction/Message sono già attivi in index.js: completa i dati
       if (reaction.partial) {

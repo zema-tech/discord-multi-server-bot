@@ -102,6 +102,29 @@ module.exports = {
       return;
     }
 
+    // Controller feature (src/modules): se il modulo è spento per questa
+    // guild, il comando non parte. DM: nessun toggle (sempre consentito).
+    try {
+      if (interaction.guild) {
+        const modules = require('../modules/registry');
+        const feat = modules.featureOfCommand(command.data.name);
+        if (feat && !modules.isEnabled(interaction.guild.id, feat)) {
+          const offMsg = {
+            content: `⏸️ Il modulo di questo comando è disattivato in questo server. Riattivalo dalla dashboard.`,
+            flags: MessageFlags.Ephemeral,
+          };
+          if (interaction.replied || interaction.deferred) {
+            await interaction.followUp(offMsg).catch(() => {});
+          } else {
+            await interaction.reply(offMsg).catch(() => {});
+          }
+          return;
+        }
+      }
+    } catch (e) {
+      console.error('modules gate:', e);
+    }
+
     // Permessi personalizzati (stile PeakBot): ruoli custom per comando.
     // NOTA: il check sta VOLUTAMENTE prima del cooldown — un utente respinto qui
     // non deve consumare il cooldown (altrimenti un rifiuto "costa" attesa extra).
@@ -165,6 +188,13 @@ module.exports = {
         logCommand(interaction.guildId || interaction.guild?.id, interaction.user?.id, interaction.commandName, Date.now() - startedAt);
       } catch {}
     } catch (error) {
+      // Controller: traccia l'errore sulla feature (visibile in dashboard),
+      // la rottura resta isolata a questo comando.
+      try {
+        const modules = require('../modules/registry');
+        const feat = modules.featureOfCommand(interaction.commandName);
+        if (feat) modules.recordError(feat, interaction.guildId || interaction.guild?.id, error);
+      } catch {}
       try {
         logger.error(`Errore eseguendo ${interaction.commandName}`, {
           command: interaction.commandName,

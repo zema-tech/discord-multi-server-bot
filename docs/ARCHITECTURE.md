@@ -21,7 +21,8 @@ avviati all'evento ready. Dettaglio variabili in `CONFIG.md`, comandi in
 | `src/commands/<categoria>/*.js` | Comandi slash (`data` + `execute` + `cooldown`); la categoria è il nome cartella (`ai`, `economy`, `fun`, `levels`, `moderation`, `music`, `tickets`, `utility`) |
 | `src/events/*.js` | Un file per listener (`name` + `execute` + `once?`); vedi pattern multi-listener sotto |
 | `src/handlers/` | `ticketHandler.js`, `reactionRoleHandler.js`: gestiscono select/modali/bottoni prima dei comandi |
-| `src/database/` | `store.js` + `jsonDb.js` (infrastruttura) + ~25 moduli di dominio (`economy.js`, `levels.js`, …) + rispettivi `<nome>.json` |
+| `src/database/` | `store.js` + `jsonDb.js` (infrastruttura) + ~25 moduli di dominio (`economy.js`, `levels.js`, …) + rispettivi `<nome>.json` + `moduleState.js` (on/off feature per guild) |
+| `src/modules/` | Controller feature: `registry.js` + un file per parte (`tickets.js`, `levels.js`, … con comandi/db/eventi mappati); gate comandi/eventi, toggle dashboard, health ed errori isolati per modulo |
 | `src/dashboard/` | `index.js` (processo standalone), `server.js`, `auth.js`, `api.js`, `guilds.js` (source client/REST), `presence.js` (roster), `discordRest.js` (letture REST), `public/`: web app Express separata dal bot |
 | `src/jobs/` | `ticketAutoclose.js`, `backup.js`, `selfImprove.js`: timer avviati da `events/ready.js`, mai avviati altrove |
 | `src/utils/` | `logger.js`, `i18n.js`, `ai.js`/`aiProviders.js`, `player.js`, `codebase.js`, `helpers.js`, `transcript.js`, … |
@@ -65,6 +66,9 @@ Ordine esatto della pipeline per ogni `InteractionCreate`:
    conferma (reply via webhook perché il canale originale non esiste più).
 4. Solo `isChatInputCommand()` prosegue; comando cercato in
    `client.commands` per `interaction.commandName`.
+5. **Gate controller** (`src/modules/registry`): se la feature del comando è
+   spenta per la guild, stop con reply effimera (DM sempre consentite).
+   Gli errori di `execute` vengono registrati per feature (dashboard).
 5. **Permessi custom** (`database/customPerms`, stile PeakBot) — ruoli
    per-comando per guild, con bypass `Administrator`. Sta **prima** del
    cooldown di proposito: chi viene respinto non consuma attesa.

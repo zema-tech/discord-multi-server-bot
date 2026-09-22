@@ -6,6 +6,15 @@ async function handle(interaction) {
   const customId = interaction.customId || '';
   if (!customId.startsWith('rr_')) return false;
   if (customId !== 'rr_select') return false;
+  // Controller feature 'reactionRoles': spento => stop con messaggio.
+  try {
+    if (!require('../modules/registry').isEnabled(interaction.guild.id, 'reactionRoles')) {
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: '⏸️ Il modulo reaction roles è disattivato in questo server.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      }
+      return true;
+    }
+  } catch {}
 
   const roleId = interaction.values?.[0];
   if (!roleId) {

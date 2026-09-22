@@ -42,6 +42,10 @@ module.exports = {
     if (message.system) return;
     const content = message.content;
     if (typeof content !== 'string' || !content) return;
+    // Controller feature 'autoresponder' (default on, mai crashare).
+    try {
+      if (!require('../modules/registry').isEnabled(message.guild.id, 'autoresponder')) return;
+    } catch {}
     // Lo staff (e gli staff-bot) sono esenti: evita loop di risposta.
     try {
       if (message.member?.permissions?.has('ManageMessages')) return;

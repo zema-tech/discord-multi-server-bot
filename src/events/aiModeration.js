@@ -105,6 +105,10 @@ module.exports = {
     try {
       if (!message || !message.guild || !message.author) return;
       if (message.author.bot) return;
+      // Controller feature 'ai' (default on, mai crashare).
+      try {
+        if (!require('../modules/registry').isEnabled(message.guild.id, 'ai')) return;
+      } catch {}
       const content = message.content || '';
       if (content.length < 20) return;
       // Member null (permessi sconosciuti) = esente: mai punire senza verifica staff.

@@ -29,6 +29,10 @@ module.exports = {
     // Solo messaggi testuali di utenti nei server: ignora bot e DM.
     if (!message.guild || !message.author || message.author.bot) return;
     if (message.system) return;
+    // Controller feature 'customCommands' (default on, mai crashare).
+    try {
+      if (!require('../modules/registry').isEnabled(message.guild.id, 'customCommands')) return;
+    } catch {}
 
     const content = typeof message.content === 'string' ? message.content : '';
     if (!content) return;

@@ -11,6 +11,10 @@ module.exports = {
   async execute(message, client) {
     try {
       if (!message.guild || message.author?.bot) return;
+      // Controller feature 'fun' (default on, mai crashare).
+      try {
+        if (!require('../modules/registry').isEnabled(message.guild.id, 'fun')) return;
+      } catch {}
       const key = `${message.guild.id}:${message.author.id}`;
       const now = Date.now();
       const last = cooldown.get(key) || 0;

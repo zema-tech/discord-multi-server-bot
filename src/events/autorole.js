@@ -8,6 +8,10 @@ module.exports = {
       // Salta i bot (user può mancare sui GuildMember parziali: partials attivi in index.js)
       if (member?.user?.bot) return;
       if (!member?.guild) return;
+      // Controller feature 'autorole' (default on, mai crashare).
+      try {
+        if (!require('../modules/registry').isEnabled(member.guild.id, 'autorole')) return;
+      } catch {}
       const cfg = getConfig(member.guild.id);
       if (!cfg.enabled) return;
       if (!Array.isArray(cfg.roleIds) || cfg.roleIds.length === 0) return;

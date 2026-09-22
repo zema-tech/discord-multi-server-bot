@@ -150,6 +150,7 @@
       });
     });
     entries.push({ id: "perms", title: "Permessi comandi", icon: MODULE_ICONS.perms || "lock", kind: "perms", section: "Controllo" });
+    entries.push({ id: "controller", title: "Controller moduli", icon: "server", kind: "controller", section: "Sistema" });
     editableModules().forEach(function (m) {
       if (seen[m.module]) return;
       entries.push({
@@ -448,7 +449,7 @@
       ss.textContent = e.section;
       tx.appendChild(ss);
       b.appendChild(tx);
-      if (e.id !== "panoramica") b.appendChild(statusPill(entryStatus(e)));
+      if (e.id !== "panoramica" && e.id !== "controller") b.appendChild(statusPill(entryStatus(e)));
       var chev = iconEl("chev");
       try { chev.classList.add("mod-chev"); } catch (err) {}
       b.appendChild(chev);
@@ -534,6 +535,9 @@
       }
     } else if (e.kind === "perms") {
       showSection("sec-perms");
+    } else if (e.kind === "controller") {
+      showSection("sec-module");
+      renderController();
     }
     renderBreadcrumb();
   }
@@ -810,6 +814,120 @@
 
   function formOf(modName) {
     return document.querySelector('#modules form[data-module="' + modName + '"]');
+  }
+
+  /* ---------- Controller moduli: on/off + salute per feature ---------- */
+  function renderController() {
+    var box = $("modules");
+    if (!box) return;
+    clear(box);
+    var card = document.createElement("div");
+    card.className = "mod-form";
+    var head = document.createElement("div");
+    head.className = "mod-form-head";
+    head.appendChild(iconEl("server"));
+    var ht = document.createElement("div");
+    var h = document.createElement("h3");
+    h.textContent = "Controller moduli";
+    ht.appendChild(h);
+    var d = document.createElement("p");
+    d.className = "muted small";
+    d.textContent = "Attiva o disattiva intere parti del bot per questo server. Spento: comandi ed eventi di quella parte non partono. Il Sistema resta sempre attivo.";
+    ht.appendChild(d);
+    head.appendChild(ht);
+    card.appendChild(head);
+    var list = Array.isArray(state.controller) ? state.controller : [];
+    if (list.length === 0) {
+      var empty = document.createElement("p");
+      empty.className = "muted";
+      empty.textContent = "Nessun dato controller: ricarica il server.";
+      card.appendChild(empty);
+      box.appendChild(card);
+      return;
+    }
+    var ul = document.createElement("ul");
+    ul.className = "itemlist";
+    list.forEach(function (f) {
+      var li = document.createElement("li");
+      li.className = "itemrow ctl-row";
+      var ico = iconEl(f.icon || "grid");
+      try { ico.classList.add("ctl-ico"); } catch (err) {}
+      li.appendChild(ico);
+      var tx = document.createElement("span");
+      tx.className = "ctl-txt";
+      var tt = document.createElement("strong");
+      tt.textContent = f.title || f.id;
+      tx.appendChild(tt);
+      var sub = document.createElement("span");
+      sub.className = "muted small";
+      var bits = [];
+      if (typeof f.commands === "number") bits.push(f.commands + " comandi");
+      if (!f.ok && f.errors && f.errors.length > 0) {
+        bits.push("ultimo errore: " + String(f.errors[0].message || "errore").slice(0, 80));
+      }
+      if (f.description) bits.push(String(f.description).slice(0, 90));
+      sub.textContent = bits.join(" · ");
+      tx.appendChild(sub);
+      li.appendChild(tx);
+      li.appendChild(statusPill(f.enabled !== false));
+      var wrap = document.createElement("span");
+      wrap.className = "toggle ctl-toggle";
+      var label = document.createElement("label");
+      label.className = "visually-hidden";
+      label.textContent = "Attiva " + (f.title || f.id);
+      var cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = f.enabled !== false;
+      cb.disabled = Boolean(f.locked);
+      cb.setAttribute("aria-label", "Attiva " + (f.title || f.id));
+      cb.addEventListener("change", function () { toggleFeature(f.id, cb.checked, cb); });
+      label.appendChild(cb);
+      wrap.appendChild(label);
+      li.appendChild(wrap);
+      ul.appendChild(li);
+    });
+    card.appendChild(ul);
+    box.appendChild(card);
+  }
+
+  function toggleFeature(id, enabled, ctl) {
+    var doIt = function () {
+      if (ctl) ctl.disabled = true;
+      var modCtl = "controller";
+      Dash.putModule(modCtl, { id: id, enabled: enabled })
+        .then(function (r) {
+          var updated = r && r.controller ? r.controller : null;
+          if (Array.isArray(state.controller)) {
+            state.controller = state.controller.map(function (f) {
+              if (f && f.id === id) {
+                return Object.assign({}, f, { enabled: enabled }, updated && typeof updated === "object" ? updated : {});
+              }
+              return f;
+            });
+          }
+          renderController();
+          toast("Modulo " + (enabled ? "attivato." : "disattivato."), "ok");
+        })
+        .catch(function (err) {
+          if (err && err.message === "unauthorized") return;
+          toast("Errore: " + err.message, "err");
+          renderController();
+        });
+    };
+    if (enabled) {
+      doIt();
+      return;
+    }
+    var confirmP = (typeof Dash.openConfirm === "function")
+      ? Dash.openConfirm("Disattiva modulo", "Disattivare questa parte del bot in questo server? Comandi ed eventi collegati non partiranno più.")
+      : Promise.resolve(true);
+    confirmP.then(function (ok) {
+      if (!ok) {
+        renderController();
+        return;
+      }
+      doIt();
+    });
   }
 
   function readValues(form) {

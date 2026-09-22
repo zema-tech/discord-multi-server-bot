@@ -9,6 +9,15 @@ const LINK_RE = /https?:\/\/\S+/i;
 //Cooldown XP per utente (evita farm): 60s
 const xpCooldown = new Map();
 
+// Controller feature: interruttore on/off per guild (default on, mai crashare).
+function modulesEnabled(guildId, featureId) {
+  try {
+    return require('../modules/registry').isEnabled(guildId, featureId) !== false;
+  } catch {
+    return true;
+  }
+}
+
 function hasCaps(msg, pct) {
   const letters = (msg.match(/[a-zA-Zà-ÿÀ-ß]/g) || []).length;
   if (letters < 10) return false;
@@ -28,7 +37,8 @@ module.exports = {
     } catch {}
 
     // ---------- XP / leveling ----------
-    if (cfg.levelupEnabled) {
+    // Controller feature 'levels': spento => niente XP né level-up.
+    if (cfg.levelupEnabled && modulesEnabled(message.guild.id, 'levels')) {
       const key = `${message.guild.id}:${message.author.id}`;
       if (!xpCooldown.has(key) || Date.now() - xpCooldown.get(key) > 60000) {
         // Evita crescita illimitata della mappa in memoria
@@ -65,7 +75,8 @@ module.exports = {
     }
 
     // ---------- Automoderazione ----------
-    if (!cfg.automod.enabled) return;
+    // Controller feature 'moderation': spento => nessun filtro (oltre al setting).
+    if (!cfg.automod.enabled || !modulesEnabled(message.guild.id, 'moderation')) return;
     // member null (permessi sconosciuti) = esente: mai punire quando non si può verificare lo staff
     if (!message.member || message.member.permissions.has('ManageMessages')) return; // lo staff è esente
     const { automod } = cfg;

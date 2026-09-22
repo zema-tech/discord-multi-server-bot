@@ -762,6 +762,13 @@ code {
   padding: 0.55rem 0.7rem;
 }
 .toggle > label { flex: 1; min-width: 0; margin-bottom: 0; font-weight: 600; font-size: 0.87rem; }
+/* Controller moduli: righe feature con toggle compatto */
+.ctl-row { align-items: flex-start; }
+.ctl-ico { color: var(--accent); flex: none; margin-top: 0.15rem; }
+.ctl-ico .svg-ico, .ctl-ico.svg-ico { width: 20px; height: 20px; }
+.ctl-txt { display: flex; flex-direction: column; gap: 0.15rem; }
+.ctl-txt strong { font-size: 0.92rem; }
+.toggle.ctl-toggle { background: transparent; border: 0; padding: 0; flex: none; }
 .toggle input {
   appearance: none;
   -webkit-appearance: none;

@@ -26,6 +26,7 @@ if (!S.permsBaseline) S.permsBaseline = {};
 if (!S.permsDraft) S.permsDraft = {};
 if (!S.dirtyPerms) S.dirtyPerms = {};
 if (!Array.isArray(S.trends)) S.trends = [];
+if (!Array.isArray(S.controller)) S.controller = [];
 if (S.apiMs === undefined) S.apiMs = null;
 if (S.editingCmd === undefined) S.editingCmd = null;
 
@@ -850,6 +851,7 @@ async function selectGuild(gid, fallbackName) {
   S.meta = { channels: [], roles: [] };
   S.modulesCache = {};
   S.schema = [];
+  S.controller = [];
   S.trends = [];
   S.listsCache = { autoresponder: [], customCommands: [], levelRewards: [], shop: [], rrOptions: [] };
   try { dirty.clear(); } catch (_) {}
@@ -876,6 +878,7 @@ async function selectGuild(gid, fallbackName) {
     S.schema = Array.isArray(schema) ? schema : [];
     S.modulesCache = (detail && detail.modules) || {};
     try { S.baseline = JSON.parse(JSON.stringify(S.modulesCache)); } catch (_) { S.baseline = {}; }
+    S.controller = (detail && Array.isArray(detail.controller)) ? detail.controller : [];
     S.listsCache = normalizeLists(detail && detail.lists);
     var perms = (detail && detail.perms) || {};
     S.permsBaseline = {};

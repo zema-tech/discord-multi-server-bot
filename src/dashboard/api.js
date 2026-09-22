@@ -60,6 +60,8 @@ const MODULE_FIELDS = {
   autoresponder: {},
   commands: {},
   rewards: {},
+  // Controller feature on/off: gestito ad-hoc (handleController), mai generico.
+  controller: {},
 };
 
 function checkType(tipo, v) {
@@ -800,6 +802,16 @@ function createApiRouter(client) {
         }
       } catch { /* extra opzionale: mai 500 per questo */ }
 
+      // Controller feature: stato on/off + salute per modulo (mai 500).
+      let controller = [];
+      try {
+        const registry = safeRequire('../modules/registry');
+        if (registry && typeof registry.health === 'function') {
+          const h = registry.health(gid);
+          controller = Array.isArray(h) ? h : [];
+        }
+      } catch { controller = []; }
+
       return res.json(sanitizeForJson({
         guild: {
           id: guild.id,
@@ -816,6 +828,7 @@ function createApiRouter(client) {
         modules,
         lists,
         perms,
+        controller,
         stats: {
           levels: levelTop,
           economy: ecoTop,
@@ -987,6 +1000,7 @@ function createApiRouter(client) {
       if (mod === 'autoresponder') return handleAutoresponder(gid, req, res);
       if (mod === 'commands') return handleCustomCommands(gid, req, res);
       if (mod === 'rewards') return handleRewards(gid, gl, req, res);
+      if (mod === 'controller') return handleController(gid, req, res);
 
       const spec = Object.prototype.hasOwnProperty.call(MODULE_FIELDS, mod) ? MODULE_FIELDS[mod] : undefined;
       if (!spec || mod === 'autoresponder' || mod === 'commands' || mod === 'rewards') {
@@ -1211,6 +1225,28 @@ function createApiRouter(client) {
       return res.json(sanitizeForJson({ ok: true, module: 'commands', list: customCommands.list(gid) }));
     }
     return res.status(400).json({ errore: 'Action non valida (create/update/remove).' });
+  }
+
+  // ---- PUT /api/guilds/:gid/modules/controller ---------------------------
+  // Toggle on/off feature per guild. Body: { id, enabled:bool }.
+  function handleController(gid, req, res) {
+    const registry = safeRequire('../modules/registry');
+    if (!registry) return res.status(501).json({ errore: 'Controller non disponibile.' });
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const { id, enabled } = body;
+    if (!id || typeof id !== 'string') {
+      return res.status(400).json({ errore: 'Campo id mancante.' });
+    }
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ errore: 'Campo enabled mancante: true o false.' });
+    }
+    try {
+      const updated = registry.setEnabled(gid, id, enabled);
+      const entry = (registry.health(gid) || []).find((h) => h.id === id) || updated;
+      return res.json(sanitizeForJson({ ok: true, module: 'controller', controller: entry }));
+    } catch (e) {
+      return res.status(400).json({ errore: e && e.message ? e.message : 'Toggle fallito.' });
+    }
   }
 
   function handleRewards(gid, guild, req, res) {

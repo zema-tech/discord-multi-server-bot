@@ -37,6 +37,10 @@ module.exports = {
       if (!message.guild || !message.author || message.author.bot) return;
       if (message.system) return;
       if (!client?.user) return;
+      // Controller feature 'ai' (default on, mai crashare).
+      try {
+        if (!require('../modules/registry').isEnabled(message.guild.id, 'ai')) return;
+      } catch {}
 
       // Solo menzione diretta del bot: niente reply-all (@everyone/@here) e niente bot.
       let mentioned = false;

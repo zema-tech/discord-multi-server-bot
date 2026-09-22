@@ -16,6 +16,10 @@ module.exports = {
       if (!member?.guild) return;
       const cfg = getGuild(member.guild.id);
       if (!cfg.welcomeChannelId) return;
+      // Controller feature 'utility' per i messaggi di benvenuto (default on).
+      try {
+        if (!require('../modules/registry').isEnabled(member.guild.id, 'utility')) return;
+      } catch {}
       const ch = await member.guild.channels.fetch(cfg.welcomeChannelId).catch(() => null);
       if (!ch?.isTextBased?.()) return;
       const embed = new EmbedBuilder()

@@ -304,6 +304,16 @@ async function requireTicket(interaction) {
 async function handle(interaction) {
   const { guild } = interaction;
   if (!guild) return false;
+  // Controller feature 'tickets': spento => stop con messaggio.
+  try {
+    if (!require('../modules/registry').isEnabled(guild.id, 'tickets')) {
+      if (!interaction.replied && !interaction.deferred) {
+        const { MessageFlags } = require('discord.js');
+        await interaction.reply({ content: '⏸️ Il modulo ticket è disattivato in questo server.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      }
+      return true;
+    }
+  } catch {}
 
   // --- Select: creazione ticket ---
   if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_create') {
