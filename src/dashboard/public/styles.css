@@ -1198,7 +1198,216 @@ body.nav-open { overflow: hidden; }
   .ov-grid { grid-template-columns: 1fr; }
 }
 
+/* ---------- Breadcrumb topbar ---------- */
+#crumbs { min-width: 0; font-size: 0.82rem; color: var(--muted); }
+#crumbs ol {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+#crumbs li {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  white-space: nowrap;
+}
+#crumbs li + li::before { content: "/"; color: var(--muted-dim); flex: none; }
+#crumbs a {
+  color: var(--muted);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#crumbs a:hover { color: var(--text); text-decoration: underline; }
+#crumbs [aria-current="page"] {
+  color: var(--text);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- Bottone salva compatto in topbar ---------- */
+#page-save {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  background: var(--accent);
+  color: #fff;
+  border: 1px solid var(--accent);
+  cursor: pointer;
+}
+#page-save:hover { background: var(--accent-h); border-color: var(--accent-h); }
+#page-save:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ---------- Categorie sidebar ---------- */
+.mod-cat {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  padding: 0.5rem 0.65rem;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mod-cat:hover { background: var(--card); }
+.mod-cat-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mod-cat svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--muted-dim);
+  transition: transform 0.18s var(--ease);
+}
+.mod-cat[aria-expanded="true"] svg { transform: rotate(90deg); color: var(--muted); }
+.mod-cat .count-pill { flex: none; }
+.mod-cat-items {
+  list-style: none;
+  margin: 0.1rem 0 0.4rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.mod-cat-items > li { list-style: none; }
+.collapsed { display: none; }
+
+/* ---------- Preview messaggio stile Discord ---------- */
+.msg-preview {
+  background: #313338;
+  border-radius: 8px;
+  border-left: 3px solid var(--accent);
+  padding: 0.75rem 0.9rem;
+  color: #dbdee1;
+  font-size: 0.9rem;
+}
+.msg-preview-head {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 0.3rem;
+  min-width: 0;
+}
+.msg-preview-head .msg-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex: none;
+  overflow: hidden;
+  background: var(--accent);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+.msg-preview-head .msg-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.msg-preview-head .msg-name {
+  color: var(--text);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.msg-preview-head .msg-time { color: var(--muted); font-size: 0.75rem; white-space: nowrap; }
+.msg-preview-body { white-space: pre-wrap; overflow-wrap: anywhere; color: #dbdee1; }
+.var-chip {
+  display: inline-block;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0 0.35rem;
+  font-size: 0.82em;
+  font-weight: 600;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  white-space: nowrap;
+}
+
+/* ---------- Raffina stati moduli (selettori esistenti invariati) ---------- */
+.mod-item:hover { background: var(--card); border-color: var(--border); }
+.mod-item.is-active {
+  background: var(--card);
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+@media (max-width: 600px) {
+  #crumbs { display: none; }
+}
+
 /* ---------- Reduced motion ---------- */
+/* ---------- Elementi dinamici (periodi, filtri, dettagli, toolbar) ---------- */
+.chart-period { display: inline-flex; gap: 0.4rem; align-items: center; }
+.chart-period .btn.is-active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.list-filter-wrap { margin-bottom: 0.6rem; }
+.list-filter-wrap label { display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.3rem; }
+.list-filter {
+  width: 100%;
+  background: var(--bg0);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+  font-size: 0.88rem;
+}
+.list-filter:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+.item-detail { border-top: 1px dashed var(--border); margin-top: 0.5rem; padding-top: 0.5rem; }
+.item-detail-body { font-size: 0.85rem; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+.itemrow { cursor: pointer; }
+.perms-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.m-row-reset {
+  background: transparent;
+  border: 0;
+  color: var(--muted-dim);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0 0.2rem;
+  border-radius: 6px;
+  margin-left: 0.4rem;
+}
+.m-row-reset:hover { color: var(--red); }
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .skeleton::after { animation: none; }

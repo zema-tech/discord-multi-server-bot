@@ -62,6 +62,65 @@
     else Dash.state.dirtyPerms[cmd] = true;
   }
 
+  function openConfirmDialog(title, message) {
+    if (Dash.openConfirm) return Dash.openConfirm(title, message);
+    try {
+      return Promise.resolve(window.confirm((title || "Confermi?") + "\n" + (message || "")));
+    } catch (e) {
+      return Promise.resolve(false);
+    }
+  }
+
+  function limitedCount() {
+    ensureState();
+    var n = 0;
+    Object.keys(Dash.state.permsDraft || {}).forEach(function (cmd) {
+      if ((Dash.state.permsDraft[cmd] || []).length > 0) n++;
+    });
+    return n;
+  }
+
+  function ensurePermsToolbar() {
+    if (typeof document === "undefined") return null;
+    var bar = document.getElementById("perms-toolbar");
+    if (bar) return bar;
+    var scroll = document.querySelector(".matrix-scroll");
+    bar = document.createElement("div");
+    bar.id = "perms-toolbar";
+    bar.className = "perms-toolbar";
+    var span = document.createElement("span");
+    span.id = "perms-limited-count";
+    span.className = "muted small";
+    span.textContent = "0 comandi limitati";
+    bar.appendChild(span);
+    if (scroll && scroll.parentNode) scroll.parentNode.insertBefore(bar, scroll);
+    return bar;
+  }
+
+  function updatePermsToolbar() {
+    var bar = ensurePermsToolbar();
+    if (!bar) return;
+    var span = bar.querySelector("#perms-limited-count") || document.getElementById("perms-limited-count");
+    if (!span) return;
+    var n = limitedCount();
+    span.textContent = String(n) + (n === 1 ? " comando limitato" : " comandi limitati");
+  }
+
+  function resetMatrixRow(cmd) {
+    ensureState();
+    var draft = (Dash.state.permsDraft[cmd] || []).slice();
+    if (draft.length === 0) return Promise.resolve(false);
+    return openConfirmDialog("Azzera riga",
+      "Rimuovere ogni limite per " + cmd + "? Tornera ai permessi Discord standard.").then(function (ok) {
+      if (!ok) return false;
+      Dash.state.permsDraft[cmd] = [];
+      markDirty(cmd);
+      renderMatrixFromDraft(false);
+      Dash.updateDirtyBar();
+      return true;
+    });
+  }
+
   function renderMatrix(perms) {
     ensureState();
     var map = permsToMap(perms);
@@ -123,6 +182,7 @@
       ed.textContent = "Nessun ruolo disponibile.";
       er.appendChild(ed);
       body.appendChild(er);
+      updatePermsToolbar();
       return;
     }
 
@@ -138,6 +198,17 @@
       rb.textContent = cmd;
       rb.addEventListener("click", function () { toggleMatrixRow(cmd); });
       th.appendChild(rb);
+      var reset = document.createElement("button");
+      reset.type = "button";
+      reset.className = "m-row-reset";
+      reset.title = "Azzera riga";
+      reset.setAttribute("aria-label", "Azzera riga " + cmd);
+      reset.textContent = "✕";
+      reset.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        resetMatrixRow(cmd).catch(function () {});
+      });
+      th.appendChild(reset);
       tr.appendChild(th);
       var draft = Dash.state.permsDraft[cmd] || [];
       roles.forEach(function (r) {
@@ -158,6 +229,7 @@
           Dash.state.permsDraft[cmd] = d;
           markDirty(cmd);
           tr.classList.toggle("is-dirty", !!Dash.state.dirtyPerms[cmd]);
+          updatePermsToolbar();
           Dash.updateDirtyBar();
         });
         td.appendChild(cb);
@@ -165,6 +237,7 @@
       });
       body.appendChild(tr);
     });
+    updatePermsToolbar();
   }
 
   function toggleMatrixRow(cmd) {

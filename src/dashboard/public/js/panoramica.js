@@ -151,8 +151,110 @@
     return t.slice(-30);
   }
 
-  /* Grafico SVG 30 giorni: area messaggi + linee ingressi/uscite. */
-  function renderChart(trends, totals) {
+  function getChartDays() {
+    try {
+      if (state.chartDays === 7 || state.chartDays === 30) return state.chartDays;
+    } catch (e) { /* default sotto */ }
+    return 30;
+  }
+
+  function setChartDays(n) {
+    try {
+      state.chartDays = (n === 7) ? 7 : 30;
+    } catch (e) { /* ignora */ }
+  }
+
+  var lastDetailRef = null;
+
+  function relTime(ts) {
+    var d = new Date(ts);
+    if (isNaN(d.getTime())) return null;
+    try {
+      var diffSec = Math.round((d.getTime() - Date.now()) / 1000);
+      var abs = Math.abs(diffSec);
+      var val = diffSec, unit = 'second';
+      if (abs < 60) { val = diffSec; unit = 'second'; }
+      else if (abs < 3600) { val = Math.round(diffSec / 60); unit = 'minute'; }
+      else if (abs < 86400) { val = Math.round(diffSec / 3600); unit = 'hour'; }
+      else if (abs < 604800) { val = Math.round(diffSec / 86400); unit = 'day'; }
+      else if (abs < 2592000) { val = Math.round(diffSec / 604800); unit = 'week'; }
+      else if (abs < 31536000) { val = Math.round(diffSec / 2592000); unit = 'month'; }
+      else { val = Math.round(diffSec / 31536000); unit = 'year'; }
+      var rtf = new Intl.RelativeTimeFormat('it', { numeric: 'auto' });
+      return rtf.format(val, unit);
+    } catch (e) { /* fallback sotto */ }
+    try { return d.toLocaleString('it-IT'); } catch (e2) { return null; }
+  }
+
+  function absDate(ts) {
+    try {
+      var d = new Date(ts);
+      if (isNaN(d.getTime())) return null;
+      return d.toLocaleString('it-IT');
+    } catch (e) { return null; }
+  }
+
+  /* Switch 7/30 giorni creato dinamicamente in .chart-head. Nessun endpoint nuovo. */
+  function ensurePeriodSwitch(onChange) {
+    var head = null;
+    try { head = $('.chart-head'); } catch (e) { head = null; }
+    if (!head) return null;
+    try {
+      var old = null;
+      try { old = head.querySelector('[data-chart-days]'); } catch (e) { old = null; }
+      var wrap = null;
+      try { wrap = head.querySelector('.chart-period'); } catch (e) { wrap = null; }
+      if (!wrap) {
+        wrap = document.createElement('div');
+        wrap.className = 'chart-period';
+        head.appendChild(wrap);
+      } else {
+        clear(wrap);
+      }
+      var days = getChartDays();
+      [7, 30].forEach(function (n) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'btn btn-sm' + (n === days ? ' is-active' : '');
+        b.setAttribute('data-chart-days', String(n));
+        b.setAttribute('aria-pressed', n === days ? 'true' : 'false');
+        b.textContent = n === 7 ? '7 giorni' : '30 giorni';
+        b.addEventListener('click', function () {
+          setChartDays(n);
+          try {
+            var btns = wrap.querySelectorAll('[data-chart-days]');
+            Array.prototype.forEach.call(btns, function (x) {
+              var on = x.getAttribute('data-chart-days') === String(getChartDays());
+              x.classList.toggle('is-active', on);
+              x.setAttribute('aria-pressed', on ? 'true' : 'false');
+            });
+          } catch (e) { /* ignora */ }
+          if (typeof onChange === 'function') {
+            try { onChange(getChartDays()); } catch (e) { /* ignora */ }
+          }
+        });
+        wrap.appendChild(b);
+      });
+      return wrap;
+    } catch (e) { return null; }
+  }
+
+  function refreshChartForPeriod() {
+    try {
+      var all = getTrends(lastDetailRef);
+      var days = getChartDays();
+      var sliced = all.slice(-days);
+      var totals = {
+        messages: sumKey(sliced, 'messages'),
+        joins: sumKey(sliced, 'joins'),
+        leaves: sumKey(sliced, 'leaves')
+      };
+      return renderChart(sliced, totals, days);
+    } catch (e) { return null; }
+  }
+
+  /* Grafico SVG 7/30 giorni: area messaggi + linee ingressi/uscite. */
+  function renderChart(trends, totals, optDays) {
     var wrap = $('#chart-wrap');
     var summary = $('#chart-summary');
     var checks = { chart: false, tip: false, summary: false, empty: false };
@@ -181,8 +283,10 @@
     });
     var hasData = rows.length > 0 && rows.some(function (r) { return r.messages > 0 || r.joins > 0 || r.leaves > 0; });
 
-    var summaryTxt = fmtNum(totals.messages) + ' messaggi · ' + fmtNum(totals.joins) +
-      ' ingressi · ' + fmtNum(totals.leaves) + ' uscite negli ultimi 30 giorni.';
+    var days = (optDays === 7 || optDays === 30) ? optDays : getChartDays();
+    var t = totals || { messages: 0, joins: 0, leaves: 0 };
+    var summaryTxt = fmtNum(t.messages) + ' messaggi · ' + fmtNum(t.joins) +
+      ' ingressi · ' + fmtNum(t.leaves) + ' uscite negli ultimi ' + days + ' giorni.';
     if (summary) { setText(summary, summaryTxt); checks.summary = true; }
 
     if (!hasData) {
@@ -209,7 +313,7 @@
       viewBox: '0 0 ' + W + ' ' + H,
       class: 'chart-svg',
       role: 'img',
-      'aria-label': 'Andamento di messaggi, ingressi e uscite negli ultimi 30 giorni.'
+      'aria-label': 'Andamento di messaggi, ingressi e uscite negli ultimi ' + days + ' giorni.'
     });
     try { svg.tabIndex = 0; } catch (e) { svg.setAttribute('tabindex', '0'); }
 
@@ -439,8 +543,12 @@
         var ts = pick(e, ['ts', 'at', 'date', 'createdAt', 'time'], null);
         var when = '—';
         if (ts) {
-          var d = new Date(ts);
-          if (!isNaN(d.getTime())) when = d.toLocaleString('it-IT');
+          var rel = relTime(ts);
+          if (rel) when = rel;
+          else {
+            var abs = absDate(ts);
+            if (abs) when = abs;
+          }
         }
         var summary = pick(e, ['summary', 'descrizione', 'text', 'azione'], '');
         var line = actor + ' · ' + mod + ' · ' + when;
@@ -457,14 +565,25 @@
 
   function renderPanoramica(detail) {
     checkLockdown();
-    var trends = getTrends(detail);
-    var totals = {
-      messages: sumKey(trends, 'messages'),
-      joins: sumKey(trends, 'joins'),
-      leaves: sumKey(trends, 'leaves')
+    try { lastDetailRef = detail || null; } catch (e) { /* ignora */ }
+    var allTrends = getTrends(detail);
+    var days = getChartDays();
+    var chartTrends = allTrends.slice(-days);
+    var chartTotals = {
+      messages: sumKey(chartTrends, 'messages'),
+      joins: sumKey(chartTrends, 'joins'),
+      leaves: sumKey(chartTrends, 'leaves')
     };
-    var chart = renderChart(trends, totals);
-    var stats = renderStats(detail, trends, totals);
+    var totals = {
+      messages: sumKey(allTrends, 'messages'),
+      joins: sumKey(allTrends, 'joins'),
+      leaves: sumKey(allTrends, 'leaves')
+    };
+    try {
+      ensurePeriodSwitch(function () { refreshChartForPeriod(); });
+    } catch (e) { /* switch non critico */ }
+    var chart = renderChart(chartTrends, chartTotals, days);
+    var stats = renderStats(detail, allTrends, totals);
     var tops = renderTops(detail);
     var audit = loadAudit(detail);
     return {

@@ -63,6 +63,142 @@
     }
   }
 
+  /* ---------- righe espandibili (pattern YAGPDB) + filtri di ricerca ---------- */
+  var expandedRow = null;
+
+  function closeExpandedRow() {
+    if (!expandedRow) return;
+    if (expandedRow.parentNode) {
+      expandedRow.classList.remove("is-open");
+      expandedRow.setAttribute("aria-expanded", "false");
+      var d = expandedRow.querySelector(":scope > .item-detail");
+      if (d) d.hidden = true;
+    }
+    expandedRow = null;
+  }
+
+  function toggleExpandedRow(li) {
+    if (!li) return;
+    if (expandedRow === li) {
+      closeExpandedRow();
+      return;
+    }
+    closeExpandedRow();
+    li.classList.add("is-open");
+    li.setAttribute("aria-expanded", "true");
+    var d = li.querySelector(":scope > .item-detail");
+    if (d) d.hidden = false;
+    expandedRow = li;
+  }
+
+  function makeExpandable(li, summaryText, detailNode) {
+    li.classList.add("is-expandable");
+    li.setAttribute("tabindex", "0");
+    li.setAttribute("aria-expanded", "false");
+    try { li.style.cursor = "pointer"; } catch (e) {}
+    var summary = document.createElement("span");
+    summary.className = "item-summary";
+    summary.textContent = summaryText;
+    li.appendChild(summary);
+    var detail = document.createElement("div");
+    detail.className = "item-detail";
+    detail.hidden = true;
+    if (detailNode) detail.appendChild(detailNode);
+    li.appendChild(detail);
+    li.addEventListener("click", function (ev) {
+      if (ev.target && ev.target.closest && ev.target.closest("button, a, input, select, textarea")) return;
+      toggleExpandedRow(li);
+    });
+    li.addEventListener("keydown", function (ev) {
+      if (ev.key !== "Enter" && ev.key !== " ") return;
+      if (ev.target && ev.target.closest && ev.target.closest("button, a, input, select, textarea")) return;
+      ev.preventDefault();
+      toggleExpandedRow(li);
+    });
+    return detail;
+  }
+
+  function detailParagraph(fullText) {
+    var p = document.createElement("p");
+    p.className = "item-full";
+    p.textContent = fullText;
+    return p;
+  }
+
+  function detailMeta(parts) {
+    var m = document.createElement("p");
+    m.className = "muted small item-meta";
+    var texts = (parts || []).filter(function (x) { return !!x; });
+    m.textContent = texts.length > 0 ? texts.join(" · ") : "Nessun dettaglio aggiuntivo.";
+    return m;
+  }
+
+  function metaText(obj) {
+    var out = [];
+    if (!obj) return out;
+    var mode = obj.mode;
+    if (mode) out.push("Modalità: " + mode);
+    var uses = obj.uses !== undefined ? obj.uses : (obj.useCount !== undefined ? obj.useCount : obj.usi);
+    if (uses !== undefined && uses !== null && uses !== "") out.push("Usi: " + uses);
+    var price = obj.price !== undefined ? obj.price : obj.prezzo;
+    if (price !== undefined && price !== null && price !== "") out.push("Prezzo: " + fmtNum(price) + " monete");
+    var level = obj.level !== undefined ? obj.level : obj.livello;
+    if (level !== undefined && level !== null && level !== "") out.push("Livello: " + level);
+    return out;
+  }
+
+  function resetExpandedRow(ul) {
+    if (expandedRow && ul && !ul.contains(expandedRow)) return;
+    if (!ul) closeExpandedRow();
+  }
+
+  function applyListFilter(ul) {
+    if (!ul) return;
+    var card = (ul.closest ? ul.closest(".card") : null) || ul.parentNode;
+    if (!card) return;
+    var input = card.querySelector(":scope > .list-filter");
+    if (!input) {
+      var wrap = card.querySelector(":scope > .list-filter-wrap");
+      if (wrap) input = wrap.querySelector("input");
+    }
+    if (!input) return;
+    var q = String(input.value || "").toLowerCase();
+    var rows = ul.querySelectorAll("li.itemrow");
+    for (var i = 0; i < rows.length; i++) {
+      var t = (rows[i].textContent || "").toLowerCase();
+      rows[i].style.display = (!q || t.indexOf(q) !== -1) ? "" : "none";
+    }
+  }
+
+  function ensureListFilter(ul, total) {
+    if (!ul) return;
+    var card = (ul.closest ? ul.closest(".card") : null) || ul.parentNode;
+    if (!card) return;
+    var wrap = card.querySelector(":scope > .list-filter-wrap");
+    var input = wrap ? wrap.querySelector("input") : null;
+    if (!total || total <= 5) {
+      if (wrap && wrap.parentNode === card) card.removeChild(wrap);
+      return;
+    }
+    if (!wrap) {
+      wrap = document.createElement("div");
+      wrap.className = "list-filter-wrap";
+      var lab = document.createElement("label");
+      lab.className = "muted small";
+      lab.textContent = "Cerca nella lista";
+      input = document.createElement("input");
+      input.type = "search";
+      input.className = "list-filter";
+      input.placeholder = "Cerca…";
+      input.setAttribute("aria-label", "Cerca nella lista");
+      lab.appendChild(input);
+      wrap.appendChild(lab);
+      card.insertBefore(wrap, ul);
+      input.addEventListener("input", function () { applyListFilter(ul); });
+    }
+    applyListFilter(ul);
+  }
+
   /* ---------- bottoni icona locali (NON usare Dash.deleteBtn) ---------- */
   function editBtn(label, onClick) {
     var b = document.createElement("button");
@@ -135,19 +271,26 @@
   function renderAR(arr) {
     var ul = $("ar-list");
     if (!ul) return;
+    closeExpandedRow();
     clear(ul);
     if (!arr || arr.length === 0) {
       emptyRow(ul, "Nessuna risposta automatica. Aggiungi la prima qui sotto.");
+      ensureListFilter(ul, 0);
       return;
     }
     arr.forEach(function (t) {
       var li = document.createElement("li");
       li.className = "itemrow";
-      var txt = document.createElement("span");
       var mode = t.mode && t.mode !== "include" ? " [" + t.mode + "]" : "";
-      txt.textContent = "«" + t.match + "» → " + String(t.response).slice(0, 80) + mode;
-      li.appendChild(txt);
-      li.appendChild(deleteBtn("Elimina risposta per " + t.match, function (ev) {
+      var summary = "«" + t.match + "» → " + String(t.response).slice(0, 80) + mode;
+      var body = document.createElement("div");
+      body.className = "item-detail-body";
+      body.appendChild(detailParagraph("«" + t.match + "» → " + String(t.response)));
+      body.appendChild(detailMeta(metaText(t)));
+      var acts = document.createElement("span");
+      acts.className = "item-acts";
+      acts.appendChild(deleteBtn("Elimina risposta per " + t.match, function (ev) {
+        ev.stopPropagation();
         var btn = ev.currentTarget;
         openConfirm("Elimina risposta", "Eliminare la risposta per «" + t.match + "»?").then(function (ok) {
           if (!ok) return;
@@ -167,8 +310,11 @@
             .then(function () { btn.disabled = false; });
         });
       }));
+      body.appendChild(acts);
+      makeExpandable(li, summary, body);
       ul.appendChild(li);
     });
+    ensureListFilter(ul, arr.length);
   }
 
   function resetCcForm() {
@@ -211,21 +357,29 @@
   function renderCC(arr) {
     var ul = $("cc-list");
     if (!ul) return;
+    closeExpandedRow();
     clear(ul);
     if (!arr || arr.length === 0) {
       emptyRow(ul, "Nessun comando personalizzato (massimo 20).");
+      ensureListFilter(ul, 0);
       return;
     }
     arr.forEach(function (c) {
       var li = document.createElement("li");
       li.className = "itemrow";
-      var txt = document.createElement("span");
-      txt.textContent = "!" + c.name + " → " + String(c.response || "").slice(0, 80);
-      li.appendChild(txt);
+      var summary = "!" + c.name + " → " + String(c.response || "").slice(0, 80);
+      var body = document.createElement("div");
+      body.className = "item-detail-body";
+      body.appendChild(detailParagraph("!" + c.name + " → " + String(c.response || "")));
+      body.appendChild(detailMeta(metaText(c)));
       var acts = document.createElement("span");
       acts.className = "item-acts";
-      acts.appendChild(editBtn("Modifica comando !" + c.name, function () { startCcEdit(c); }));
+      acts.appendChild(editBtn("Modifica comando !" + c.name, function (ev) {
+        ev.stopPropagation();
+        startCcEdit(c);
+      }));
       acts.appendChild(deleteBtn("Elimina comando !" + c.name, function (ev) {
+        ev.stopPropagation();
         var btn = ev.currentTarget;
         openConfirm("Elimina comando", "Eliminare il comando !" + c.name + "?").then(function (ok) {
           if (!ok) return;
@@ -245,26 +399,33 @@
             .then(function () { btn.disabled = false; });
         });
       }));
-      li.appendChild(acts);
+      body.appendChild(acts);
+      makeExpandable(li, summary, body);
       ul.appendChild(li);
     });
+    ensureListFilter(ul, arr.length);
   }
 
   function renderRW(arr) {
     var ul = $("rw-list");
     if (!ul) return;
+    closeExpandedRow();
     clear(ul);
     if (!arr || arr.length === 0) {
       emptyRow(ul, "Nessuna ricompensa. Abbina un ruolo a un livello qui sotto.");
+      ensureListFilter(ul, 0);
       return;
     }
     arr.forEach(function (r) {
       var li = document.createElement("li");
       li.className = "itemrow";
-      var txt = document.createElement("span");
-      txt.textContent = "Livello " + r.level + " → " + roleName(r.roleId);
-      li.appendChild(txt);
-      li.appendChild(deleteBtn("Elimina ricompensa livello " + r.level, function (ev) {
+      var summary = "Livello " + r.level + " → " + roleName(r.roleId);
+      var body = document.createElement("div");
+      body.className = "item-detail-body";
+      body.appendChild(detailParagraph("Livello " + r.level + " → " + roleName(r.roleId)));
+      body.appendChild(detailMeta(metaText(r)));
+      body.appendChild(deleteBtn("Elimina ricompensa livello " + r.level, function (ev) {
+        ev.stopPropagation();
         var btn = ev.currentTarget;
         openConfirm("Elimina ricompensa", "Eliminare la ricompensa del livello " + r.level + "?").then(function (ok) {
           if (!ok) return;
@@ -284,25 +445,32 @@
             .then(function () { btn.disabled = false; });
         });
       }));
+      makeExpandable(li, summary, body);
       ul.appendChild(li);
     });
+    ensureListFilter(ul, arr.length);
   }
 
   function renderShop(arr) {
     var ul = $("sh-list");
     if (!ul) return;
+    closeExpandedRow();
     clear(ul);
     if (!arr || arr.length === 0) {
       emptyRow(ul, "Negozio vuoto: metti in vendita il primo ruolo qui sotto.");
+      ensureListFilter(ul, 0);
       return;
     }
     arr.forEach(function (it) {
       var li = document.createElement("li");
       li.className = "itemrow";
-      var txt = document.createElement("span");
-      txt.textContent = roleName(it.roleId) + " → " + fmtNum(it.price) + " monete";
-      li.appendChild(txt);
-      li.appendChild(deleteBtn("Rimuovi dal negozio " + roleName(it.roleId), function (ev) {
+      var summary = roleName(it.roleId) + " → " + fmtNum(it.price) + " monete";
+      var body = document.createElement("div");
+      body.className = "item-detail-body";
+      body.appendChild(detailParagraph(roleName(it.roleId) + " → " + fmtNum(it.price) + " monete"));
+      body.appendChild(detailMeta(metaText(it)));
+      body.appendChild(deleteBtn("Rimuovi dal negozio " + roleName(it.roleId), function (ev) {
+        ev.stopPropagation();
         var btn = ev.currentTarget;
         openConfirm("Rimuovi dal negozio", "Rimuovere " + roleName(it.roleId) + " dal negozio?").then(function (ok) {
           if (!ok) return;
@@ -321,26 +489,33 @@
             .then(function () { btn.disabled = false; });
         });
       }));
+      makeExpandable(li, summary, body);
       ul.appendChild(li);
     });
+    ensureListFilter(ul, arr.length);
   }
 
   function renderRR(arr) {
     var ul = $("rr-list");
     if (!ul) return;
+    closeExpandedRow();
     clear(ul);
     if (!arr || arr.length === 0) {
       emptyRow(ul, "Nessuna opzione: collega la prima emoji a un ruolo qui sotto.");
+      ensureListFilter(ul, 0);
       return;
     }
     arr.forEach(function (it) {
       var li = document.createElement("li");
       li.className = "itemrow";
-      var txt = document.createElement("span");
       var head = it.emoji ? it.emoji + " " : "";
-      txt.textContent = head + (it.label || it.roleId) + " → " + roleName(it.roleId);
-      li.appendChild(txt);
-      li.appendChild(deleteBtn("Rimuovi opzione " + (it.label || it.roleId), function (ev) {
+      var summary = head + (it.label || it.roleId) + " → " + roleName(it.roleId);
+      var body = document.createElement("div");
+      body.className = "item-detail-body";
+      body.appendChild(detailParagraph(summary));
+      body.appendChild(detailMeta(metaText(it)));
+      body.appendChild(deleteBtn("Rimuovi opzione " + (it.label || it.roleId), function (ev) {
+        ev.stopPropagation();
         var btn = ev.currentTarget;
         openConfirm("Rimuovi opzione", "Rimuovere l\u2019opzione con etichetta " + (it.label || it.roleId) + "?").then(function (ok) {
           if (!ok) return;
@@ -359,8 +534,10 @@
             .then(function () { btn.disabled = false; });
         });
       }));
+      makeExpandable(li, summary, body);
       ul.appendChild(li);
     });
+    ensureListFilter(ul, arr.length);
   }
 
   function renderGeneric(lists) {
@@ -406,6 +583,29 @@
       }
       card.appendChild(ul);
       grid.appendChild(card);
+      closeExpandedRow();
+      (function (listUl, listVal) {
+        if (listVal.length === 0) {
+          ensureListFilter(listUl, 0);
+          return;
+        }
+        var rows = listUl.querySelectorAll("li.itemrow");
+        for (var k = 0; k < rows.length; k++) {
+          (function (row, entry) {
+            var s = "";
+            try { s = JSON.stringify(entry); } catch (e) { s = String(entry); }
+            var full = String(s);
+            var summ = full.slice(0, 120);
+            while (row.firstChild) row.removeChild(row.firstChild);
+            var b = document.createElement("div");
+            b.className = "item-detail-body";
+            b.appendChild(detailParagraph(full));
+            b.appendChild(detailMeta(metaText(entry && typeof entry === "object" ? entry : null)));
+            makeExpandable(row, summ, b);
+          })(rows[k], listVal[k]);
+        }
+        ensureListFilter(listUl, listVal.length);
+      })(ul, val);
     });
   }
 

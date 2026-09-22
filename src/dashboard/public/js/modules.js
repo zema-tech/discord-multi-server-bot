@@ -252,6 +252,144 @@
     });
   }
 
+  function loadCollapsed() {
+    try {
+      var raw = window.localStorage.getItem("msb-collapsed");
+      if (!raw) return {};
+      var parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") return parsed;
+      return {};
+    } catch (e) { return {}; }
+  }
+
+  function saveCollapsed(map) {
+    try {
+      window.localStorage.setItem("msb-collapsed", JSON.stringify(map || {}));
+    } catch (e) {}
+  }
+
+  function currentEntryTitle() {
+    try {
+      var e = state.entry ? findEntry(state.entry) : null;
+      if (e && e.title) return e.title;
+    } catch (e2) {}
+    return "Panoramica";
+  }
+
+  function renderBreadcrumb() {
+    var crumb = $("crumb-list");
+    if (!crumb) return;
+    clear(crumb);
+    if (state.gid === null || state.gid === undefined) return;
+    var li1 = document.createElement("li");
+    var home = document.createElement("button");
+    home.type = "button";
+    home.className = "crumb-home";
+    home.textContent = "Server";
+    home.addEventListener("click", function () {
+      Dash.openEntry("panoramica");
+      try {
+        if (prefersReduced()) window.scrollTo(0, 0);
+        else window.scrollTo({ top: 0, behavior: "smooth" });
+      } catch (err) {
+        try { window.scrollTo(0, 0); } catch (e2) {}
+      }
+    });
+    li1.appendChild(home);
+    crumb.appendChild(li1);
+    var li2 = document.createElement("li");
+    li2.className = "crumb-current";
+    li2.setAttribute("aria-current", "page");
+    li2.textContent = currentEntryTitle();
+    crumb.appendChild(li2);
+  }
+
+  var PREVIEW_KEYS = ["welcomeMessage", "goodbyeMessage", "systemPrompt"];
+
+  function previewServerName() {
+    try {
+      var m = state.meta || {};
+      var n = m.guildName || m.name || m.serverName || (m.guild && m.guild.name);
+      if (n) return String(n);
+      if (state.guildName) return String(state.guildName);
+      if (state.serverName) return String(state.serverName);
+    } catch (e) {}
+    return "Bot";
+  }
+
+  function renderPreviewBody(body, text) {
+    clear(body);
+    var t = String(text === null || text === undefined ? "" : text);
+    if (!t) {
+      var em = document.createElement("span");
+      em.className = "muted small";
+      em.textContent = "Nessun testo.";
+      body.appendChild(em);
+      return;
+    }
+    var lines = t.split("\n");
+    lines.forEach(function (line) {
+      var row = document.createElement("div");
+      row.className = "msg-line";
+      var re = /\{[^}\n]{1,40}\}/g;
+      var last = 0;
+      var mm;
+      var has = false;
+      while ((mm = re.exec(line)) !== null) {
+        has = true;
+        if (mm.index > last) row.appendChild(document.createTextNode(line.slice(last, mm.index)));
+        var chip = document.createElement("span");
+        chip.className = "var-chip";
+        chip.textContent = mm[0];
+        row.appendChild(chip);
+        last = mm.index + mm[0].length;
+      }
+      if (!has) {
+        row.textContent = line === "" ? " " : line;
+      } else if (last < line.length) {
+        row.appendChild(document.createTextNode(line.slice(last)));
+      }
+      body.appendChild(row);
+    });
+  }
+
+  function attachLivePreviews(card) {
+    if (!card || typeof card.querySelector !== "function") return;
+    PREVIEW_KEYS.forEach(function (key) {
+      var ta = null;
+      try { ta = card.querySelector('[data-fkey="' + key + '"]'); } catch (e) { ta = null; }
+      if (!ta || ta.tagName !== "TEXTAREA") return;
+      var field = null;
+      try { field = ta.closest(".field"); } catch (e) { field = null; }
+      if (!field) field = ta.parentNode;
+      if (!field) return;
+      var box = document.createElement("div");
+      box.className = "msg-preview";
+      var head = document.createElement("div");
+      head.className = "msg-head";
+      var av = document.createElement("span");
+      av.className = "msg-avatar";
+      av.setAttribute("aria-hidden", "true");
+      av.textContent = "B";
+      var nm = document.createElement("span");
+      nm.className = "msg-name";
+      nm.textContent = previewServerName();
+      var tm = document.createElement("span");
+      tm.className = "msg-time muted small";
+      tm.textContent = "oggi";
+      head.appendChild(av);
+      head.appendChild(nm);
+      head.appendChild(tm);
+      var body = document.createElement("div");
+      body.className = "msg-body";
+      box.appendChild(head);
+      box.appendChild(body);
+      renderPreviewBody(body, ta.value);
+      ta.addEventListener("input", function () { renderPreviewBody(body, ta.value); });
+      field.appendChild(box);
+    });
+  }
+
   function renderModuleList() {
     var box = $("module-sections");
     if (box) {
@@ -289,9 +427,10 @@
       p.className = "muted small";
       p.textContent = "Nessun modulo trovato.";
       nav.appendChild(p);
+      renderBreadcrumb();
       return;
     }
-    list.forEach(function (e) {
+    var makeItem = function (e) {
       var b = document.createElement("button");
       b.type = "button";
       b.className = "mod-item" + (state.entry === e.id ? " is-active" : "");
@@ -320,8 +459,57 @@
         b.appendChild(dot);
       }
       b.addEventListener("click", function () { Dash.openEntry(e.id); });
-      nav.appendChild(b);
+      return b;
+    };
+    var order = [];
+    var groups = {};
+    list.forEach(function (e) {
+      var sec = e.section || "Altro";
+      if (!groups[sec]) { groups[sec] = []; order.push(sec); }
+      groups[sec].push(e);
     });
+    var collapsed = loadCollapsed();
+    order.forEach(function (sec) {
+      var items = groups[sec];
+      var isCol = Boolean(collapsed[sec]);
+      var group = document.createElement("div");
+      group.className = "mod-group" + (isCol ? " collapsed" : "");
+      group.dataset.section = sec;
+      var header = document.createElement("button");
+      header.type = "button";
+      header.className = "mod-cat";
+      header.setAttribute("aria-expanded", isCol ? "false" : "true");
+      var title = document.createElement("span");
+      title.className = "mod-cat-title";
+      title.textContent = sec;
+      header.appendChild(title);
+      var count = document.createElement("span");
+      count.className = "mod-cat-count";
+      count.textContent = String(items.length);
+      header.appendChild(count);
+      var catChev = iconEl("chev");
+      try { catChev.classList.add("mod-cat-chev"); } catch (err2) {}
+      header.appendChild(catChev);
+      header.addEventListener("click", function () {
+        var next = !group.classList.contains("collapsed");
+        if (next) group.classList.add("collapsed");
+        else group.classList.remove("collapsed");
+        header.setAttribute("aria-expanded", next ? "false" : "true");
+        try {
+          var map = loadCollapsed();
+          if (next) map[sec] = true;
+          else delete map[sec];
+          saveCollapsed(map);
+        } catch (err3) {}
+      });
+      group.appendChild(header);
+      var itemsWrap = document.createElement("div");
+      itemsWrap.className = "mod-group-items";
+      items.forEach(function (e) { itemsWrap.appendChild(makeItem(e)); });
+      group.appendChild(itemsWrap);
+      nav.appendChild(group);
+    });
+    renderBreadcrumb();
   }
 
   function openEntry(id) {
@@ -347,6 +535,7 @@
     } else if (e.kind === "perms") {
       showSection("sec-perms");
     }
+    renderBreadcrumb();
   }
 
   function focusModule(modName) {
@@ -355,6 +544,7 @@
     Dash.renderModuleList();
     showSection("sec-module");
     renderActiveModule();
+    renderBreadcrumb();
   }
 
   function refreshNav() {
@@ -611,6 +801,7 @@
     hint.textContent = "Le modifiche non salvate restano evidenziate anche cambiando modulo.";
     saveRow.appendChild(hint);
     card.appendChild(saveRow);
+    attachLivePreviews(card);
     box.appendChild(card);
     state.baseline[mod.module] = JSON.stringify(valuesInOrder(mod.module, cached));
     syncDirty(mod.module);

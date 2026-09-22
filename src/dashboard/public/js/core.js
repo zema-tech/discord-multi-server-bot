@@ -742,13 +742,27 @@ if (!Array.isArray(Dash.onDiscard)) Dash.onDiscard = [];
 
 function updateDirtyBar() {
   try {
-    var bar = document.getElementById('dirty-bar');
-    if (!bar) return;
     var n = 0;
     try { n = dirty.count(); } catch (_) { n = 0; }
-    bar.hidden = n === 0;
-    var c = document.getElementById('dirty-count');
-    if (c) c.textContent = n === 1 ? '1 modifica non salvata' : (n + ' modifiche non salvate');
+    try {
+      var bar = document.getElementById('dirty-bar');
+      if (bar) {
+        bar.hidden = n === 0;
+        var c = document.getElementById('dirty-count');
+        if (c) c.textContent = n === 1 ? '1 modifica non salvata' : (n + ' modifiche non salvate');
+      }
+    } catch (_) {}
+    try {
+      var ps = document.getElementById('page-save');
+      if (ps) {
+        ps.hidden = n === 0;
+        try { ps.disabled = n === 0; } catch (_) {}
+        if (!ps.dataset.dirtyWired) {
+          ps.dataset.dirtyWired = '1';
+          ps.addEventListener('click', function () { saveAllDirty(); });
+        }
+      }
+    } catch (_) {}
   } catch (_) {}
 }
 
@@ -793,6 +807,11 @@ function initDirtyBar() {
     if (s) s.addEventListener('click', function () { saveAllDirty(); });
     var d = document.getElementById('dirty-discard');
     if (d) d.addEventListener('click', function () { discardAllDirty(); });
+    var ps = document.getElementById('page-save');
+    if (ps && !ps.dataset.dirtyWired) {
+      ps.dataset.dirtyWired = '1';
+      ps.addEventListener('click', function () { saveAllDirty(); });
+    }
     updateDirtyBar();
   } catch (_) {}
 }

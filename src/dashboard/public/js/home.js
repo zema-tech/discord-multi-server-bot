@@ -326,8 +326,11 @@
         var go = document.createElement("button");
         go.type = "button";
         go.className = "btn btn-secondary btn-sm";
-        go.textContent = "Gestisci";
-        go.setAttribute("aria-label", "Gestisci " + (g.name || g.id));
+        var incomplete = !!(g.setup && typeof g.setup.done === "number" &&
+          typeof g.setup.total === "number" && g.setup.total > 0 && g.setup.done < g.setup.total);
+        var verb = incomplete ? "Completa" : "Gestisci";
+        go.textContent = verb;
+        go.setAttribute("aria-label", verb + " " + (g.name || g.id));
         go.addEventListener("click", function () { Dash.selectGuild(g.id, g.name); });
         row.appendChild(go);
         list.appendChild(row);
@@ -443,6 +446,28 @@
   Dash.renderGuildList = renderGuildList;
   Dash.renderOverview = renderOverview;
   Dash.initHomeFilters = initHomeFilters;
+
+  /* Quando si torna alla home, svuota il breadcrumb. Guard se assente. */
+  (function wrapShowViewsForCrumbs() {
+    try {
+      if (typeof Dash.showViews !== "function") return;
+      if (Dash.showViews.__crumbsWrapped) return;
+      var orig = Dash.showViews;
+      var wrapped = function (server) {
+        try { orig(server); } catch (e) { /* vista non critica */ }
+        try {
+          if (!server) {
+            var cl = document.getElementById("crumb-list");
+            if (cl) {
+              while (cl.firstChild) cl.removeChild(cl.firstChild);
+            }
+          }
+        } catch (e) { /* breadcrumb non critico */ }
+      };
+      wrapped.__crumbsWrapped = true;
+      Dash.showViews = wrapped;
+    } catch (e) { /* ignora */ }
+  })();
 
   /* Il core fa il boot dati; qui solo wire dei filtri (listener multipli consentiti). */
   function bootFilters() {
