@@ -34,6 +34,7 @@
     search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>',
     plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
     trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V5h6v2"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></svg>',
+    edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19z"/><path d="M14.5 6.5l3 3"/></svg>',
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg>',
     info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="8" r="1.2" fill="currentColor"/></svg>',
     server: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><circle cx="7" cy="7.5" r="1" fill="currentColor"/><circle cx="7" cy="16.5" r="1" fill="currentColor"/></svg>',
@@ -72,7 +73,8 @@
     permsDraft: {},
     dirtyPerms: {},
     trends: [],
-    apiMs: null
+    apiMs: null,
+    editingCmd: null
   };
 
   var NUMBER_RANGES = { maxMentions: [1, 20], maxPerUser: [1, 10], autoCloseDays: [0, 90], maxCapsPercent: [10, 100], threshold: [1, 100], delaySeconds: [0, 3600] };
@@ -847,6 +849,7 @@
     state.permsDraft = {};
     state.dirtyPerms = {};
     state.trends = [];
+    state.editingCmd = null;
     updateDirtyBar();
     writeHashGid(gid);
     renderGuildList();
@@ -909,7 +912,8 @@
       autoresponder: (lists && Array.isArray(lists.autoresponder)) ? lists.autoresponder : [],
       customCommands: (lists && Array.isArray(lists.customCommands)) ? lists.customCommands : [],
       levelRewards: (lists && Array.isArray(lists.levelRewards)) ? lists.levelRewards : [],
-      shop: (lists && Array.isArray(lists.shop)) ? lists.shop : []
+      shop: (lists && Array.isArray(lists.shop)) ? lists.shop : [],
+      rrOptions: (lists && Array.isArray(lists.rrOptions)) ? lists.rrOptions : []
     };
   }
 
@@ -935,6 +939,7 @@
   function buildRoleSelects() {
     fillRoleSelect("rw-role");
     fillRoleSelect("sh-role");
+    fillRoleSelect("rr-role");
   }
 
   function fillRoleSelect(selId) {
@@ -1384,6 +1389,18 @@
       refreshModuleListStates();
       updateDirtyBar();
     });
+    var saveRow = document.createElement("div");
+    saveRow.className = "form-actions";
+    var save = document.createElement("button");
+    save.type = "submit";
+    save.className = "btn btn-primary btn-sm";
+    save.textContent = "Salva modifiche";
+    saveRow.appendChild(save);
+    var hint = document.createElement("span");
+    hint.className = "muted small";
+    hint.textContent = "Le modifiche non salvate restano evidenziate anche cambiando modulo.";
+    saveRow.appendChild(hint);
+    card.appendChild(saveRow);
     box.appendChild(card);
     state.baseline[mod.module] = JSON.stringify(valuesInOrder(mod.module, cached));
     syncDirty(mod.module);
@@ -1704,6 +1721,52 @@
     renderCC(lists.customCommands);
     renderRW(lists.levelRewards);
     renderShop(lists.shop);
+    renderRR(lists.rrOptions);
+  }
+
+  function editBtn(label, onClick) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "icon-btn";
+    b.setAttribute("aria-label", label);
+    b.setAttribute("title", label);
+    b.innerHTML = ICONS.edit;
+    b.addEventListener("click", onClick);
+    return b;
+  }
+
+  function resetCcForm() {
+    state.editingCmd = null;
+    $("cc-name").value = "";
+    $("cc-name").readOnly = false;
+    $("cc-response").value = "";
+    var btn = document.querySelector('#cc-form button[type="submit"]');
+    if (btn) btn.textContent = "Salva comando";
+    var cancel = $("cc-cancel");
+    if (cancel && cancel.parentNode) cancel.parentNode.removeChild(cancel);
+  }
+
+  function startCcEdit(c) {
+    state.editingCmd = c.name;
+    $("cc-name").value = c.name;
+    $("cc-name").readOnly = true;
+    $("cc-response").value = c.response || "";
+    var btn = document.querySelector('#cc-form button[type="submit"]');
+    if (btn) btn.textContent = "Salva modifiche";
+    if (!$("cc-cancel") && btn && btn.parentNode) {
+      var cancel = document.createElement("button");
+      cancel.type = "button";
+      cancel.id = "cc-cancel";
+      cancel.className = "btn btn-secondary btn-sm";
+      cancel.textContent = "Annulla modifica";
+      cancel.addEventListener("click", resetCcForm);
+      btn.parentNode.insertBefore(cancel, btn);
+    }
+    var card = $("cc-form").closest(".card");
+    if (card && card.scrollIntoView) {
+      try { card.scrollIntoView({ block: "nearest", behavior: prefersReduced() ? "auto" : "smooth" }); } catch (e) {}
+    }
+    $("cc-response").focus();
   }
 
   function deleteBtn(label, onClick) {
@@ -1785,7 +1848,10 @@
       var txt = document.createElement("span");
       txt.textContent = "!" + c.name + " → " + String(c.response || "").slice(0, 80);
       li2.appendChild(txt);
-      li2.appendChild(deleteBtn("Elimina comando !" + c.name, function (ev) {
+      var acts = document.createElement("span");
+      acts.className = "item-acts";
+      acts.appendChild(editBtn("Modifica comando !" + c.name, function () { startCcEdit(c); }));
+      acts.appendChild(deleteBtn("Elimina comando !" + c.name, function (ev) {
         var btn = ev.currentTarget;
         openConfirm("Elimina comando", "Eliminare il comando !" + c.name + "?").then(function (ok) {
           if (!ok) return;
@@ -1806,6 +1872,7 @@
             .then(function () { btn.disabled = false; });
         });
       }));
+      li2.appendChild(acts);
       ul.appendChild(li2);
     });
   }
@@ -1889,6 +1956,53 @@
     });
   }
 
+  function renderRR(arr) {
+    var ul = $("rr-list");
+    clear(ul);
+    if (!arr || arr.length === 0) {
+      var li = document.createElement("li");
+      li.className = "muted";
+      li.textContent = "Nessuna opzione: collega la prima emoji a un ruolo qui sotto.";
+      ul.appendChild(li);
+      return;
+    }
+    arr.forEach(function (it) {
+      var li2 = document.createElement("li");
+      li2.className = "itemrow";
+      var txt = document.createElement("span");
+      var head = it.emoji ? it.emoji + " " : "";
+      txt.textContent = head + (it.label || it.roleId) + " → " + roleName(it.roleId);
+      li2.appendChild(txt);
+      li2.appendChild(deleteBtn("Rimuovi opzione " + (it.label || it.roleId), function (ev) {
+        var btn = ev.currentTarget;
+        openConfirm("Rimuovi opzione", "Rimuovere l'opzione «" + (it.label || it.roleId) + "»?").then(function (ok) {
+          if (!ok) return;
+          btn.disabled = true;
+          var modRR = "reactionRoles";
+          putModule(modRR, { action: "remove-option", roleId: it.roleId })
+            .then(function () { return refreshRROptions(); })
+            .then(function () {
+              refreshModuleListStates();
+              toast("Opzione rimossa.", "ok");
+            })
+            .catch(function (err) {
+              if (err && err.message === "unauthorized") return;
+              toast("Errore: " + err.message, "err");
+            })
+            .then(function () { btn.disabled = false; });
+        });
+      }));
+      ul.appendChild(li2);
+    });
+  }
+
+  function refreshRROptions() {
+    return getJSON("/api/guilds/" + encodeURIComponent(state.gid)).then(function (detail) {
+      state.listsCache.rrOptions = (detail && detail.lists && detail.lists.rrOptions) || [];
+      renderRR(state.listsCache.rrOptions);
+    });
+  }
+
   function refreshShop() {
     return getJSON("/api/guilds/" + encodeURIComponent(state.gid)).then(function (detail) {
       state.listsCache.shop = (detail && detail.lists && detail.lists.shop) || [];
@@ -1921,16 +2035,20 @@
     attachCounter($("ar-response"), 1500);
     attachCounter($("cc-name"), 20);
     attachCounter($("cc-response"), 1500);
+    attachCounter($("rr-label"), 100);
+    attachCounter($("rr-emoji"), 50);
     $("ar-form").addEventListener("submit", function (ev) {
       ev.preventDefault();
       if (!state.gid) { toast("Seleziona prima un server.", "err"); return; }
       var match = $("ar-match").value.trim();
       var response = $("ar-response").value.trim();
       if (!match || !response) { toast("Parola e risposta sono obbligatorie.", "err"); return; }
+      var modeSel = $("ar-mode");
+      var mode = modeSel && (modeSel.value === "exact" || modeSel.value === "regex") ? modeSel.value : "include";
       var btn = ev.target.querySelector('button[type="submit"]');
       setSaving(btn, true);
       var modAdd = "autoresponder";
-      putModule(modAdd, { action: "add", match: match, response: response })
+      putModule(modAdd, { action: "add", match: match, response: response, mode: mode })
         .then(function (r) {
           state.listsCache.autoresponder = (r && r.list) || state.listsCache.autoresponder;
           renderAR(state.listsCache.autoresponder);
@@ -1954,16 +2072,16 @@
       if (!response) { toast("La risposta è obbligatoria.", "err"); return; }
       var btn = ev.target.querySelector('button[type="submit"]');
       setSaving(btn, true);
-      var modCreate = "commands";
-      putModule(modCreate, { action: "create", name: name, response: response })
+      var isEdit = state.editingCmd && state.editingCmd === name;
+      var modCmd = "commands";
+      putModule(modCmd, { action: isEdit ? "update" : "create", name: name, response: response })
         .then(function (r) {
           state.listsCache.customCommands = (r && r.list) || state.listsCache.customCommands;
           renderCC(state.listsCache.customCommands);
           syncMatrixCommands();
           refreshModuleListStates();
-          $("cc-name").value = "";
-          $("cc-response").value = "";
-          toast("Comando !" + name + " salvato.", "ok");
+          resetCcForm();
+          toast(isEdit ? "Comando !" + name + " aggiornato." : "Comando !" + name + " salvato.", "ok");
         })
         .catch(function (err) {
           if (err && err.message === "unauthorized") return;
@@ -2018,9 +2136,31 @@
         })
         .then(function () { setSaving(btn, false); });
     });
+    $("rr-form").addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      if (!state.gid) { toast("Seleziona prima un server.", "err"); return; }
+      var roleId = $("rr-role").value;
+      if (!roleId) { toast("Seleziona un ruolo.", "err"); return; }
+      var label = $("rr-label").value.trim().slice(0, 100);
+      var emoji = $("rr-emoji").value.trim().slice(0, 50);
+      var btn = ev.target.querySelector('button[type="submit"]');
+      setSaving(btn, true);
+      var modRR = "reactionRoles";
+      putModule(modRR, { action: "add-option", roleId: roleId, label: label, emoji: emoji })
+        .then(function () { return refreshRROptions(); })
+        .then(function () {
+          refreshModuleListStates();
+          $("rr-label").value = "";
+          $("rr-emoji").value = "";
+          toast("Opzione aggiunta.", "ok");
+        })
+        .catch(function (err) {
+          if (err && err.message === "unauthorized") return;
+          toast("Errore: " + err.message, "err");
+        })
+        .then(function () { setSaving(btn, false); });
+    });
   }
-
-  /* ---------- Permessi: matrice comandi × ruoli ---------- */
   function permCommands() {
     var cmds = PERM_COMMANDS.slice();
     (state.listsCache.customCommands || []).forEach(function (c) {

@@ -331,6 +331,24 @@ function readReactionRoles(gid) {
   }
 }
 
+function readRROptions(gid) {
+  try {
+    const rr = safeRequire('../database/reactionRoles');
+    if (!rr || typeof rr.getPanel !== 'function') return [];
+    const p = rr.getPanel(gid) || {};
+    if (!Array.isArray(p.options)) return [];
+    return p.options
+      .filter((o) => o && typeof o.roleId === 'string')
+      .map((o) => ({
+        roleId: o.roleId,
+        label: typeof o.label === 'string' ? o.label.slice(0, 100) : o.roleId,
+        emoji: typeof o.emoji === 'string' ? o.emoji.slice(0, 50) : null,
+      }))
+      .slice(0, 25);
+  } catch {
+    return [];
+  }
+}
 function readLockdown(gid) {
   const inactive = { active: false, motivo: null, byTag: null, at: null, channelCount: 0 };
   try {
@@ -384,7 +402,7 @@ function readExtra(gid) {
     lockdown: readLockdown(gid),
     shop: readShop(gid),
     // Pattern anticipato dal GET guild in api.js: listsExtra finisce in `lists`.
-    listsExtra: { shop: readShopList(gid) },
+    listsExtra: { shop: readShopList(gid), rrOptions: readRROptions(gid) },
   };
 }
 
@@ -452,6 +470,9 @@ function writeReactionRoles(gid, patch, guild) {
   const rr = safeRequire('../database/reactionRoles');
   if (!rr || typeof rr.setPanel !== 'function') failUnavailable('reactionRoles');
   if (!patch || typeof patch !== 'object' || Array.isArray(patch)) fail('Body non valido.');
+  if (patch.action === 'add-option' || patch.action === 'remove-option') {
+    return writeRROption(gid, patch, guild, rr);
+  }
   const keys = Object.keys(patch);
   if (keys.length === 0) fail('Body vuoto: niente da salvare.');
   const allowed = ['channelId', 'title', 'description'];
@@ -476,6 +497,31 @@ function writeReactionRoles(gid, patch, guild) {
 }
 
 const SHOP_MAX_PRICE = 10000000; // cap dashboard anti-abuso (il DB accetta interi >= 1)
+
+/** Azioni opzioni reaction roles: {action:'add-option'|'remove-option', roleId, label?, emoji?}. */
+function writeRROption(gid, patch, guild, rr) {
+  const [valid] = checkRolesField(guild, 'roleId', [patch.roleId], 1);
+  const roleId = valid;
+  if (roleId === gid) fail('Il ruolo @everyone non può essere un reaction role.');
+  if (patch.action === 'remove-option') {
+    if (typeof rr.removeOption !== 'function') failUnavailable('reactionRoles');
+    const removed = rr.removeOption(gid, roleId);
+    if (!removed || removed.removed !== true) fail('Opzione non trovata.');
+    return { removed: true, roleId };
+  }
+  if (typeof rr.addOption !== 'function') failUnavailable('reactionRoles');
+  const label = typeof patch.label === 'string' && patch.label.trim()
+    ? patch.label.trim().slice(0, 100) : roleId;
+  const emoji = typeof patch.emoji === 'string' && patch.emoji.trim()
+    ? patch.emoji.trim().slice(0, 50) : null;
+  const r = rr.addOption(gid, { roleId, label, emoji });
+  if (!r || (!r.added && !r.updated)) {
+    if (r && r.full) fail('Limite opzioni raggiunto.');
+    if (r && r.invalid) fail('Ruolo non valido.');
+    fail('Salvataggio opzione fallito.');
+  }
+  return { added: !!r.added, updated: !!r.updated, roleId };
+}
 
 /** Prezzo shop: intero 1..SHOP_MAX_PRICE (stile api.js: range con 400). */
 function checkShopPrice(v) {

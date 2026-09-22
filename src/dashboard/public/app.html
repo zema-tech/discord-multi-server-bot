@@ -139,11 +139,19 @@
                       <label for="ar-match">Parola o frase</label>
                       <input type="text" id="ar-match" maxlength="200" placeholder="es. orari" required>
                     </div>
-                    <div class="field">
-                      <label for="ar-response">Risposta</label>
-                      <textarea id="ar-response" maxlength="1500" placeholder="Il server apre alle…" required></textarea>
-                    </div>
-                    <button class="btn btn-primary btn-sm" type="submit">Aggiungi</button>
+                <div class="field">
+                  <label for="ar-response">Risposta</label>
+                  <textarea id="ar-response" maxlength="1500" placeholder="Il server apre alle…" required></textarea>
+                </div>
+                <div class="field">
+                  <label for="ar-mode">Tipo di corrispondenza</label>
+                  <select id="ar-mode">
+                    <option value="include">Contiene la parola</option>
+                    <option value="exact">Frase esatta</option>
+                    <option value="regex">Espressione regolare</option>
+                  </select>
+                </div>
+                <button class="btn btn-primary btn-sm" type="submit">Aggiungi</button>
                   </form>
                 </div>
                 <div class="card">
@@ -195,13 +203,35 @@
                         <input type="number" id="sh-price" min="1" max="10000000" step="1" required>
                       </div>
                     </div>
-                    <button class="btn btn-primary btn-sm" type="submit">Metti in vendita</button>
-                  </form>
+                <button class="btn btn-primary btn-sm" type="submit">Metti in vendita</button>
+              </form>
+            </div>
+            <div class="card" id="card-rr">
+              <h3>Opzioni reaction roles</h3>
+              <p class="muted small">Associa emoji e ruoli al pannello reaction roles.</p>
+              <ul class="itemlist" id="rr-list"><li class="muted">Nessuna opzione.</li></ul>
+              <form id="rr-form" class="stack">
+                <div class="row2">
+                  <div class="field">
+                    <label for="rr-role">Ruolo</label>
+                    <select id="rr-role" required></select>
+                  </div>
+                  <div class="field">
+                    <label for="rr-emoji">Emoji</label>
+                    <input type="text" id="rr-emoji" maxlength="50" placeholder="es. stella">
+                  </div>
                 </div>
-              </div>
-            </section>
+                <div class="field">
+                  <label for="rr-label">Etichetta</label>
+                  <input type="text" id="rr-label" maxlength="100" placeholder="es. Annunci">
+                </div>
+                <button class="btn btn-primary btn-sm" type="submit">Aggiungi opzione</button>
+              </form>
+            </div>
+          </div>
+        </section>
 
-            <section id="sec-perms" hidden>
+        <section id="sec-perms" hidden>
               <div class="card">
                 <h3>Chi può usare cosa</h3>
                 <p class="muted small">Seleziona i ruoli ammessi per ogni comando. Riga vuota uguale nessun limite.</p>
@@ -213,9 +243,7 @@
                 </div>
               </div>
             </section>
-          </div>
-        </section>
-      </main>
+          </main>
     </div>
   </div>
 
