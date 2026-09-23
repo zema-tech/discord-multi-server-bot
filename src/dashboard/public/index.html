@@ -3,39 +3,48 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Accedi al pannello Multi-Server Bot per gestire moderazione, ticket e livelli.">
-  <meta name="theme-color" content="#0a0a0f">
-  <title>Multi-Server Bot — Accesso</title>
+  <meta name="description" content="Multi-Server Bot — il pannello che comanda moderazione, ticket, livelli ed economia su tutti i tuoi server Discord.">
+  <meta name="theme-color" content="#0a0a0c">
+  <title>Multi-Server Bot — Comanda il tuo server</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    *, *::before, *::after { box-sizing: border-box; }
-
-    html, body { height: 100%; }
-
-    body {
-      margin: 0;
-      font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-      background-color: #0a0a0f;
-      background-image:
-        radial-gradient(700px 380px at 50% -80px, rgba(88, 101, 242, 0.22), transparent 65%),
-        radial-gradient(480px 300px at 88% 110%, rgba(87, 242, 135, 0.06), transparent 60%);
-      color: #f4f5f7;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px 16px;
-      -webkit-font-smoothing: antialiased;
+    :root {
+      --bg: #0a0a0c;
+      --bg2: #101014;
+      --card: #141419;
+      --border: #26262e;
+      --volt: #c5f82a;
+      --volt-h: #d6ff4d;
+      --volt-soft: rgba(197, 248, 42, 0.12);
+      --text: #f5f6f0;
+      --muted: #a7a89e;
+      --display: "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif;
+      --body: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
     }
 
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: var(--body);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* Grana cinematografica */
     body::before {
       content: "";
       position: fixed;
       inset: 0;
+      z-index: 60;
       pointer-events: none;
-      opacity: 0.05;
+      opacity: 0.055;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
     }
 
@@ -43,214 +52,447 @@
       position: absolute;
       left: -9999px;
       top: 0;
-      background: #5865F2;
-      color: #fff;
+      background: var(--volt);
+      color: #0c0e05;
       padding: 10px 16px;
       border-radius: 0 0 12px 0;
-      text-decoration: none;
-      font-weight: 600;
+      font-weight: 700;
       font-size: 14px;
-      z-index: 10;
+      z-index: 100;
     }
-
     .skip-link:focus { left: 0; }
 
-    .card {
-      position: relative;
-      width: 100%;
-      max-width: 440px;
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 30%), #14161d;
-      border: 1px solid #2a2e3b;
-      border-radius: 20px;
-      padding: 40px 36px 32px;
-      text-align: center;
-      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(88, 101, 242, 0.08);
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 0 clamp(1.5rem, 5vw, 4rem); }
+
+    /* ---------- Nav ---------- */
+    .nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 50;
+      backdrop-filter: blur(14px) saturate(1.2);
+      -webkit-backdrop-filter: blur(14px) saturate(1.2);
+      background: rgba(10, 10, 12, 0.72);
+      border-bottom: 1px solid var(--border);
     }
-
-    .card > * { animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
-    .card > *:nth-child(2) { animation-delay: 0.06s; }
-    .card > *:nth-child(3) { animation-delay: 0.12s; }
-    .card > *:nth-child(4) { animation-delay: 0.18s; }
-    .card > *:nth-child(5) { animation-delay: 0.24s; }
-    .card > *:nth-child(6) { animation-delay: 0.3s; }
-
-    @keyframes rise {
-      from { opacity: 0; transform: translateY(12px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: #b5bac1;
-      background: rgba(88, 101, 242, 0.12);
-      border: 1px solid rgba(88, 101, 242, 0.35);
-      border-radius: 999px;
-      padding: 6px 14px;
-      margin-bottom: 20px;
-    }
-
-    .badge .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #57f287;
-      box-shadow: 0 0 8px rgba(87, 242, 135, 0.8);
-    }
-
-    .logo {
-      width: 56px;
-      height: 56px;
-      margin: 0 auto 20px;
-      border-radius: 16px;
-      background: #5865F2;
+    .nav-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0.85rem clamp(1.5rem, 5vw, 4rem);
       display: flex;
       align-items: center;
-      justify-content: center;
-      box-shadow: 0 8px 24px rgba(88, 101, 242, 0.4);
+      gap: 1rem;
     }
+    .brand { display: flex; align-items: center; gap: 0.6rem; font-family: var(--display); font-weight: 700; font-size: 1rem; color: var(--text); text-decoration: none; }
+    .brand-mark { width: 30px; height: 30px; border-radius: 9px; background: var(--volt); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+    .nav-links { margin-left: auto; display: flex; align-items: center; gap: 1.4rem; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.9rem; font-weight: 600; }
+    .nav-links a:hover { color: var(--text); }
 
-    .logo svg { display: block; }
-
-    h1 {
-      margin: 0 0 10px;
-      font-family: "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif;
-      font-size: 34px;
-      line-height: 1.1;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      color: #f4f5f7;
-    }
-
-    .subtitle {
-      margin: 0 0 22px;
-      font-size: 15px;
-      line-height: 1.55;
-      color: #b5bac1;
-    }
-
-    .feats {
-      list-style: none;
-      margin: 0 0 26px;
-      padding: 0;
-      display: flex;
-      justify-content: center;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .feats li {
-      font-size: 13px;
-      font-weight: 600;
-      color: #b5bac1;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid #2a2e3b;
-      border-radius: 999px;
-      padding: 5px 12px;
-    }
-
-    .login-btn {
+    .btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 10px;
-      width: 100%;
-      padding: 14px 28px;
-      font-size: 16px;
-      font-weight: 700;
-      line-height: 1;
-      color: #ffffff;
-      background: #5865F2;
-      border: none;
-      border-radius: 12px;
+      gap: 0.55rem;
+      font: inherit;
+      font-weight: 800;
       text-decoration: none;
       cursor: pointer;
-      transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+      border-radius: 12px;
+      border: 1px solid transparent;
+      transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease), background 0.2s var(--ease);
     }
+    .btn-volt { background: var(--volt); color: #0c0e05; padding: 0.7rem 1.5rem; font-size: 0.95rem; box-shadow: 0 6px 28px rgba(197, 248, 42, 0.28); }
+    .btn-volt:hover { background: var(--volt-h); transform: translateY(-2px); box-shadow: 0 14px 36px rgba(197, 248, 42, 0.4); }
+    .btn-ghost { background: transparent; color: var(--text); border-color: var(--border); padding: 0.7rem 1.5rem; font-size: 0.95rem; }
+    .btn-ghost:hover { border-color: var(--volt); color: var(--volt); }
+    .btn-sm { padding: 0.5rem 1rem; font-size: 0.85rem; }
+    .btn:focus-visible, a:focus-visible { outline: 2px solid var(--volt); outline-offset: 3px; border-radius: 8px; }
 
-    .login-btn:hover {
-      background: #4752c4;
-      transform: translateY(-2px);
-      box-shadow: 0 12px 28px rgba(88, 101, 242, 0.45);
+    /* ---------- Hero ---------- */
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      min-height: 100svh;
+      display: flex;
+      align-items: center;
+      padding: 7rem 0 4rem;
+      overflow: hidden;
     }
-
-    .login-btn:active {
-      transform: translateY(0);
-      box-shadow: none;
+    .hero-glow {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(800px 460px at 18% 8%, rgba(197, 248, 42, 0.13), transparent 65%),
+        radial-gradient(700px 500px at 90% 90%, rgba(197, 248, 42, 0.06), transparent 60%),
+        radial-gradient(500px 300px at 80% 10%, rgba(255, 255, 255, 0.05), transparent 60%);
+      will-change: transform;
     }
+    .hero-grid-bg {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.5;
+      background-image: linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+      background-size: 72px 72px;
+      mask-image: radial-gradient(ellipse 90% 80% at 50% 20%, black 30%, transparent 75%);
+      -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 20%, black 30%, transparent 75%);
+    }
+    .hero-inner { position: relative; display: grid; grid-template-columns: 1.15fr 0.85fr; gap: clamp(2rem, 5vw, 4rem); align-items: center; width: 100%; }
 
-    .login-btn svg { flex-shrink: 0; }
+    .kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--volt);
+      background: var(--volt-soft);
+      border: 1px solid rgba(197, 248, 42, 0.35);
+      border-radius: 999px;
+      padding: 0.4rem 1rem;
+      margin-bottom: 1.4rem;
+    }
+    .kicker .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--volt); box-shadow: 0 0 10px rgba(197, 248, 42, 0.9); animation: blink 2s ease-in-out infinite; }
+    @keyframes blink { 50% { opacity: 0.4; } }
 
-    .login-btn:focus-visible,
-    a:focus-visible {
-      outline: 3px solid #5865F2;
-      outline-offset: 3px;
+    .hero h1 {
+      font-family: var(--display);
+      font-size: clamp(2.8rem, 6.5vw, 5.2rem);
+      line-height: 1.02;
+      letter-spacing: -0.03em;
+      margin: 0 0 1.2rem;
+      font-weight: 700;
+    }
+    .hero h1 .stroke {
+      color: transparent;
+      -webkit-text-stroke: 1.5px var(--volt);
+    }
+    .hero p.lead { font-size: clamp(1rem, 1.6vw, 1.2rem); color: var(--muted); max-width: 34rem; margin: 0 0 2rem; }
+    .hero-cta { display: flex; gap: 0.9rem; flex-wrap: wrap; }
+
+    /* Pannello finto del bot: l'elemento memorabile */
+    .deck {
+      position: relative;
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), transparent 35%), var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 1.2rem;
+      box-shadow: 0 32px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(197, 248, 42, 0.07);
+      transform: rotate(2deg);
+      transition: transform 0.3s var(--ease);
+    }
+    .deck:hover { transform: rotate(0deg); }
+    .deck-bar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
+    .deck-bar i { width: 11px; height: 11px; border-radius: 50%; background: var(--border); }
+    .deck-bar i:first-child { background: var(--volt); }
+    .deck-row {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      background: rgba(255, 255, 255, 0.025);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.65rem 0.85rem;
+      margin-bottom: 0.6rem;
+      font-size: 0.88rem;
+    }
+    .deck-row:last-child { margin-bottom: 0; }
+    .deck-cmd { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; color: var(--volt); font-weight: 700; flex: none; }
+    .deck-row span:last-child { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .deck-tag {
+      position: absolute;
+      top: -14px;
+      right: 18px;
+      background: var(--volt);
+      color: #0c0e05;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
       border-radius: 8px;
+      padding: 0.3rem 0.7rem;
+      transform: rotate(-3deg);
     }
 
-    .note {
-      margin: 20px 0 0;
-      font-size: 13px;
-      line-height: 1.5;
-      color: #b5bac1;
+    .scroll-hint {
+      position: absolute;
+      bottom: 1.6rem;
+      left: 50%;
+      transform: translateX(-50%);
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.4rem;
     }
+    .scroll-hint::after { content: ""; width: 1px; height: 34px; background: linear-gradient(var(--volt), transparent); animation: drop 1.8s var(--ease) infinite; }
+    @keyframes drop { 0% { transform: scaleY(0); transform-origin: top; } 45% { transform: scaleY(1); transform-origin: top; } 55% { transform: scaleY(1); transform-origin: bottom; } 100% { transform: scaleY(0); transform-origin: bottom; } }
 
-    @media (max-width: 480px) {
-      body { padding: 16px 12px; }
-      .card { padding: 32px 24px 28px; }
-      h1 { font-size: 28px; }
-      .subtitle { font-size: 14px; }
-      .login-btn { padding: 14px 20px; font-size: 15px; }
+    /* ---------- Reveal on scroll ---------- */
+    .rv { opacity: 0; transform: translateY(40px); transition: opacity 0.7s var(--ease), transform 0.7s var(--ease); }
+    .rv.in { opacity: 1; transform: none; }
+
+    /* ---------- Sezioni ---------- */
+    section { padding: clamp(4rem, 10vw, 8rem) 0; }
+    .sec-kicker { color: var(--volt); font-size: 0.78rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; margin: 0 0 0.8rem; }
+    .sec-title { font-family: var(--display); font-size: clamp(1.9rem, 4vw, 3rem); letter-spacing: -0.02em; line-height: 1.05; margin: 0 0 1rem; }
+    .sec-sub { color: var(--muted); max-width: 38rem; margin: 0 0 2.5rem; font-size: 1.02rem; }
+
+    .feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+    .feat {
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), transparent 40%), var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 1.6rem 1.5rem;
+      transition: transform 0.25s var(--ease), border-color 0.25s var(--ease), box-shadow 0.25s var(--ease);
+    }
+    .feat:hover { transform: translateY(-6px); border-color: rgba(197, 248, 42, 0.5); box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45); }
+    .feat-ico { font-size: 1.7rem; display: block; margin-bottom: 0.9rem; }
+    .feat h3 { font-family: var(--display); font-size: 1.15rem; margin: 0 0 0.4rem; letter-spacing: -0.01em; }
+    .feat p { margin: 0; color: var(--muted); font-size: 0.92rem; }
+    .feat .cmd { display: inline-block; margin-top: 0.8rem; font-family: ui-monospace, Consolas, monospace; font-size: 0.8rem; color: var(--volt); background: var(--volt-soft); border: 1px solid rgba(197, 248, 42, 0.3); border-radius: 8px; padding: 0.2rem 0.6rem; }
+
+    /* ---------- Stats ---------- */
+    .stats-band { background: var(--volt); color: #0c0e05; border-radius: 24px; padding: clamp(2rem, 5vw, 3.5rem); display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; transform: rotate(-0.5deg); }
+    .stat b { font-family: var(--display); font-size: clamp(2.2rem, 4.5vw, 3.4rem); letter-spacing: -0.03em; display: block; line-height: 1; font-variant-numeric: tabular-nums; }
+    .stat span { font-weight: 700; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.75; }
+
+    /* ---------- Come funziona ---------- */
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; counter-reset: step; }
+    .step { border: 1px solid var(--border); border-radius: 18px; padding: 1.6rem 1.5rem; background: var(--bg2); position: relative; }
+    .step::before { counter-increment: step; content: "0" counter(step); font-family: var(--display); font-size: 2.6rem; font-weight: 700; color: transparent; -webkit-text-stroke: 1px var(--volt); display: block; margin-bottom: 0.6rem; }
+    .step h3 { font-family: var(--display); margin: 0 0 0.4rem; font-size: 1.1rem; }
+    .step p { margin: 0; color: var(--muted); font-size: 0.92rem; }
+    .step code { color: var(--volt); font-size: 0.82rem; }
+
+    /* ---------- CTA ---------- */
+    .cta-box {
+      position: relative;
+      overflow: hidden;
+      border-radius: 24px;
+      border: 1px solid rgba(197, 248, 42, 0.35);
+      background: radial-gradient(600px 300px at 50% -50px, rgba(197, 248, 42, 0.18), transparent 70%), var(--card);
+      padding: clamp(2.5rem, 6vw, 4.5rem);
+      text-align: center;
+    }
+    .cta-box h2 { font-family: var(--display); font-size: clamp(2rem, 5vw, 3.4rem); letter-spacing: -0.02em; line-height: 1.05; margin: 0 0 1rem; }
+    .cta-box h2 em { font-style: normal; color: var(--volt); }
+    .cta-box p { color: var(--muted); margin: 0 0 2rem; }
+
+    footer { border-top: 1px solid var(--border); padding: 2rem 0 2.5rem; color: var(--muted); font-size: 0.85rem; }
+    footer .wrap { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+    footer nav { margin-left: auto; display: flex; gap: 1.2rem; }
+    footer a { color: var(--muted); text-decoration: none; }
+    footer a:hover { color: var(--volt); }
+
+    @media (max-width: 900px) {
+      .hero-inner { grid-template-columns: 1fr; }
+      .deck { transform: none; max-width: 520px; }
+      .feat-grid, .steps { grid-template-columns: 1fr; }
+      .stats-band { grid-template-columns: repeat(2, 1fr); transform: none; }
+      .nav-links a:not(.btn) { display: none; }
     }
 
     @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after {
-        animation: none !important;
-        transition: none !important;
-      }
-      .card > * { opacity: 1; transform: none; }
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+      .rv { opacity: 1; transform: none; }
     }
   </style>
 </head>
 <body>
   <a class="skip-link" href="#contenuto">Salta al contenuto</a>
 
-  <main class="card" id="contenuto" aria-labelledby="titolo">
-    <span class="badge"><span class="dot"></span>Pannello di controllo</span>
-
-    <div class="logo" aria-hidden="true">
-      <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-        <line x1="5" y1="9" x2="25" y2="9" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-        <circle cx="18" cy="9" r="3.4" fill="#ffffff"/>
-        <line x1="5" y1="15.5" x2="25" y2="15.5" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-        <circle cx="11" cy="15.5" r="3.4" fill="#ffffff"/>
-        <line x1="5" y1="22" x2="25" y2="22" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
-        <circle cx="19" cy="22" r="3.4" fill="#ffffff"/>
-      </svg>
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="#top" aria-label="Multi-Server Bot, torna in cima">
+        <span class="brand-mark" aria-hidden="true">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0c0e05" stroke-width="2.6" stroke-linecap="round"><path d="M4 7h9"/><path d="M17 7h3"/><circle cx="15" cy="7" r="2"/><path d="M4 17h3"/><path d="M11 17h9"/><circle cx="9" cy="17" r="2"/></svg>
+        </span>
+        <span>Multi-Server Bot</span>
+      </a>
+      <nav class="nav-links" aria-label="Sezioni">
+        <a href="#funzioni">Funzioni</a>
+        <a href="#numeri">Numeri</a>
+        <a href="#come-funziona">Come funziona</a>
+        <a class="btn btn-volt btn-sm" href="/login">Accedi con Discord</a>
+      </nav>
     </div>
+  </header>
 
-    <h1 id="titolo">Multi-Server Bot</h1>
-    <p class="subtitle">Moderazione, ticket e livelli — un unico pannello per tutti i tuoi server.</p>
+  <main id="contenuto">
+    <!-- HERO -->
+    <section class="hero" id="top" aria-labelledby="titolo">
+      <div class="hero-glow" id="hero-glow" aria-hidden="true"></div>
+      <div class="hero-grid-bg" aria-hidden="true"></div>
+      <div class="wrap hero-inner">
+        <div>
+          <span class="kicker"><span class="dot"></span>Commander · moduli isolati</span>
+          <h1 id="titolo">Comanda il tuo server.<br><span class="stroke">Niente si rompe.</span></h1>
+          <p class="lead">Moderazione, ticket, livelli, economia e AI — ogni modulo vive isolato: se uno cade, il resto continua a funzionare. Gestisci tutto dal pannello o con <strong>/modulo</strong>.</p>
+          <div class="hero-cta">
+            <a class="btn btn-volt" href="/login">Accedi con Discord</a>
+            <a class="btn btn-ghost" href="#funzioni">Vedi le funzioni</a>
+          </div>
+        </div>
+        <div class="deck" aria-hidden="true">
+          <span class="deck-tag">live dal bot</span>
+          <div class="deck-bar"><i></i><i></i><i></i></div>
+          <div class="deck-row"><span class="deck-cmd">/modulo stato</span><span>15 moduli · tutti operativi</span></div>
+          <div class="deck-row"><span class="deck-cmd">/ban</span><span>caso #482 archiviato</span></div>
+          <div class="deck-row"><span class="deck-cmd">/daily</span><span>+250 monete · streak 6🔥</span></div>
+          <div class="deck-row"><span class="deck-cmd">/ticket panel</span><span>supporto aperto in #ticket-31</span></div>
+        </div>
+      </div>
+      <span class="scroll-hint" aria-hidden="true">scorri</span>
+    </section>
 
-    <ul class="feats" aria-label="Funzioni principali">
-      <li>🛡️ Moderazione</li>
-      <li>🎫 Ticket</li>
-      <li>⭐ Livelli</li>
-    </ul>
+    <!-- FUNZIONI -->
+    <section id="funzioni" aria-labelledby="funzioni-t">
+      <div class="wrap">
+        <p class="sec-kicker rv">Funzioni</p>
+        <h2 class="sec-title rv" id="funzioni-t">Un bot. Quindici moduli.<br>Zero punti singoli di rottura.</h2>
+        <p class="sec-sub rv">Il Commander esegue ogni comando in isolamento con timeout e circuit-breaker: il modulo in difficoltà va in protezione, gli altri non se ne accorgono.</p>
+        <div class="feat-grid">
+          <article class="feat rv"><span class="feat-ico">🛡️</span><h3>Moderazione blindata</h3><p>Ban, kick, timeout, warn con escalation, lockdown anti-raid e storico casi per utente.</p><span class="cmd">/ban · /caso · /lockdown</span></article>
+          <article class="feat rv"><span class="feat-ico">🎫</span><h3>Ticket professionali</h3><p>Pannello con menu, claim, transcript, auto-chiusura degli inattivi e AI integrata.</p><span class="cmd">/ticket · /ticket-ai</span></article>
+          <article class="feat rv"><span class="feat-ico">💰</span><h3>Economia viva</h3><p>Monete, banca, lavoro, rapine, shop ruoli, lotteria e reputazione giornaliera.</p><span class="cmd">/daily · /shop · /rob</span></article>
+          <article class="feat rv"><span class="feat-ico">🤖</span><h3>AI del server</h3><p>Risposte, riassunti, immagini e un cervello con memorie e skill del tuo server.</p><span class="cmd">/chiedi · /brain</span></article>
+          <article class="feat rv"><span class="feat-ico">⭐</span><h3>Livelli e ricompense</h3><p>XP da messaggi e vocale, classifiche, ruoli premio automatici e sfide settimanali.</p><span class="cmd">/rank · /premi · /sfida</span></article>
+          <article class="feat rv"><span class="feat-ico">🧩</span><h3>Commander isolato</h3><p>Toggle per-modulo, reload senza restart e protezione automatica dai guasti.</p><span class="cmd">/modulo stato</span></article>
+        </div>
+      </div>
+    </section>
 
-    <a class="login-btn" href="/login">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-        <path d="M19.6 5.1A16.4 16.4 0 0 0 15.5 4l-.2.4a13 13 0 0 1 3.3 1.7 15 15 0 0 0-13.2 0A13 13 0 0 1 8.7 4.4L8.5 4a16.4 16.4 0 0 0-4.1 1.1C1.7 9.2 1 13.2 1.4 17.1A16.6 16.6 0 0 0 6.4 20l.5-.8c-.3-.1-.6-.3-.8-.5l.2-.1a12 12 0 0 0 10.4 0l.2.1c-.2.2-.5.4-.8.5l.5.8a16.6 16.6 0 0 0 5-2.9c.5-4.5-.8-8.5-3-12zM8.7 14.3c-.8 0-1.4-.7-1.4-1.6 0-.9.6-1.6 1.4-1.6.8 0 1.4.7 1.4 1.6 0 .9-.6 1.6-1.4 1.6zm6.6 0c-.8 0-1.4-.7-1.4-1.6 0-.9.6-1.6 1.4-1.6.8 0 1.4.7 1.4 1.6 0 .9-.6 1.6-1.4 1.6z" fill="#ffffff"/>
-      </svg>
-      Accedi con Discord
-    </a>
+    <!-- NUMERI -->
+    <section id="numeri" aria-labelledby="numeri-t" style="padding-top:0">
+      <div class="wrap">
+        <h2 id="numeri-t" class="sec-title rv" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Numeri</h2>
+        <div class="stats-band rv" role="list">
+          <div class="stat" role="listitem"><b><span data-count="86">0</span></b><span>slash command</span></div>
+          <div class="stat" role="listitem"><b><span data-count="15">0</span></b><span>moduli isolati</span></div>
+          <div class="stat" role="listitem"><b><span data-count="7">0</span></b><span>giorni di backup</span></div>
+          <div class="stat" role="listitem"><b><span data-count="2">0</span></b><span>lingue · it + en</span></div>
+        </div>
+      </div>
+    </section>
 
-    <p class="note">Accesso riservato ai gestori dei server &middot; scope identify+guilds</p>
+    <!-- COME FUNZIONA -->
+    <section id="come-funziona" aria-labelledby="come-t" style="padding-top:0">
+      <div class="wrap">
+        <p class="sec-kicker rv">Come funziona</p>
+        <h2 class="sec-title rv" id="come-t">Online in tre mosse.</h2>
+        <p class="sec-sub rv">Niente installazioni strane: inviti il bot, apri il pannello, accendi solo i moduli che ti servono.</p>
+        <div class="steps">
+          <article class="step rv"><h3>Accedi con Discord</h3><p>Login OAuth2 con scope minimi <code>identify + guilds</code>. Vedi solo i server che gestisci.</p></article>
+          <article class="step rv"><h3>Scegli il server</h3><p>Configura welcome, automod, ticket, livelli e permessi da un unico pannello per-guild.</p></article>
+          <article class="step rv"><h3>Accendi i moduli</h3><p>Ogni modulo si attiva da solo. Se qualcosa va storto: <code>/modulo stato</code> e reload.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section aria-labelledby="cta-t" style="padding-top:0">
+      <div class="wrap">
+        <div class="cta-box rv">
+          <h2 id="cta-t">Il tuo server, <em>sotto comando.</em></h2>
+          <p>Entra nel pannello e prendi il controllo in meno di un minuto.</p>
+          <a class="btn btn-volt" href="/login">Accedi con Discord</a>
+        </div>
+      </div>
+    </section>
   </main>
+
+  <footer>
+    <div class="wrap">
+      <span>Multi-Server Bot · MIT</span>
+      <nav aria-label="Link">
+        <a href="/login">Accedi</a>
+        <a href="#funzioni">Funzioni</a>
+        <a href="#top">Torna su</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      "use strict";
+      var reduce = false;
+      try { reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
+      // Reveal on scroll: una sola volta, mai al ritorno.
+      try {
+        var els = document.querySelectorAll(".rv");
+        if (reduce || !("IntersectionObserver" in window)) {
+          for (var i = 0; i < els.length; i++) els[i].classList.add("in");
+        } else {
+          var io = new IntersectionObserver(function (entries) {
+            for (var j = 0; j < entries.length; j++) {
+              if (entries[j].isIntersecting) {
+                entries[j].target.classList.add("in");
+                io.unobserve(entries[j].target);
+              }
+            }
+          }, { threshold: 0.15 });
+          for (var k = 0; k < els.length; k++) {
+            var el = els[k];
+            var idx = el.parentElement ? Array.prototype.indexOf.call(el.parentElement.children, el) % 4 : 0;
+            el.style.transitionDelay = (idx * 0.08) + "s";
+            io.observe(el);
+          }
+        }
+      } catch (e) {}
+      // Parallax hero: solo transform, via rAF.
+      try {
+        var glow = document.getElementById("hero-glow");
+        if (glow && !reduce) {
+          var ticking = false;
+          window.addEventListener("scroll", function () {
+            if (!ticking) {
+              window.requestAnimationFrame(function () {
+                var y = window.scrollY || 0;
+                if (y < window.innerHeight * 1.2) glow.style.transform = "translateY(" + (y * 0.25) + "px)";
+                ticking = false;
+              });
+              ticking = true;
+            }
+          }, { passive: true });
+        }
+      } catch (e) {}
+      // Contatori: 0 -> target quando la banda entra in vista.
+      try {
+        var nums = document.querySelectorAll("[data-count]");
+        var run = function (el) {
+          var target = parseInt(el.getAttribute("data-count"), 10) || 0;
+          if (reduce) { el.textContent = String(target); return; }
+          var t0 = null, dur = 1100;
+          var step = function (t) {
+            if (!t0) t0 = t;
+            var p = Math.min(1, (t - t0) / dur);
+            var eased = 1 - Math.pow(1 - p, 3);
+            el.textContent = String(Math.round(target * eased));
+            if (p < 1) window.requestAnimationFrame(step);
+          };
+          window.requestAnimationFrame(step);
+        };
+        if ("IntersectionObserver" in window && !reduce) {
+          var nio = new IntersectionObserver(function (entries) {
+            for (var m = 0; m < entries.length; m++) {
+              if (entries[m].isIntersecting) { run(entries[m].target); nio.unobserve(entries[m].target); }
+            }
+          }, { threshold: 0.4 });
+          for (var n = 0; n < nums.length; n++) nio.observe(nums[n]);
+        } else {
+          for (var q = 0; q < nums.length; q++) run(nums[q]);
+        }
+      } catch (e) {}
+    })();
+  </script>
 </body>
 </html>

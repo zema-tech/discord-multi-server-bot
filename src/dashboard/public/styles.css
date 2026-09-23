@@ -5,10 +5,10 @@
   --bg: #12141c;
   --card: #171a23;
   --border: #2a2e3b;
-  --accent: #5865F2;
-  --accent-h: #4752c4;
-  --accent-soft: rgba(88, 101, 242, 0.14);
-  --glow: rgba(88, 101, 242, 0.22);
+  --accent: #c5f82a;
+  --accent-h: #d6ff4d;
+  --accent-soft: rgba(197, 248, 42, 0.14);
+  --glow: rgba(197, 248, 42, 0.22);
   --text: #f4f5f7;
   --muted: #b5bac1;
   --muted-dim: #8e94a3;
@@ -34,7 +34,7 @@ html { scroll-behavior: smooth; }
 body {
   margin: 0;
   background:
-    radial-gradient(900px 420px at 12% -80px, rgba(88, 101, 242, 0.18), transparent 65%),
+    radial-gradient(900px 420px at 12% -80px, rgba(197, 248, 42, 0.12), transparent 65%),
     radial-gradient(700px 380px at 95% 10%, rgba(87, 242, 135, 0.05), transparent 60%),
     var(--bg0);
   color: var(--text);
@@ -210,7 +210,7 @@ code {
   height: 34px;
   border-radius: 50%;
   background: var(--accent);
-  color: #fff;
+  color: #0c0e05;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -226,7 +226,7 @@ code {
   height: 34px;
   border-radius: 50%;
   background: var(--accent);
-  color: #fff;
+  color: #0c0e05;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -312,8 +312,8 @@ code {
   cursor: pointer;
 }
 .chip:hover { color: var(--text); border-color: var(--accent); }
-.chip.is-active { background: var(--accent); border-color: var(--accent); color: #fff; }
-.chips .chip.is-active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip.is-active { background: var(--accent); border-color: var(--accent); color: #0c0e05; }
+.chips .chip.is-active { background: var(--accent); border-color: var(--accent); color: #0c0e05; }
 
 .count-pill {
   background: var(--card);
@@ -483,7 +483,7 @@ code {
   height: 32px;
   border-radius: 50%;
   background: var(--accent);
-  color: #fff;
+  color: #0c0e05;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -510,9 +510,9 @@ code {
   cursor: pointer;
   transition: background 0.16s var(--ease), border-color 0.16s var(--ease);
 }
-.btn-primary { background: var(--accent); color: #fff; box-shadow: 0 4px 14px rgba(88, 101, 242, 0.35); }
-.btn-primary:hover { background: var(--accent-h); color: #fff; transform: translateY(-1px); box-shadow: 0 10px 26px rgba(88, 101, 242, 0.45); }
-.btn-primary:active { transform: translateY(0); box-shadow: 0 4px 14px rgba(88, 101, 242, 0.35); }
+.btn-primary { background: var(--accent); color: #0c0e05; box-shadow: 0 4px 14px rgba(197, 248, 42, 0.3); }
+.btn-primary:hover { background: var(--accent-h); color: #0c0e05; transform: translateY(-1px); box-shadow: 0 10px 26px rgba(197, 248, 42, 0.45); }
+.btn-primary:active { transform: translateY(0); box-shadow: 0 4px 14px rgba(197, 248, 42, 0.3); }
 .btn-secondary { background: var(--card); color: var(--text); border-color: var(--border); }
 .btn-secondary:hover { border-color: var(--accent); background: var(--bg); }
 .btn-sm { padding: 0.42rem 0.85rem; font-size: 0.85rem; }
@@ -839,7 +839,7 @@ code {
   transition: transform 0.18s var(--ease), background 0.18s var(--ease);
 }
 .toggle input:checked { background: var(--accent); border-color: var(--accent); }
-.toggle input:checked::after { transform: translateX(21px); background: #fff; }
+.toggle input:checked::after { transform: translateX(21px); background: #0c0e05; }
 .toggle input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .roles-checks {
@@ -1377,7 +1377,7 @@ body.nav-open { overflow: hidden; }
   flex: none;
   overflow: hidden;
   background: var(--accent);
-  color: #fff;
+  color: #0c0e05;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1422,7 +1422,7 @@ body.nav-open { overflow: hidden; }
 /* ---------- Reduced motion ---------- */
 /* ---------- Elementi dinamici (periodi, filtri, dettagli, toolbar) ---------- */
 .chart-period { display: inline-flex; gap: 0.4rem; align-items: center; }
-.chart-period .btn.is-active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chart-period .btn.is-active { background: var(--accent); border-color: var(--accent); color: #0c0e05; }
 .list-filter-wrap { margin-bottom: 0.6rem; }
 .list-filter-wrap label { display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.3rem; }
 .list-filter {
