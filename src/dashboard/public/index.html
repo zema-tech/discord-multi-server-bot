@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Accedi al pannello Multi-Server Bot per gestire moderazione, ticket e livelli.">
-  <meta name="theme-color" content="#0f1115">
+  <meta name="theme-color" content="#0a0a0f">
   <title>Multi-Server Bot — Accesso</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; }
 
@@ -16,16 +16,27 @@
 
     body {
       margin: 0;
-      font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-      background-color: #0f1115;
-      background-image: radial-gradient(600px 320px at 50% -60px, rgba(88, 101, 242, 0.16), transparent);
-      color: #f2f3f5;
+      font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+      background-color: #0a0a0f;
+      background-image:
+        radial-gradient(700px 380px at 50% -80px, rgba(88, 101, 242, 0.22), transparent 65%),
+        radial-gradient(480px 300px at 88% 110%, rgba(87, 242, 135, 0.06), transparent 60%);
+      color: #f4f5f7;
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 24px 16px;
       -webkit-font-smoothing: antialiased;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.05;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
     }
 
     .skip-link {
@@ -45,20 +56,51 @@
     .skip-link:focus { left: 0; }
 
     .card {
+      position: relative;
       width: 100%;
-      max-width: 420px;
-      background: #1a1d24;
-      border: 1px solid #2a2e38;
-      border-radius: 16px;
+      max-width: 440px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 30%), #14161d;
+      border: 1px solid #2a2e3b;
+      border-radius: 20px;
       padding: 40px 36px 32px;
       text-align: center;
-      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
-      animation: rise 0.6s ease-out both;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(88, 101, 242, 0.08);
     }
+
+    .card > * { animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+    .card > *:nth-child(2) { animation-delay: 0.06s; }
+    .card > *:nth-child(3) { animation-delay: 0.12s; }
+    .card > *:nth-child(4) { animation-delay: 0.18s; }
+    .card > *:nth-child(5) { animation-delay: 0.24s; }
+    .card > *:nth-child(6) { animation-delay: 0.3s; }
 
     @keyframes rise {
       from { opacity: 0; transform: translateY(12px); }
       to { opacity: 1; transform: translateY(0); }
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #b5bac1;
+      background: rgba(88, 101, 242, 0.12);
+      border: 1px solid rgba(88, 101, 242, 0.35);
+      border-radius: 999px;
+      padding: 6px 14px;
+      margin-bottom: 20px;
+    }
+
+    .badge .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #57f287;
+      box-shadow: 0 0 8px rgba(87, 242, 135, 0.8);
     }
 
     .logo {
@@ -70,25 +112,46 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 8px 24px rgba(88, 101, 242, 0.35);
+      box-shadow: 0 8px 24px rgba(88, 101, 242, 0.4);
     }
 
     .logo svg { display: block; }
 
     h1 {
       margin: 0 0 10px;
-      font-size: 24px;
-      line-height: 1.25;
+      font-family: "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif;
+      font-size: 34px;
+      line-height: 1.1;
       font-weight: 700;
-      letter-spacing: -0.01em;
-      color: #f2f3f5;
+      letter-spacing: -0.02em;
+      color: #f4f5f7;
     }
 
     .subtitle {
-      margin: 0 0 28px;
+      margin: 0 0 22px;
       font-size: 15px;
       line-height: 1.55;
       color: #b5bac1;
+    }
+
+    .feats {
+      list-style: none;
+      margin: 0 0 26px;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .feats li {
+      font-size: 13px;
+      font-weight: 600;
+      color: #b5bac1;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid #2a2e3b;
+      border-radius: 999px;
+      padding: 5px 12px;
     }
 
     .login-btn {
@@ -99,7 +162,7 @@
       width: 100%;
       padding: 14px 28px;
       font-size: 16px;
-      font-weight: 600;
+      font-weight: 700;
       line-height: 1;
       color: #ffffff;
       background: #5865F2;
@@ -113,7 +176,7 @@
     .login-btn:hover {
       background: #4752c4;
       transform: translateY(-2px);
-      box-shadow: 0 12px 28px rgba(88, 101, 242, 0.4);
+      box-shadow: 0 12px 28px rgba(88, 101, 242, 0.45);
     }
 
     .login-btn:active {
@@ -140,7 +203,7 @@
     @media (max-width: 480px) {
       body { padding: 16px 12px; }
       .card { padding: 32px 24px 28px; }
-      h1 { font-size: 22px; }
+      h1 { font-size: 28px; }
       .subtitle { font-size: 14px; }
       .login-btn { padding: 14px 20px; font-size: 15px; }
     }
@@ -150,7 +213,7 @@
         animation: none !important;
         transition: none !important;
       }
-      .card { opacity: 1; transform: none; }
+      .card > * { opacity: 1; transform: none; }
     }
   </style>
 </head>
@@ -158,6 +221,8 @@
   <a class="skip-link" href="#contenuto">Salta al contenuto</a>
 
   <main class="card" id="contenuto" aria-labelledby="titolo">
+    <span class="badge"><span class="dot"></span>Pannello di controllo</span>
+
     <div class="logo" aria-hidden="true">
       <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
         <line x1="5" y1="9" x2="25" y2="9" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" opacity="0.55"/>
@@ -170,7 +235,13 @@
     </div>
 
     <h1 id="titolo">Multi-Server Bot</h1>
-    <p class="subtitle">Gestisci moderazione, ticket e livelli da un unico pannello.</p>
+    <p class="subtitle">Moderazione, ticket e livelli — un unico pannello per tutti i tuoi server.</p>
+
+    <ul class="feats" aria-label="Funzioni principali">
+      <li>🛡️ Moderazione</li>
+      <li>🎫 Ticket</li>
+      <li>⭐ Livelli</li>
+    </ul>
 
     <a class="login-btn" href="/login">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">

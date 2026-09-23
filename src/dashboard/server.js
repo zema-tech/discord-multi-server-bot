@@ -19,7 +19,7 @@ const CSP_VALUE = "default-src 'self'; base-uri 'self'; object-src 'none'; frame
 // public/app.html usa /styles.css + js/*.js (defer) + SVG inline + avatar data:/https::
 // public/index.html + public/app.html usano <script> inline / defer + Google Fonts:
 // per questo style/script 'unsafe-inline' è necessario (verificato su public/*).
-// style-src include fonts.googleapis.com (foglio di stile Inter), font-src https:
+// style-src include fonts.googleapis.com (fogli di stile Google Fonts), font-src https:
 // copre i file font su fonts.gstatic.com. SVG inline via DOM (innerHTML statico
 // + createElementNS) e addEventListener non richiedono eccezioni: nessun inline
 // event handler nel frontend.

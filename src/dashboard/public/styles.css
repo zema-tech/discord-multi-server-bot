@@ -1,14 +1,15 @@
 /* Pannello app.html — admin scuro flat (fireship/shadcn). Solo app.html. Vanilla CSS. */
 
 :root {
-  --bg0: #0f1115;
-  --bg: #12141a;
-  --card: #1a1d24;
-  --border: #2a2e38;
+  --bg0: #0a0a0f;
+  --bg: #12141c;
+  --card: #171a23;
+  --border: #2a2e3b;
   --accent: #5865F2;
   --accent-h: #4752c4;
   --accent-soft: rgba(88, 101, 242, 0.14);
-  --text: #f2f3f5;
+  --glow: rgba(88, 101, 242, 0.22);
+  --text: #f4f5f7;
   --muted: #b5bac1;
   --muted-dim: #8e94a3;
   --ok: #57f287;
@@ -17,8 +18,10 @@
   --radius: 12px;
   --radius-lg: 16px;
   --radius-sm: 8px;
-  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  --font: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --display: "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
+  --lift: 0 16px 40px rgba(0, 0, 0, 0.42), 0 0 0 1px var(--accent-soft);
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -30,12 +33,35 @@ html { scroll-behavior: smooth; }
 
 body {
   margin: 0;
-  background: var(--bg0);
+  background:
+    radial-gradient(900px 420px at 12% -80px, rgba(88, 101, 242, 0.18), transparent 65%),
+    radial-gradient(700px 380px at 95% 10%, rgba(87, 242, 135, 0.05), transparent 60%),
+    var(--bg0);
   color: var(--text);
   font-family: var(--font);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* Grana cinematografica su tutta l'app (SVG inline, nessun network) */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+}
+
+.app,
+.app-layout { position: relative; z-index: 2; }
+
+/* Tipografia display: titoli memorabili, corpo leggibile */
+h1, h2, .brand, .stat-card .v, .v {
+  font-family: var(--display);
+  letter-spacing: -0.02em;
 }
 
 a { color: var(--accent); }
@@ -383,13 +409,27 @@ code {
   display: flex;
   align-items: center;
   gap: 0.8rem;
-  background: rgba(18, 20, 26, 0.9);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: rgba(14, 15, 22, 0.78);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
   border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 0 var(--accent-soft), 0 12px 32px rgba(0, 0, 0, 0.25);
   margin: calc(clamp(1rem, 3vw, 2rem) * -1) calc(clamp(1rem, 3vw, 2rem) * -1) 1.25rem;
   padding: 0.7rem clamp(1rem, 3vw, 2rem);
 }
+
+/* Ingresso orchestrato: una sola sequenza, poi tutto fermo */
+@keyframes rise-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.main-col > .topbar { animation: rise-in 0.45s var(--ease) both; }
+.stats-cards > * { animation: rise-in 0.45s var(--ease) both; }
+.stats-cards > *:nth-child(2) { animation-delay: 0.06s; }
+.stats-cards > *:nth-child(3) { animation-delay: 0.12s; }
+.stats-cards > *:nth-child(4) { animation-delay: 0.18s; }
+.stats-cards > *:nth-child(n+5) { animation-delay: 0.24s; }
+.ov-grid > * { animation: rise-in 0.45s var(--ease) both; }
+.ov-grid > *:nth-child(2) { animation-delay: 0.08s; }
+.ov-grid > *:nth-child(3) { animation-delay: 0.16s; }
+.ov-grid > *:nth-child(n+4) { animation-delay: 0.24s; }
 .topbar .guild-icon { width: 38px; height: 38px; }
 
 .nav-toggle { display: none; }
@@ -471,7 +511,8 @@ code {
   transition: background 0.16s var(--ease), border-color 0.16s var(--ease);
 }
 .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 4px 14px rgba(88, 101, 242, 0.35); }
-.btn-primary:hover { background: var(--accent-h); color: #fff; }
+.btn-primary:hover { background: var(--accent-h); color: #fff; transform: translateY(-1px); box-shadow: 0 10px 26px rgba(88, 101, 242, 0.45); }
+.btn-primary:active { transform: translateY(0); box-shadow: 0 4px 14px rgba(88, 101, 242, 0.35); }
 .btn-secondary { background: var(--card); color: var(--text); border-color: var(--border); }
 .btn-secondary:hover { border-color: var(--accent); background: var(--bg); }
 .btn-sm { padding: 0.42rem 0.85rem; font-size: 0.85rem; }
@@ -537,11 +578,12 @@ code {
 .panel > h2 { font-size: 1.15rem; margin: 0 0 0.8rem; }
 
 .card {
-  background: var(--card);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 30%), var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 1.25rem 1.3rem;
   box-shadow: var(--shadow);
+  transition: transform 0.22s var(--ease), box-shadow 0.22s var(--ease), border-color 0.22s var(--ease);
 }
 .card h3 { margin: 0 0 0.35rem; font-size: 1.02rem; letter-spacing: -0.01em; }
 .card p { margin: 0 0 0.6rem; color: var(--muted); font-size: 0.9rem; }
@@ -556,7 +598,7 @@ code {
 }
 
 .stat-card {
-  background: var(--card);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 35%), var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 0.9rem 1rem;
@@ -566,7 +608,9 @@ code {
   justify-content: center;
   gap: 0.15rem;
   box-shadow: var(--shadow);
+  transition: transform 0.22s var(--ease), box-shadow 0.22s var(--ease), border-color 0.22s var(--ease);
 }
+.stat-card:hover { transform: translateY(-2px); border-color: var(--accent); box-shadow: var(--lift); }
 .stat-top { display: flex; align-items: center; gap: 0.45rem; color: var(--muted); }
 .stat-top .svg-ico {
   width: 26px;
@@ -598,13 +642,14 @@ code {
   font: inherit;
   color: var(--text);
   width: 100%;
-  background: var(--card);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 35%), var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 1.25rem;
   box-shadow: var(--shadow);
+  transition: transform 0.22s var(--ease), box-shadow 0.22s var(--ease), border-color 0.22s var(--ease);
 }
-.ov-card:hover { border-color: var(--accent); }
+.ov-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--lift); }
 
 .ov-top { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.35rem; }
 .ov-top h3 { margin: 0; }

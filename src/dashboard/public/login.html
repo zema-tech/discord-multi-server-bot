@@ -7,23 +7,24 @@
   <title>Accedi — Multi-Server Bot</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0f1115;
-      --card: #1a1d24;
-      --border: #2a2e38;
+      --bg: #0a0a0f;
+      --card: #14161d;
+      --border: #2a2e3b;
       --accent: #5865f2;
       --accent-hover: #4752c4;
-      --text: #f2f3f5;
+      --text: #f4f5f7;
       --muted: #b5bac1;
       --radius: 16px;
       --danger: #f04747;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: var(--bg);
+      font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+      background-color: var(--bg);
+      background-image: radial-gradient(700px 380px at 50% -80px, rgba(88, 101, 242, 0.22), transparent 65%);
       color: var(--text);
       min-height: 100vh;
       display: flex;
@@ -33,14 +34,19 @@
       line-height: 1.5;
     }
     .card {
-      background: var(--card);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 30%), var(--card);
       border: 1px solid var(--border);
-      border-radius: var(--radius);
+      border-radius: 20px;
       padding: 2.5rem 2rem;
       max-width: 400px;
       width: 100%;
       text-align: center;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(88, 101, 242, 0.08);
+      animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: none; }
     }
     .logo {
       width: 56px;
@@ -54,7 +60,7 @@
       margin-bottom: 1.25rem;
     }
     .logo svg { width: 30px; height: 30px; }
-    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 0.4rem; }
+    h1 { font-family: "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif; font-size: 1.7rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 0.4rem; }
     .sub { color: var(--muted); font-size: 0.95rem; margin-bottom: 1.5rem; }
     .error {
       display: none;
@@ -83,7 +89,7 @@
       text-decoration: none;
       transition: background 0.15s ease, transform 0.15s ease;
     }
-    .btn:hover { background: var(--accent-hover); }
+    .btn:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 12px 28px rgba(88, 101, 242, 0.45); }
     .btn:active { transform: translateY(1px); }
     .scopes { margin-top: 1.25rem; font-size: 0.8rem; color: var(--muted); }
     .scopes code {
