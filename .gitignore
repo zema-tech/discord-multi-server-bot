@@ -10,3 +10,7 @@ src/database/*.json
 !src/database/.gitkeep
 /brain/
 .DS_Store
+# --- Monorepo Next.js (Fase 1+) ---
+.next/
+dist/
+*.tsbuildinfo
