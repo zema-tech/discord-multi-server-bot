@@ -114,7 +114,13 @@ function isEnabled(guildId, featureId) {
 function setEnabled(guildId, featureId, enabled) {
   const ms = moduleState();
   if (!ms || typeof ms.setEnabled !== 'function') throw new Error('Modulo toggle non disponibile.');
-  return ms.setEnabled(guildId, featureId, enabled);
+  const res = ms.setEnabled(guildId, featureId, enabled);
+  // Riattivare un modulo azzera anche il breaker e gli errori: riparte pulito.
+  if (enabled) {
+    try { resetBreaker(guildId, featureId); } catch {}
+    try { errors.delete(`${guildId || 'dm'}:${featureId}`); } catch {}
+  }
+  return res;
 }
 
 // --- Errori per feature (in memoria, per guild): se una parte si rompe,
@@ -122,9 +128,71 @@ function setEnabled(guildId, featureId, enabled) {
 const errors = new Map(); // `${gid}:${fid}` -> { message, at, count }
 const ERRORS_MAX = 200;
 
+// --- Circuit-breaker (Commander Fase 1): se un modulo fallisce troppe volte
+// in poco tempo, viene "isolato" per questa guild: i suoi comandi rispondono
+// con un messaggio di protezione invece di eseguire codice rotto.
+// Non tocca il toggle persistente (moduleState): è solo memoria + salute.
+// Soglia: 5 errori in 10 minuti -> isolato. Reset: on/off, reload, clearErrors.
+const BREAKER_THRESHOLD = 5;
+const BREAKER_WINDOW_MS = 10 * 60 * 1000;
+const breaker = new Map(); // `${gid}:${fid}` -> { count, firstAt, trippedAt }
+
+function breakerKey(guildId, featureId) {
+  return `${guildId || 'dm'}:${featureId}`;
+}
+
+function isIsolated(guildId, featureId) {
+  try {
+    if (!featureId || featureId === 'system') return false;
+    const b = breaker.get(breakerKey(guildId, featureId));
+    if (!b || !b.trippedAt) return false;
+    // Auto-reset dopo la finestra: il modulo riprova da solo.
+    if (Date.now() - b.trippedAt > BREAKER_WINDOW_MS) {
+      breaker.delete(breakerKey(guildId, featureId));
+      return false;
+    }
+    return true;
+  } catch { return false; }
+}
+
+function resetBreaker(guildId, featureId) {
+  try {
+    if (featureId) breaker.delete(breakerKey(guildId, featureId));
+    else {
+      const prefix = `${guildId || 'dm'}:`;
+      for (const key of [...breaker.keys()]) {
+        if (key.startsWith(prefix)) breaker.delete(key);
+      }
+    }
+  } catch { /* mai bloccante */ }
+}
+
+function noteBreaker(guildId, featureId) {
+  try {
+    if (!featureId || featureId === 'system') return false;
+    const key = breakerKey(guildId, featureId);
+    const now = Date.now();
+    const prev = breaker.get(key);
+    let count = 1;
+    let firstAt = now;
+    if (prev && Number.isFinite(prev.count) && Number.isFinite(prev.firstAt)
+        && (now - prev.firstAt) <= BREAKER_WINDOW_MS) {
+      count = prev.count + 1;
+      firstAt = prev.firstAt;
+    }
+    const tripped = count >= BREAKER_THRESHOLD;
+    breaker.set(key, {
+      count,
+      firstAt,
+      trippedAt: tripped ? (prev && prev.trippedAt ? prev.trippedAt : now) : (prev ? prev.trippedAt || null : null),
+    });
+    return tripped;
+  } catch { return false; }
+}
+
 function recordError(featureId, guildId, err) {
   try {
-    if (!featureId) return;
+    if (!featureId) return { tripped: false };
     const key = `${guildId || 'dm'}:${featureId}`;
     const prev = errors.get(key);
     const message = String((err && err.message) || err || 'errore').slice(0, 300);
@@ -137,7 +205,9 @@ function recordError(featureId, guildId, err) {
       const first = errors.keys().next();
       if (!first.done) errors.delete(first.value);
     }
-  } catch { /* tracking mai bloccante */ }
+    const tripped = noteBreaker(guildId, featureId);
+    return { tripped };
+  } catch { return { tripped: false }; }
 }
 
 function getErrors(guildId) {
@@ -163,7 +233,33 @@ function clearErrors(guildId, featureId) {
         if (key.startsWith(prefix)) errors.delete(key);
       }
     }
+    resetBreaker(guildId, featureId);
   } catch { /* mai bloccante */ }
+}
+
+/**
+ * Commander gate unificato: toggle persistente + circuit-breaker.
+ * Ritorna { ok:true } oppure { ok:false, reason:'disabled'|'isolated' }.
+ * DM: sempre consentito (nessun toggle, nessun breaker).
+ */
+function canRun(guildId, featureId) {
+  if (!featureId) return { ok: true };
+  if (!guildId) return { ok: true };
+  if (featureId === 'system' || isLocked(featureId)) return { ok: true };
+  try {
+    if (!isEnabled(guildId, featureId)) return { ok: false, reason: 'disabled' };
+  } catch { /* default on */ }
+  try {
+    if (isIsolated(guildId, featureId)) return { ok: false, reason: 'isolated' };
+  } catch { /* default on */ }
+  return { ok: true };
+}
+
+/** Svuota la cache: usato da /modulo reload e dai test. */
+function reload() {
+  cache = null;
+  cmdMap = null;
+  return loadAll();
 }
 
 /**
@@ -186,6 +282,8 @@ function health(guildId) {
       }
     } catch { /* stats parziali */ }
     const err = errs[f.id] || null;
+    let isolated = false;
+    try { isolated = isIsolated(guildId, f.id); } catch { isolated = false; }
     // Sanitizza: solo tipi JSON.
     const cleanStats = {};
     try {
@@ -204,7 +302,8 @@ function health(guildId) {
       enabled,
       locked: f.locked,
       commands: f.commands.length,
-      ok: !err,
+      ok: !err && !isolated,
+      isolated,
       errors: err ? [err] : [],
       stats: cleanStats,
     };
@@ -214,4 +313,6 @@ function health(guildId) {
 module.exports = {
   ids, get, list, isLocked, featureOfCommand,
   isEnabled, setEnabled, recordError, getErrors, clearErrors, health,
+  canRun, isIsolated, resetBreaker, reload,
+  BREAKER_THRESHOLD, BREAKER_WINDOW_MS,
 };

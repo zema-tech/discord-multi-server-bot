@@ -9,7 +9,7 @@ module.exports = {
   icon: 'server',
   section: 'Sistema',
   description: 'Comandi essenziali sempre attivi (aiuto e stato).',
-  commands: ['help', 'ping'],
+  commands: ['help', 'ping', 'modulo'],
   db: [],
   events: [],
   handlers: [],

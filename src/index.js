@@ -79,7 +79,10 @@ loadCommands(path.join(__dirname, 'commands'));
 console.log(`📦 Caricati ${client.commands.size} comandi.`);
 
 // Carica eventi (un file con export non valido non deve spegnere il bot)
+// Commander Fase 1: ogni listener è wrappato con guardEvent — un modulo
+// rotto viene isolato e loggato, gli altri listener restano attivi.
 const eventsPath = path.join(__dirname, 'events');
+const commander = require('./modules/commander');
 for (const file of fs.readdirSync(eventsPath).filter((f) => f.endsWith('.js'))) {
   let event;
   try {
@@ -93,9 +96,17 @@ for (const file of fs.readdirSync(eventsPath).filter((f) => f.endsWith('.js'))) 
     continue;
   }
   if (event.once) {
-    client.once(event.name, (...args) => event.execute(...args, client));
+    client.once(event.name, (...args) => {
+      commander.guardEvent(file, event, args, client).catch((e) => {
+        console.error(`[ERRORE] guardEvent once ${file}: ${e?.message || e}`);
+      });
+    });
   } else {
-    client.on(event.name, (...args) => event.execute(...args, client));
+    client.on(event.name, (...args) => {
+      commander.guardEvent(file, event, args, client).catch((e) => {
+        console.error(`[ERRORE] guardEvent ${file}: ${e?.message || e}`);
+      });
+    });
   }
 }
 

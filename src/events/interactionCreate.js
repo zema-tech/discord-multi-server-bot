@@ -102,17 +102,18 @@ module.exports = {
       return;
     }
 
-    // Controller feature (src/modules): se il modulo è spento per questa
-    // guild, il comando non parte. DM: nessun toggle (sempre consentito).
+    // Commander gate (src/modules/commander + registry): toggle per-guild
+    // + circuit-breaker. Se il modulo è spento o isolato, il comando non
+    // parte. DM: nessun toggle (sempre consentito).
     try {
       if (interaction.guild) {
-        const modules = require('../modules/registry');
-        const feat = modules.featureOfCommand(command.data.name);
-        if (feat && !modules.isEnabled(interaction.guild.id, feat)) {
-          const offMsg = {
-            content: `⏸️ Il modulo di questo comando è disattivato in questo server. Riattivalo dalla dashboard.`,
-            flags: MessageFlags.Ephemeral,
-          };
+        const commander = require('../modules/commander');
+        const gate = commander.checkGate(command.data.name, interaction.guild.id);
+        if (gate && gate.ok === false) {
+          const msg = gate.reason === 'isolated'
+            ? `🛡️ Il modulo \`${gate.featureId}\` è in protezione automatica (troppi errori recenti). Gli altri moduli restano attivi — usa \`/modulo stato\` o la dashboard per i dettagli.`
+            : `⏸️ Il modulo di questo comando è disattivato in questo server. Riattivalo dalla dashboard o con \`/modulo on\`.`;
+          const offMsg = { content: msg, flags: MessageFlags.Ephemeral };
           if (interaction.replied || interaction.deferred) {
             await interaction.followUp(offMsg).catch(() => {});
           } else {
@@ -122,7 +123,7 @@ module.exports = {
         }
       }
     } catch (e) {
-      console.error('modules gate:', e);
+      console.error('commander gate:', e);
     }
 
     // Permessi personalizzati (stile PeakBot): ruoli custom per comando.
@@ -183,18 +184,17 @@ module.exports = {
 
     const startedAt = Date.now();
     try {
-      await command.execute(interaction, client);
+      // Commander: esecuzione isolata con timeout. Un modulo rotto non
+      // spegne il bot: l'errore è già registrato sul registry dal Commander.
+      const commander = require('../modules/commander');
+      const result = await commander.executeCommand(command, interaction, client);
       try {
         logCommand(interaction.guildId || interaction.guild?.id, interaction.user?.id, interaction.commandName, Date.now() - startedAt);
       } catch {}
+      if (result && result.ok === false) throw result.error || new Error('errore isolato dal Commander');
     } catch (error) {
-      // Controller: traccia l'errore sulla feature (visibile in dashboard),
-      // la rottura resta isolata a questo comando.
-      try {
-        const modules = require('../modules/registry');
-        const feat = modules.featureOfCommand(interaction.commandName);
-        if (feat) modules.recordError(feat, interaction.guildId || interaction.guild?.id, error);
-      } catch {}
+      // Nota: il Commander ha già registrato l'errore sul registry (breaker).
+      // Qui solo log + report + rimborso cooldown, senza doppio conteggio.
       try {
         logger.error(`Errore eseguendo ${interaction.commandName}`, {
           command: interaction.commandName,
