@@ -99,14 +99,93 @@ function saveTicket(guildId, ticket) {
   const data = guildData(guildId);
   // PEAK: init additiva lastActivityAt (i ticket preesistenti senza campo usano createdAt come fallback).
   if (ticket && ticket.lastActivityAt === undefined) ticket.lastActivityAt = Date.now();
-  data.tickets[ticket.channelId] = ticket;
+  data.tickets[ticket.channelId] = normalizeTicket(ticket);
   persist(guildId, data);
   return ticket;
 }
 
+const PRIORITIES = ['bassa', 'normale', 'alta', 'urgente'];
+const MAX_NOTES = 20;
+const MAX_NOTE_CHARS = 500;
+const MAX_SUBJECT_CHARS = 120;
+
+/** Backfill additivo: i ticket vecchi ottengono i campi nuovi con default. */
+function normalizeTicket(t) {
+  if (!t || typeof t !== 'object') return t;
+  if (!PRIORITIES.includes(t.priority)) t.priority = 'normale';
+  if (typeof t.subject !== 'string') t.subject = null;
+  else if (!t.subject.trim()) t.subject = null;
+  else t.subject = t.subject.trim().slice(0, MAX_SUBJECT_CHARS);
+  if (!Array.isArray(t.notes)) t.notes = [];
+  t.notes = t.notes
+    .filter((n) => n && typeof n === 'object' && typeof n.text === 'string' && n.text.trim())
+    .slice(-MAX_NOTES)
+    .map((n) => ({
+      by: typeof n.by === 'string' ? n.by : null,
+      text: n.text.trim().slice(0, MAX_NOTE_CHARS),
+      at: Number.isFinite(n.at) ? n.at : Date.now(),
+    }));
+  if (!t.rating || typeof t.rating !== 'object' || ![1, 2, 3, 4, 5].includes(t.rating.score)) {
+    t.rating = null;
+  }
+  return t;
+}
+
+/** Imposta la priorità. Lancia su valore non valido. Ritorna il ticket. */
+function setPriority(guildId, channelId, priority) {
+  const p = String(priority || '').toLowerCase().trim();
+  if (!PRIORITIES.includes(p)) throw new Error(`Priorità non valida (${PRIORITIES.join('/')}).`);
+  const data = guildData(guildId);
+  const t = data.tickets[channelId];
+  if (!t) return null;
+  t.priority = p;
+  persist(guildId, data);
+  return t;
+}
+
+/** Imposta l'oggetto (stringa vuota = rimuovi). Ritorna il ticket o null. */
+function setSubject(guildId, channelId, subject) {
+  const data = guildData(guildId);
+  const t = data.tickets[channelId];
+  if (!t) return null;
+  const s = String(subject || '').trim();
+  t.subject = s ? s.slice(0, MAX_SUBJECT_CHARS) : null;
+  persist(guildId, data);
+  return t;
+}
+
+/** Aggiunge una nota staff. Lancia su testo vuoto o cap raggiunto. */
+function addNote(guildId, channelId, by, text) {
+  const data = guildData(guildId);
+  const t = data.tickets[channelId];
+  if (!t) return null;
+  const clean = String(text || '').trim().slice(0, MAX_NOTE_CHARS);
+  if (!clean) throw new Error('Nota vuota.');
+  const notes = Array.isArray(t.notes) ? t.notes : [];
+  if (notes.length >= MAX_NOTES) throw new Error(`Max ${MAX_NOTES} note per ticket.`);
+  notes.push({ by: typeof by === 'string' ? by : null, text: clean, at: Date.now() });
+  t.notes = notes;
+  persist(guildId, data);
+  return t;
+}
+
+/** Registra la valutazione del proprietario (1-5). Ritorna false se già votato. */
+function setRating(guildId, channelId, score) {
+  const n = Math.floor(Number(score));
+  if (![1, 2, 3, 4, 5].includes(n)) throw new Error('Valutazione non valida (1-5).');
+  const data = guildData(guildId);
+  const t = data.tickets[channelId];
+  if (!t) return null;
+  if (t.rating && [1, 2, 3, 4, 5].includes(t.rating.score)) return false;
+  t.rating = { score: n, at: Date.now() };
+  persist(guildId, data);
+  return true;
+}
+
 function getTicket(guildId, channelId) {
   if (!channelId) return null;
-  return guildData(guildId).tickets[channelId] || null;
+  const t = guildData(guildId).tickets[channelId] || null;
+  return t ? normalizeTicket({ ...t }) : null;
 }
 
 function openTickets(guildId) {
@@ -120,15 +199,25 @@ function getUserOpenTickets(guildId, userId) {
 
 function getStats(guildId) {
   const tickets = openTickets(guildId);
+  const closed = tickets.filter((t) => t.status === 'closed');
+  const durations = closed
+    .map((t) => (Number.isFinite(t.closedAt) && Number.isFinite(t.createdAt) ? t.closedAt - t.createdAt : null))
+    .filter((d) => d !== null && d >= 0);
+  const ratings = tickets
+    .map((t) => (t.rating && [1, 2, 3, 4, 5].includes(t.rating.score) ? t.rating.score : null))
+    .filter((s) => s !== null);
   return {
     total: tickets.length,
     open: tickets.filter((t) => t.status === 'open').length,
-    closed: tickets.filter((t) => t.status === 'closed').length,
+    closed: closed.length,
     byType: tickets.reduce((acc, t) => {
       const k = typeof t.type === 'string' && t.type ? t.type : 'sconosciuto';
       acc[k] = (acc[k] || 0) + 1;
       return acc;
     }, {}),
+    avgCloseMin: durations.length ? Math.max(1, Math.round(durations.reduce((a, b) => a + b, 0) / durations.length / 60000)) : null,
+    avgRating: ratings.length ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) / 10 : null,
+    ratingsCount: ratings.length,
   };
 }
 
@@ -155,6 +244,9 @@ function removeTicket(guildId, channelId) {
 
 module.exports = {
   TICKET_TYPES,
+  PRIORITIES,
+  MAX_NOTES,
+  MAX_SUBJECT_CHARS,
   getConfig,
   setConfig,
   nextNumber,
@@ -163,5 +255,9 @@ module.exports = {
   removeTicket,
   getUserOpenTickets,
   getStats,
+  setPriority,
+  setSubject,
+  addNote,
+  setRating,
   touchActivity, // PEAK
 };

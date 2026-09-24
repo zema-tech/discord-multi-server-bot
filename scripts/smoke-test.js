@@ -2101,6 +2101,59 @@ try {
   fail(`orchestratore (qatest): ${e.message.split('\n')[0]}`);
 }
 
+// ------------------------------------------------- (c9) TICKET PRO
+console.log('== [9/5] Ticket pro (priorita/oggetto/note/rating/stats) ==');
+try {
+  const tickets = require(path.join(DB_DIR, 'tickets.js'));
+  const { load, save, dbFile } = require(path.join(DB_DIR, 'jsonDb.js'));
+  const TQ = 'qatest_tick';
+  const CH = 'qatest_tick_chan';
+
+  // Ticket vecchio senza campi nuovi -> backfill con default.
+  const f = dbFile('tickets');
+  const db = load(f);
+  db[TQ] = {
+    config: tickets.getConfig(TQ), counter: 1,
+    tickets: { [CH]: { channelId: CH, ownerId: 'u1', type: 'bug', number: 1, status: 'open', createdAt: Date.now() - 30 * 60000 } },
+  };
+  save(f, db);
+  const backfilled = tickets.getTicket(TQ, CH);
+  if (!backfilled || backfilled.priority !== 'normale' || backfilled.subject !== null
+    || !Array.isArray(backfilled.notes) || backfilled.rating !== null) {
+    fail('ticket: backfill campi nuovi mancato');
+  }
+
+  tickets.setPriority(TQ, CH, 'urgente');
+  tickets.setSubject(TQ, CH, 'Bot offline');
+  tickets.addNote(TQ, CH, 'Mod#1', 'Controllare i log');
+  try {
+    tickets.setPriority(TQ, CH, 'massima');
+    fail('ticket: priorita invalida dovrebbe lanciare');
+  } catch {}
+  try {
+    tickets.addNote(TQ, CH, 'Mod#1', '   ');
+    fail('ticket: nota vuota dovrebbe lanciare');
+  } catch {}
+  if (tickets.setRating(TQ, CH, 5) !== true) fail('ticket: setRating primo voto');
+  if (tickets.setRating(TQ, CH, 4) !== false) fail('ticket: setRating doppio voto dovrebbe ritornare false');
+  const got = tickets.getTicket(TQ, CH);
+  if (got.priority !== 'urgente' || got.subject !== 'Bot offline' || got.notes.length !== 1
+    || !got.rating || got.rating.score !== 5) {
+    fail('ticket: campi pro non persistiti');
+  }
+  const st = tickets.getStats(TQ);
+  if (!st.byType || st.byType.bug !== 1) fail(`ticket: byType rotto (${JSON.stringify(st.byType)})`);
+  if (st.avgRating !== 5 || st.ratingsCount !== 1) fail('ticket: stats rating inattese');
+
+  const after = load(f);
+  delete after[TQ];
+  save(f, after);
+  if (load(f)[TQ] !== undefined) fail('ticket: cleanup QA fallito');
+  console.log('ticket: backfill/priorita/oggetto/note/rating/stats ok');
+} catch (e) {
+  fail(`ticket (qatest): ${e.message.split('\n')[0]}`);
+}
+
 // ------------------------------------------------------------------ REPORT
 function report() {
 console.log('\n================ SMOKE TEST ================');

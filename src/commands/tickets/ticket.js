@@ -3,7 +3,7 @@ const {
   EmbedBuilder, MessageFlags,
 } = require('discord.js');
 const { getConfig, getTicket, getStats } = require('../../database/tickets');
-const { isSupport, doClose, typeLabel, ticketButtons } = require('../../handlers/ticketHandler');
+const { isSupport, doClose, typeLabel, priorityLabel, ticketButtons } = require('../../handlers/ticketHandler');
 const { buildTranscript } = require('../../utils/transcript');
 
 function dashboardMsg(guildId, sezione) {
@@ -60,6 +60,28 @@ module.exports = {
     )
     .addSubcommand((s) => s.setName('riapri').setDescription('Riapri questo ticket (staff)'))
     .addSubcommand((s) => s.setName('transcript').setDescription('Scarica il transcript di questo ticket'))
+    .addSubcommand((s) =>
+      s.setName('priorita').setDescription('Imposta la priorità del ticket (staff)')
+        .addStringOption((o) => o.setName('livello').setDescription('bassa/normale/alta/urgente').setRequired(true)
+          .addChoices(
+            { name: '🟢 Bassa', value: 'bassa' },
+            { name: '🔵 Normale', value: 'normale' },
+            { name: '🟠 Alta', value: 'alta' },
+            { name: '🔴 Urgente', value: 'urgente' },
+          ))
+    )
+    .addSubcommand((s) =>
+      s.setName('assegna').setDescription('Assegna il ticket a uno staffer (staff)')
+        .addUserOption((o) => o.setName('staff').setDescription('Staffer assegnatario').setRequired(true))
+    )
+    .addSubcommand((s) =>
+      s.setName('oggetto').setDescription('Imposta l’oggetto del ticket')
+        .addStringOption((o) => o.setName('testo').setDescription('Oggetto (vuoto = rimuovi)').setRequired(false).setMaxLength(120))
+    )
+    .addSubcommand((s) =>
+      s.setName('nota').setDescription('Aggiungi una nota staff al ticket (staff)')
+        .addStringOption((o) => o.setName('testo').setDescription('Nota interna (max 500)').setRequired(true).setMaxLength(500))
+    )
     .addSubcommand((s) => s.setName('stats').setDescription('Statistiche dei ticket del server')),
   cooldown: 3,
   async execute(interaction) {
@@ -99,6 +121,12 @@ module.exports = {
         { name: '📊 Totali', value: `${st.total}`, inline: true },
         { name: 'Per tipo', value: byType }
       );
+      if (st.avgCloseMin !== null) {
+        embed.addFields({ name: '⏱️ Chiusura media', value: `${st.avgCloseMin} min`, inline: true });
+      }
+      if (st.avgRating !== null) {
+        embed.addFields({ name: '⭐ Valutazione media', value: `${st.avgRating}/5 (${st.ratingsCount} voti)`, inline: true });
+      }
       applyFooter(embed, interaction);
       return interaction.reply({ embeds: [embed] });
     }
@@ -173,6 +201,57 @@ module.exports = {
         }
       } catch {}
       return interaction.reply({ embeds: [applyFooter(ok('🔓 Ticket riaperto', `Ticket **#${ticket.number}** riaperto.`), interaction)], components: ticketButtons(false) });
+    }
+
+    if (sub === 'priorita') {
+      if (!staff) return interaction.reply({ embeds: [themeErr('Solo lo staff.')], flags: MessageFlags.Ephemeral });
+      if (ticket.status !== 'open') return interaction.reply({ embeds: [themeErr('Ticket già chiuso.')], flags: MessageFlags.Ephemeral });
+      const livello = interaction.options.getString('livello', true);
+      const { setPriority } = require('../../database/tickets');
+      try {
+        setPriority(interaction.guild.id, interaction.channelId, livello);
+      } catch {
+        return interaction.reply({ embeds: [themeErr('Priorità non valida.')], flags: MessageFlags.Ephemeral });
+      }
+      return interaction.reply({ embeds: [applyFooter(ok('⚡ Priorità aggiornata', `Ticket #${ticket.number}: ${priorityLabel(livello)}.`), interaction)] });
+    }
+
+    if (sub === 'assegna') {
+      if (!staff) return interaction.reply({ embeds: [themeErr('Solo lo staff.')], flags: MessageFlags.Ephemeral });
+      if (ticket.status !== 'open') return interaction.reply({ embeds: [themeErr('Ticket già chiuso.')], flags: MessageFlags.Ephemeral });
+      const target = interaction.options.getUser('staff');
+      if (!target || target.bot) return interaction.reply({ embeds: [themeErr('Staffer non valido.')], flags: MessageFlags.Ephemeral });
+      const { saveTicket } = require('../../database/tickets');
+      ticket.claimedBy = target.id;
+      saveTicket(interaction.guild.id, ticket);
+      return interaction.reply({ embeds: [applyFooter(ok('🖐️ Ticket assegnato', `Ticket #${ticket.number} assegnato a ${target}.`), interaction)] });
+    }
+
+    if (sub === 'oggetto') {
+      const allowed = staff || ticket.ownerId === interaction.user.id;
+      if (!allowed) return interaction.reply({ embeds: [themeErr('Solo il proprietario o lo staff.')], flags: MessageFlags.Ephemeral });
+      const testo = (interaction.options.getString('testo') || '').trim();
+      const { setSubject } = require('../../database/tickets');
+      setSubject(interaction.guild.id, interaction.channelId, testo);
+      try {
+        const topic = `Ticket #${ticket.number} | owner ${ticket.ownerId} | tipo ${ticket.type}${testo ? ` | ${testo.slice(0, 80)}` : ''}`;
+        await interaction.channel.setTopic(topic.slice(0, 1024)).catch(() => null);
+      } catch {}
+      return interaction.reply({
+        embeds: [applyFooter(ok('📝 Oggetto aggiornato', testo ? `Ticket #${ticket.number}: "${truncate(testo, 120)}".` : `Oggetto del ticket #${ticket.number} rimosso.`), interaction)],
+      });
+    }
+
+    if (sub === 'nota') {
+      if (!staff) return interaction.reply({ embeds: [themeErr('Solo lo staff.')], flags: MessageFlags.Ephemeral });
+      const testo = interaction.options.getString('testo', true);
+      const { addNote } = require('../../database/tickets');
+      try {
+        const t = addNote(interaction.guild.id, interaction.channelId, interaction.user.tag, testo);
+        return interaction.reply({ embeds: [applyFooter(ok('📌 Nota salvata', `Nota #${(t.notes || []).length} sul ticket #${ticket.number} (visibile solo nei log staff).`), interaction)] });
+      } catch (e) {
+        return interaction.reply({ embeds: [themeErr(e?.message || 'Nota non valida.')], flags: MessageFlags.Ephemeral });
+      }
     }
 
     if (sub === 'transcript') {

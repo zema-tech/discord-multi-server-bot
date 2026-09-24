@@ -12,7 +12,8 @@ const {
   MessageFlags,
 } = require('discord.js');
 const {
-  TICKET_TYPES, getConfig, nextNumber, saveTicket, getTicket, getUserOpenTickets, removeTicket,
+  TICKET_TYPES, PRIORITIES, getConfig, nextNumber, saveTicket, getTicket, getUserOpenTickets, removeTicket,
+  setRating,
 } = require('../database/tickets');
 const { getGuild } = require('../database/guildConfig');
 const { buildTranscript } = require('../utils/transcript');
@@ -28,6 +29,12 @@ function isSupport(member, config) {
 function typeLabel(key) {
   const t = TICKET_TYPES[key];
   return t ? `${t.emoji} ${t.label}` : key;
+}
+
+const PRIORITY_BADGE = { bassa: '🟢 Bassa', normale: '🔵 Normale', alta: '🟠 Alta', urgente: '🔴 Urgente' };
+
+function priorityLabel(p) {
+  return PRIORITY_BADGE[p] || PRIORITY_BADGE.normale;
 }
 
 // ---------- Pannello ----------
@@ -74,11 +81,17 @@ function safeName(name) {
 
 function ticketButtons(closed = false) {
   if (closed) {
+    const rateRow = new ActionRowBuilder().addComponents(
+      [1, 2, 3, 4, 5].map((n) =>
+        new ButtonBuilder().setCustomId(`ticket_rate_${n}`).setLabel(`${n}⭐`).setStyle(ButtonStyle.Secondary)
+      )
+    );
     return [
       new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('ticket_reopen').setLabel('Riapri').setEmoji('🔓').setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId('ticket_delete').setLabel('Elimina').setEmoji('🗑️').setStyle(ButtonStyle.Danger)
       ),
+      rateRow,
     ];
   }
   return [
@@ -194,6 +207,7 @@ async function createTicketInner(interaction, typeKey) {
     .setColor(0x57f287)
     .setTitle(`${TICKET_TYPES[typeKey].emoji} Ticket #${number} — ${TICKET_TYPES[typeKey].label}`)
     .setDescription(`Ciao ${interaction.user}! Descrivi la tua richiesta: lo staff ti risponderà qui.\n\n**Proprietario:** ${interaction.user}\n**Tipo:** ${typeLabel(typeKey)}`)
+    .addFields({ name: '⚡ Priorità', value: priorityLabel('normale'), inline: true })
     .setFooter({ text: `Ticket #${number} • Usa i pulsanti qui sotto per gestirlo` })
     .setTimestamp();
 
@@ -260,28 +274,37 @@ async function doClose(channel, guild, ticket, closedBy, reason) {
       { name: 'Proprietario', value: `${ownerTag}`, inline: true },
       { name: 'Chiuso da', value: `${closedBy.tag}`, inline: true },
       { name: 'Motivo', value: (reason || 'Nessun motivo').slice(0, 1024) },
+      { name: '⚡ Priorità', value: priorityLabel(ticket.priority), inline: true },
       { name: 'Preso in carico da', value: claimer, inline: true },
       { name: 'Durata', value: `${duration} min`, inline: true }
     )
     .setTimestamp();
+  if (ticket.subject) closedEmbed.addFields({ name: '📝 Oggetto', value: ticket.subject.slice(0, 1024) });
   await channel.send({ embeds: [closedEmbed], components: ticketButtons(true) }).catch(() => {});
 
   // Log + DM al proprietario
+  const notesLine = Array.isArray(ticket.notes) && ticket.notes.length
+    ? ticket.notes.slice(-3).map((n) => `• ${n.text.slice(0, 200)}`).join('\n').slice(0, 1024)
+    : null;
   const logEmbed = new EmbedBuilder()
     .setColor(0x5865f2)
     .setTitle(`📝 Ticket #${ticket.number} chiuso — ${typeLabel(ticket.type)}`)
     .addFields(
       { name: 'Proprietario', value: `${ownerTag} (<@${ticket.ownerId}>)`, inline: true },
       { name: 'Chiuso da', value: `${closedBy.tag}`, inline: true },
-      { name: 'Motivo', value: (reason || 'Nessun motivo').slice(0, 1024) }
+      { name: 'Motivo', value: (reason || 'Nessun motivo').slice(0, 1024) },
+      { name: '⚡ Priorità', value: priorityLabel(ticket.priority), inline: true },
+      { name: 'Durata', value: `${duration} min`, inline: true }
     )
     .setTimestamp();
+  if (ticket.subject) logEmbed.addFields({ name: '📝 Oggetto', value: ticket.subject.slice(0, 1024) });
+  if (notesLine) logEmbed.addFields({ name: `📌 Note staff (${ticket.notes.length})`, value: notesLine });
   const logCh = await resolveLogChannel(guild);
   if (logCh?.isTextBased()) {
     await logCh.send({ embeds: [logEmbed], files: transcript ? [transcript] : [] }).catch(() => {});
   }
   if (owner) {
-    await owner.send({ content: `🔒 Il tuo ticket **#${ticket.number}** (${typeLabel(ticket.type)}) è stato chiuso da **${closedBy.tag}**. Motivo: ${reason || 'Nessun motivo'}`, files: transcript ? [transcript] : [] }).catch(() => {});
+    await owner.send({ content: `🔒 Il tuo ticket **#${ticket.number}** (${typeLabel(ticket.type)}) è stato chiuso da **${closedBy.tag}**. Motivo: ${reason || 'Nessun motivo'}\n⭐ Valuta l'assistenza cliccando le stelline nel canale ticket!`, files: transcript ? [transcript] : [] }).catch(() => {});
   }
   return true;
 }
@@ -480,6 +503,36 @@ async function handle(interaction) {
     return true;
   }
 
+  const rateMatch = /^ticket_rate_([1-5])$/.exec(id);
+  if (rateMatch) {
+    const ticket = await requireTicket(interaction);
+    if (!ticket) return true;
+    if (ticket.ownerId !== interaction.user.id) {
+      await interaction.reply({ content: '❌ Solo il proprietario del ticket può valutarlo.', flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    if (ticket.status !== 'closed') {
+      await interaction.reply({ content: '❌ Potrai valutare quando il ticket sarà chiuso.', flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    let saved = null;
+    try {
+      saved = setRating(guild.id, interaction.channelId, Number(rateMatch[1]));
+    } catch {
+      await interaction.reply({ content: '❌ Valutazione non valida.', flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    if (saved === null) {
+      await interaction.reply({ content: '❌ Ticket non trovato.', flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    await interaction.reply({
+      content: saved ? `⭐ Grazie! Hai valutato **${rateMatch[1]}/5** il ticket #${ticket.number}.` : 'ℹ️ Hai già valutato questo ticket, grazie!',
+      flags: MessageFlags.Ephemeral,
+    });
+    return true;
+  }
+
   if (id === 'ticket_transcript') {
     const ticket = await requireTicket(interaction);
     if (!ticket) return true;
@@ -501,4 +554,4 @@ async function handle(interaction) {
   return false;
 }
 
-module.exports = { handle, isSupport, sendPanel, buildPanel, createTicket, doClose, typeLabel, requireTicket, ticketButtons };
+module.exports = { handle, isSupport, sendPanel, buildPanel, createTicket, doClose, typeLabel, priorityLabel, requireTicket, ticketButtons };
