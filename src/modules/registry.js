@@ -128,65 +128,36 @@ function setEnabled(guildId, featureId, enabled) {
 const errors = new Map(); // `${gid}:${fid}` -> { message, at, count }
 const ERRORS_MAX = 200;
 
-// --- Circuit-breaker (Commander Fase 1): se un modulo fallisce troppe volte
-// in poco tempo, viene "isolato" per questa guild: i suoi comandi rispondono
-// con un messaggio di protezione invece di eseguire codice rotto.
+// --- Circuit-breaker (Commander TS): la logica vive in @repo/commander,
+// qui solo un'istanza condivisa. Se un modulo fallisce troppe volte in poco
+// tempo, viene "isolato" per questa guild: i suoi comandi rispondono con un
+// messaggio di protezione invece di eseguire codice rotto.
 // Non tocca il toggle persistente (moduleState): è solo memoria + salute.
 // Soglia: 5 errori in 10 minuti -> isolato. Reset: on/off, reload, clearErrors.
-const BREAKER_THRESHOLD = 5;
-const BREAKER_WINDOW_MS = 10 * 60 * 1000;
-const breaker = new Map(); // `${gid}:${fid}` -> { count, firstAt, trippedAt }
-
-function breakerKey(guildId, featureId) {
-  return `${guildId || 'dm'}:${featureId}`;
-}
+const {
+  Breaker,
+  BREAKER_THRESHOLD,
+  BREAKER_WINDOW_MS,
+} = require('../../packages/commander/dist/index.js');
+const breaker = new Breaker(BREAKER_THRESHOLD, BREAKER_WINDOW_MS);
 
 function isIsolated(guildId, featureId) {
   try {
     if (!featureId || featureId === 'system') return false;
-    const b = breaker.get(breakerKey(guildId, featureId));
-    if (!b || !b.trippedAt) return false;
-    // Auto-reset dopo la finestra: il modulo riprova da solo.
-    if (Date.now() - b.trippedAt > BREAKER_WINDOW_MS) {
-      breaker.delete(breakerKey(guildId, featureId));
-      return false;
-    }
-    return true;
+    return breaker.isIsolated(guildId, featureId);
   } catch { return false; }
 }
 
 function resetBreaker(guildId, featureId) {
   try {
-    if (featureId) breaker.delete(breakerKey(guildId, featureId));
-    else {
-      const prefix = `${guildId || 'dm'}:`;
-      for (const key of [...breaker.keys()]) {
-        if (key.startsWith(prefix)) breaker.delete(key);
-      }
-    }
+    breaker.reset(guildId, featureId);
   } catch { /* mai bloccante */ }
 }
 
 function noteBreaker(guildId, featureId) {
   try {
     if (!featureId || featureId === 'system') return false;
-    const key = breakerKey(guildId, featureId);
-    const now = Date.now();
-    const prev = breaker.get(key);
-    let count = 1;
-    let firstAt = now;
-    if (prev && Number.isFinite(prev.count) && Number.isFinite(prev.firstAt)
-        && (now - prev.firstAt) <= BREAKER_WINDOW_MS) {
-      count = prev.count + 1;
-      firstAt = prev.firstAt;
-    }
-    const tripped = count >= BREAKER_THRESHOLD;
-    breaker.set(key, {
-      count,
-      firstAt,
-      trippedAt: tripped ? (prev && prev.trippedAt ? prev.trippedAt : now) : (prev ? prev.trippedAt || null : null),
-    });
-    return tripped;
+    return breaker.note(guildId, featureId);
   } catch { return false; }
 }
 

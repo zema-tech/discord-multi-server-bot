@@ -111,6 +111,11 @@ o bot assente — identica semantica di `loadAccess` attuale.
   (file-adapter), `packages/ui`, `apps/dashboard` (landing, /servers,
   /dashboard/[guildId] overview + feature dinamiche, route handlers che specchiano
   il contratto §0, `.env.example`, README con `bun install`/`bun run dev`).
+- [x] **Commander TS** — `packages/commander` (types + `Breaker` + `checkGate`/
+  `executeIsolated`, zero dipendenze, build con `npm run build:commander`).
+  Il bot lo usa via bridge (`src/modules/commander.js` + `registry.js` delegano a
+  `dist/`, committato finché non c'è build step). Niente AI nel Commander per ora
+  (decisione esplicita): i moduli AI restano dove sono.
 - [ ] **Fase 2** — `apps/bot` come workspace (re-export di `src/`), Drizzle schema +
   migrazione JSON→Postgres, Docker compose, deploy Railway/Fly.
 - [ ] **Fase 3** — cutover: la Next.js diventa la dashboard ufficiale,

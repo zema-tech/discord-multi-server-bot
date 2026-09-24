@@ -13,4 +13,5 @@ src/database/*.json
 # --- Monorepo Next.js (Fase 1+) ---
 .next/
 dist/
+!packages/commander/dist/
 *.tsbuildinfo

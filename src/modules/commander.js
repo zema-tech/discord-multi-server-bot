@@ -15,6 +15,15 @@
 
 const DEFAULT_TIMEOUT_MS = 15000;
 
+// Core Commander in TypeScript (@repo/commander, compilato in dist/).
+// La logica di gate/timeout vive lì: questo file resta solo il wrapper
+// Discord-facing. `dist/` è committato di proposito finché il bot non ha
+// un build step (rigenera con `npm run build:commander`).
+const {
+  checkGate: tsCheckGate,
+  executeIsolated: tsExecuteIsolated,
+} = require('../../packages/commander/dist/index.js');
+
 function getRegistry() {
   try {
     return require('./registry');
@@ -40,32 +49,15 @@ async function executeCommand(command, interaction, client, opts = {}) {
     }
   } catch { featureId = null; }
 
-  let timeoutId = null;
-  let timedOut = false;
-  const timeoutP = new Promise((resolve) => {
-    timeoutId = setTimeout(() => {
-      timedOut = true;
-      resolve({ __commanderTimeout: true });
-    }, timeoutMs);
-    if (typeof timeoutId.unref === 'function') timeoutId.unref();
+  // Esecuzione isolata via core TS: timeout + onError -> recordError (breaker).
+  const outcome = await tsExecuteIsolated(() => command.execute(interaction, client), {
+    featureId,
+    timeoutMs,
+    onError: (f, err) => {
+      try { registry?.recordError?.(f, guildId, err); } catch {}
+    },
   });
-
-  try {
-    const runP = Promise.resolve().then(() => command.execute(interaction, client));
-    const res = await Promise.race([runP, timeoutP]);
-    if (res && res.__commanderTimeout) {
-      const err = new Error(`timeout dopo ${timeoutMs}ms`);
-      err.code = 'COMMANDER_TIMEOUT';
-      try { registry?.recordError?.(featureId, guildId, err); } catch {}
-      return { ok: false, timedOut: true, featureId, error: err };
-    }
-    return { ok: true, timedOut: false, featureId };
-  } catch (error) {
-    try { registry?.recordError?.(featureId, guildId, error); } catch {}
-    return { ok: false, timedOut, featureId, error };
-  } finally {
-    try { if (timeoutId) clearTimeout(timeoutId); } catch {}
-  }
+  return outcome;
 }
 
 /**
@@ -80,18 +72,24 @@ function checkGate(commandName, guildId) {
     featureId = registry.featureOfCommand(commandName);
   } catch { featureId = null; }
   if (!featureId || !guildId) return { ok: true, featureId };
+  // Gate unificato dal core TS (toggle + breaker + locked).
   try {
-    if (typeof registry.canRun === 'function') {
-      const r = registry.canRun(guildId, featureId);
-      if (r && r.ok === false) return { ok: false, reason: r.reason || 'blocked', featureId };
-      return { ok: true, featureId };
-    }
-    // Fallback se registry vecchio: solo toggle.
-    if (typeof registry.isEnabled === 'function' && !registry.isEnabled(guildId, featureId)) {
-      return { ok: false, reason: 'disabled', featureId };
-    }
-  } catch { /* default consenti */ }
-  return { ok: true, featureId };
+    return tsCheckGate({
+      featureId,
+      guildId,
+      isLocked: (id) => registry.isLocked(id),
+      isEnabled: (g, f) => registry.isEnabled(g, f),
+      isIsolated: (g, f) => registry.isIsolated(g, f),
+    });
+  } catch {
+    // Fallback: solo toggle (core mai bloccante per il bot).
+    try {
+      if (typeof registry.isEnabled === 'function' && !registry.isEnabled(guildId, featureId)) {
+        return { ok: false, reason: 'disabled', featureId };
+      }
+    } catch { /* default consenti */ }
+    return { ok: true, featureId };
+  }
 }
 
 /**

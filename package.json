@@ -8,7 +8,8 @@
     "dashboard": "node src/dashboard/index.js",
     "deploy": "node deploy-commands.js",
     "dev": "node --watch src/index.js",
-    "test": "node scripts/smoke-test.js"
+    "test": "node scripts/smoke-test.js",
+    "build:commander": "node_modules/.bin/tsc -p packages/commander/tsconfig.json"
   },
   "keywords": [
     "discord",
