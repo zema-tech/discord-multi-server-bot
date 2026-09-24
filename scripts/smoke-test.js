@@ -2063,6 +2063,11 @@ try {
   if (/require\(['"]\.\.\/\.\.\/modules\/registry['"]\)/.test(moduloSrc)) {
     fail('orchestratore: modulo.js richiede modules/registry diretto (usare modules/commander)');
   }
+  // Handler ticket: il gate vive nel Commander (interactionCreate), mai qui.
+  const ticketH = fs.readFileSync(path.join(ROOT, 'src', 'handlers', 'ticketHandler.js'), 'utf8');
+  if (/require\(['"]\.\.\/modules\/registry['"]\)/.test(ticketH)) {
+    fail('orchestratore: ticketHandler richiede modules/registry diretto (gate nel Commander)');
+  }
   // La facciata esiste e risponde (su guild QA, senza sporcare i file).
   const commander = require(path.join(ROOT, 'src', 'modules', 'commander.js'));
   for (const fn of ['listModules', 'moduleHealth', 'setModuleEnabled', 'reloadModule', 'resetModule', 'updateModuleConfig']) {
