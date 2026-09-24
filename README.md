@@ -1,8 +1,46 @@
 # Discord Multi-Server Bot
 
-Bot Discord **multi-server** con moduli attivabili per guild, dashboard web e un **Commander** centrale (gate, timeout, circuit-breaker).
+![Node](https://img.shields.io/badge/node-18%2B-brightgreen)
+![discord.js](https://img.shields.io/badge/discord.js-v14-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Commands](https://img.shields.io/badge/slash%20commands-85%2B-orange)
 
-> ~85+ slash command · moderazione · economia · livelli · ticket · AI · musica · utility
+Bot Discord **multi-server** con ~85 slash command, moduli attivabili per guild, **dashboard web** e un **Commander** centrale (gate, timeout, circuit-breaker).
+
+## Perché è diverso
+
+- **Commander** — unico ingresso: toggle per server, esecuzione isolata, un modulo rotto non spegne gli altri
+- **AI plug-and-play** — una chiave (Groq, Gemini, OpenAI, …) oppure endpoint free; brain/skill per guild
+- **Ticket professionali** — claim, transcript, priorità, SLA, rating
+- **Moderazione seria** — warn con escalation, lockdown con snapshot permessi, registro casi
+- **Dashboard web** — OAuth2 Discord, config moduli senza rifare tutto in chat
+
+## Avvio rapido
+
+```bash
+git clone https://github.com/zema-tech/discord-multi-server-bot.git
+cd discord-multi-server-bot
+npm install
+cp .env.example .env   # DISCORD_TOKEN + CLIENT_ID
+node deploy-commands.js
+npm start
+```
+
+```bash
+npm test   # smoke senza token: comandi, eventi, commander, DB
+```
+
+## Indice
+
+| Sezione | Contenuto |
+|---------|-----------|
+| [Architettura](#architettura) | Dashboard → Commander → moduli |
+| [Funzionalità](#funzionalità-sintesi) | Panoramica per area |
+| [Requisiti](#requisiti) | Node, intents |
+| [Variabili](#variabili-essenziali) | Env minime |
+| [Dashboard](#dashboard-web) | OAuth2 e avvio |
+| [Hosting](#hosting) | Render, Docker, VPS |
+| [Docs](docs/) | [CONFIG](docs/CONFIG.md) · [COMMANDS](docs/COMMANDS.md) · [HOSTING](docs/HOSTING.md) · [PLAN](PLAN.md) |
 
 ---
 
@@ -12,17 +50,15 @@ Bot Discord **multi-server** con moduli attivabili per guild, dashboard web e un
 Dashboard (web)
       │
       ▼
-  Commander     ← unico ingresso: toggle, config, esecuzione isolata
+  Commander     ← toggle, config, esecuzione isolata
    /  |  \
 moduli moduli moduli …
 ```
 
-- I **moduli** non si chiamano tra loro: entrano solo tramite Commander
+- I moduli non si chiamano tra loro: solo tramite Commander
 - Toggle **on/off per server** (default ON)
-- Un modulo rotto non spegne il resto (isolamento + breaker)
 - Config dashboard: la UI valida, il **Commander esegue**
-
-Pacchetto core tipizzato: `packages/commander` (TypeScript) + bridge JS in `src/modules/commander.js`.
+- Core tipizzato: `packages/commander` (TypeScript) + bridge in `src/modules/commander.js`
 
 ---
 
@@ -35,39 +71,18 @@ Pacchetto core tipizzato: `packages/commander` (TypeScript) + bridge JS in `src/
 | **Livelli** | XP chat/vocale, rank, top, ruoli premio |
 | **Ticket** | pannello, claim, transcript, priorità, SLA, rating |
 | **AI** | /chiedi, riassumi, brain/skill, provider auto |
-| **Utility** | welcome, automod, starboard, reaction roles, giveaway, embed… |
+| **Utility** | welcome, automod, starboard, reaction roles, giveaway… |
 | **Musica** | /musica (play, coda, skip, loop…) |
 
-Lista comandi generata: [docs/COMMANDS.md](docs/COMMANDS.md) · dettagli config: [docs/CONFIG.md](docs/CONFIG.md).
+Dettaglio comandi → [docs/COMMANDS.md](docs/COMMANDS.md).
 
 ---
 
 ## Requisiti
 
-- **Node.js 18+** (22+ se usi `DB_BACKEND=sqlite`)
-- Intents: Guilds, GuildMessages, **Message Content**, **Server Members**, GuildModeration (+ voice/invites/reactions già nel codice)
-- App Discord con token + Client ID
-
----
-
-## Setup rapido
-
-```bash
-git clone https://github.com/zema-tech/discord-multi-server-bot.git
-cd discord-multi-server-bot
-npm install
-cp .env.example .env   # DISCORD_TOKEN + CLIENT_ID
-node deploy-commands.js
-npm start
-```
-
-Test senza token:
-
-```bash
-npm test   # smoke: comandi, eventi, commander, database
-```
-
-Per un solo server di prova aggiungi `GUILD_ID` nel `.env` prima del deploy comandi.
+- **Node.js 18+** (22+ con `DB_BACKEND=sqlite`)
+- Intents: Guilds, GuildMessages, **Message Content**, **Server Members**, GuildModeration
+- App Discord: token + Client ID
 
 ---
 
@@ -75,73 +90,62 @@ Per un solo server di prova aggiungi `GUILD_ID` nel `.env` prima del deploy coma
 
 | Variabile | Ruolo |
 |-----------|--------|
-| `DISCORD_TOKEN` | Token bot (obbligatorio) |
-| `CLIENT_ID` | Application ID (deploy comandi) |
-| `GUILD_ID` | Opzionale: deploy comandi solo su un server |
+| `DISCORD_TOKEN` | Token bot |
+| `CLIENT_ID` | Deploy comandi |
+| `GUILD_ID` | Opzionale: un solo server di test |
 | `DB_BACKEND` | `json` (default) o `sqlite` |
-| `CLIENT_SECRET` + `SESSION_SECRET` + `BASE_URL` | Dashboard OAuth2 |
-| `GROQ_API_KEY` / `GEMINI_API_KEY` / … | AI (opzionale; senza chiavi → endpoint free) |
+| `CLIENT_SECRET` · `SESSION_SECRET` · `BASE_URL` | Dashboard OAuth2 |
+| `GROQ_API_KEY` / `GEMINI_API_KEY` / … | AI (opzionale) |
 
-Elenco completo → [docs/CONFIG.md](docs/CONFIG.md) e [`.env.example`](.env.example).
+Completo → [docs/CONFIG.md](docs/CONFIG.md) · [`.env.example`](.env.example).
 
 ---
 
 ## Dashboard web
 
-Pannello per configurare i moduli **senza** rifare tutto in chat.
-
-1. Developer Portal → OAuth2 → redirect: `<BASE_URL>/callback` (scope `identify guilds`)
-2. Nel `.env`: `DASHBOARD_PORT`, `SESSION_SECRET`, `CLIENT_SECRET`, `BASE_URL`
+1. Developer Portal → OAuth2 → redirect `<BASE_URL>/callback` (scope `identify guilds`)
+2. Env: `DASHBOARD_PORT`, `SESSION_SECRET`, `CLIENT_SECRET`, `BASE_URL`
 3. Avvio:
 
 ```bash
 npm start            # bot
-npm run dashboard    # dashboard (stesso .env / DB)
+npm run dashboard    # pannello (stesso .env / DB)
 ```
 
-Solo chi ha **Gestisci Server** e ha il bot nel server può modificare quella guild.
+Serve **Gestisci Server** + bot presente nella guild.
+
+> Screenshot dashboard: in arrivo (apri una issue se vuoi contribuire GIF/PNG).
 
 ---
 
 ## Hosting
 
-- **Render / Railway / VPS / Docker / PM2** → [docs/HOSTING.md](docs/HOSTING.md)
-- Su Web Service: un processo che espone la porta HTTP e avvia anche il bot (vedi Dockerfile / script di start)
+[docs/HOSTING.md](docs/HOSTING.md) — Docker, PM2, Render, Railway, VPS.
 
-Health check tipico: `GET /healthz` → `ok`, `guilds`, `commands`, `backend`.
+Health: `GET /healthz` → `ok`, `guilds`, `commands`, `backend`.
 
 ---
 
-## Struttura (essenziale)
+## Struttura
 
 ```text
-src/
-  index.js              # entry bot
-  commands/             # slash per categoria
-  events/               # discord events
-  modules/              # descrittori feature + commander bridge
-  database/             # json / sqlite
-  dashboard/            # Express + UI (processo separato)
-packages/
-  commander/            # core TS: gate, timeout, breaker
-apps/                   # scaffold dashboard Next (in evoluzione)
-docs/                   # HOSTING, CONFIG, COMMANDS
+src/commands/   slash per categoria
+src/events/     listener Discord
+src/modules/    descrittori feature + commander bridge
+src/database/   json / sqlite
+src/dashboard/  Express + UI
+packages/commander/   core TS (gate, timeout, breaker)
+docs/           CONFIG, COMMANDS, HOSTING
 ```
-
----
-
-## Sviluppo
 
 ```bash
-npm run dev              # bot con --watch
-npm run build:commander  # se modifichi packages/commander (src → dist)
+npm run dev
+npm run build:commander   # dopo modifiche a packages/commander
 npm test
 ```
-
-Piano dashboard Next e migrazioni: [PLAN.md](PLAN.md).
 
 ---
 
 ## Licenza
 
-MIT — vedi repo. Contributi e issue benvenuti.
+[MIT](LICENSE) — contributi e issue benvenuti.
