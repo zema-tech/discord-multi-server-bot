@@ -2149,6 +2149,28 @@ try {
   delete after[TQ];
   save(f, after);
   if (load(f)[TQ] !== undefined) fail('ticket: cleanup QA fallito');
+
+  // PRO v2: domande pre-apertura, pannelli, risposte nel ticket.
+  tickets.setQuestions(TQ, 'bug', ['Versione del bot?', 'Cosa stavi facendo?']);
+  if (tickets.getQuestions(TQ, 'bug').length !== 2) fail('ticket: questions non salvate');
+  if (tickets.getQuestions(TQ, 'supporto').length !== 0) fail('ticket: questions trapelate tra tipi');
+  try {
+    tickets.setQuestions(TQ, 'nope', ['x']);
+    fail('ticket: tipo invalido dovrebbe lanciare');
+  } catch {}
+  if (tickets.setQuestions(TQ, 'bug', ['1', '2', '3', '4', '5']).length !== 4) fail('ticket: cap 4 domande');
+  tickets.setQuestions(TQ, 'bug', []);
+  const panel = tickets.savePanel(TQ, { channelId: 'c1', messageId: 'm1', types: ['bug', 'nope'], title: 'Help' });
+  if (panel.types.join() !== 'bug') fail('ticket: panel dovrebbe filtrare tipi sconosciuti');
+  if (tickets.getPanels(TQ).length !== 1 || tickets.removePanel(TQ, 'c1') !== true) fail('ticket: panels CRUD');
+  const commander = require(path.join(ROOT, 'src', 'modules', 'commander.js'));
+  for (const cid of ['ticket_open:bug', 'ticket_open_modal:bug', 'ticket_rate_5']) {
+    if (commander.featureOfComponent(cid) !== 'tickets') fail(`ticket: gate ${cid} non mappa a tickets`);
+  }
+  const fin = load(f);
+  delete fin[TQ];
+  save(f, fin);
+  if (load(f)[TQ] !== undefined) fail('ticket: cleanup QA v2 fallito');
   console.log('ticket: backfill/priorita/oggetto/note/rating/stats ok');
 } catch (e) {
   fail(`ticket (qatest): ${e.message.split('\n')[0]}`);

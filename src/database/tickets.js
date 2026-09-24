@@ -17,6 +17,9 @@ const DEFAULT_CONFIG = {
   maxPerUser: 3,
   // PEAK: giorni di inattività prima della chiusura automatica (0 = disattivato).
   autoCloseDays: 0,
+  // PRO: pannelli pubblicati per sezione + domande pre-apertura per tipo.
+  panels: [],
+  questions: {},
 };
 
 function guildData(guildId) {
@@ -51,6 +54,8 @@ function getConfig(guildId) {
   // PEAK: backfill additivo per config create prima di autoCloseDays.
   const config = guildData(guildId).config;
   if (config.autoCloseDays === undefined) config.autoCloseDays = 0;
+  if (!Array.isArray(config.panels)) config.panels = [];
+  if (!config.questions || typeof config.questions !== 'object' || Array.isArray(config.questions)) config.questions = {};
   return config;
 }
 
@@ -108,6 +113,11 @@ const PRIORITIES = ['bassa', 'normale', 'alta', 'urgente'];
 const MAX_NOTES = 20;
 const MAX_NOTE_CHARS = 500;
 const MAX_SUBJECT_CHARS = 120;
+// PRO: domande pre-apertura (max 4 per tipo, 200 char l'una; risposte max 1000).
+const MAX_QUESTIONS = 4;
+const MAX_QUESTION_CHARS = 200;
+const MAX_ANSWER_CHARS = 1000;
+const MAX_PANELS = 10;
 
 /** Backfill additivo: i ticket vecchi ottengono i campi nuovi con default. */
 function normalizeTicket(t) {
@@ -128,6 +138,14 @@ function normalizeTicket(t) {
   if (!t.rating || typeof t.rating !== 'object' || ![1, 2, 3, 4, 5].includes(t.rating.score)) {
     t.rating = null;
   }
+  if (!Array.isArray(t.answers)) t.answers = [];
+  t.answers = t.answers
+    .filter((a) => a && typeof a === 'object' && typeof a.a === 'string' && a.a.trim())
+    .slice(-MAX_QUESTIONS)
+    .map((a) => ({
+      q: String(a.q || '').trim().slice(0, MAX_QUESTION_CHARS),
+      a: a.a.trim().slice(0, MAX_ANSWER_CHARS),
+    }));
   return t;
 }
 
@@ -178,6 +196,83 @@ function setRating(guildId, channelId, score) {
   if (!t) return null;
   if (t.rating && [1, 2, 3, 4, 5].includes(t.rating.score)) return false;
   t.rating = { score: n, at: Date.now() };
+  persist(guildId, data);
+  return true;
+}
+
+// ---------- PRO: domande pre-apertura ----------
+
+function assertKnownType(type) {
+  const t = String(type || '').toLowerCase().trim();
+  if (!TICKET_TYPES[t]) throw new Error(`Tipo sconosciuto (${Object.keys(TICKET_TYPES).join('/')}).`);
+  return t;
+}
+
+/** Domande per un tipo (max 4). [] se nessuna. */
+function getQuestions(guildId, type) {
+  try {
+    const t = assertKnownType(type);
+    const q = guildData(guildId).config.questions?.[t];
+    return Array.isArray(q) ? q.filter((s) => typeof s === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Imposta le domande (array di stringhe; vuoto = rimuovi). Ritorna la lista. */
+function setQuestions(guildId, type, questions) {
+  const t = assertKnownType(type);
+  const list = (Array.isArray(questions) ? questions : [questions])
+    .map((q) => String(q || '').trim())
+    .filter(Boolean)
+    .slice(0, MAX_QUESTIONS)
+    .map((q) => q.slice(0, MAX_QUESTION_CHARS));
+  const data = guildData(guildId);
+  if (!data.config.questions || typeof data.config.questions !== 'object') data.config.questions = {};
+  if (!list.length) delete data.config.questions[t];
+  else data.config.questions[t] = list;
+  persist(guildId, data);
+  return list;
+}
+
+// ---------- PRO: pannelli per sezione ----------
+
+/** Pannelli pubblicati. [] se nessuno. */
+function getPanels(guildId) {
+  try {
+    const p = guildData(guildId).config.panels;
+    return Array.isArray(p) ? p : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Registra un pannello pubblicato (upsert per canale). */
+function savePanel(guildId, panel) {
+  const data = guildData(guildId);
+  if (!Array.isArray(data.config.panels)) data.config.panels = [];
+  const clean = {
+    channelId: String(panel.channelId || ''),
+    messageId: String(panel.messageId || ''),
+    types: (Array.isArray(panel.types) ? panel.types : []).filter((t) => TICKET_TYPES[t]),
+    title: String(panel.title || '').slice(0, 100),
+  };
+  if (!clean.channelId || !clean.types.length) throw new Error('Pannello non valido.');
+  if (clean.types.length > Object.keys(TICKET_TYPES).length) throw new Error('Troppi tipi.');
+  data.config.panels = data.config.panels.filter((p) => p.channelId !== clean.channelId);
+  if (data.config.panels.length >= MAX_PANELS) throw new Error(`Max ${MAX_PANELS} pannelli per server.`);
+  data.config.panels.push(clean);
+  persist(guildId, data);
+  return clean;
+}
+
+/** Dimentica un pannello (il messaggio va eliminato a parte). */
+function removePanel(guildId, channelId) {
+  const data = guildData(guildId);
+  if (!Array.isArray(data.config.panels)) return false;
+  const before = data.config.panels.length;
+  data.config.panels = data.config.panels.filter((p) => p.channelId !== String(channelId));
+  if (data.config.panels.length === before) return false;
   persist(guildId, data);
   return true;
 }
@@ -247,6 +342,10 @@ module.exports = {
   PRIORITIES,
   MAX_NOTES,
   MAX_SUBJECT_CHARS,
+  MAX_QUESTIONS,
+  MAX_QUESTION_CHARS,
+  MAX_ANSWER_CHARS,
+  MAX_PANELS,
   getConfig,
   setConfig,
   nextNumber,
@@ -259,5 +358,10 @@ module.exports = {
   setSubject,
   addNote,
   setRating,
+  getQuestions,
+  setQuestions,
+  getPanels,
+  savePanel,
+  removePanel,
   touchActivity, // PEAK
 };

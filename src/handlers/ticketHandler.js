@@ -13,7 +13,7 @@ const {
 } = require('discord.js');
 const {
   TICKET_TYPES, PRIORITIES, getConfig, nextNumber, saveTicket, getTicket, getUserOpenTickets, removeTicket,
-  setRating,
+  setRating, getQuestions,
 } = require('../database/tickets');
 const { getGuild } = require('../database/guildConfig');
 const { buildTranscript } = require('../utils/transcript');
@@ -70,6 +70,61 @@ async function sendPanel(channel) {
   return channel.send(buildPanel());
 }
 
+// ---------- Pannello PRO (bottoni per sezione) ----------
+
+const TYPE_STYLE = { supporto: ButtonStyle.Primary, bug: ButtonStyle.Danger, appeal: ButtonStyle.Secondary, partnership: ButtonStyle.Success };
+
+/**
+ * Pannello con un bottone per tipo: `ticket_open:<tipo>`.
+ * types null/vuoto = tutti i tipi.
+ */
+function buildTypePanel(types = null, title = '🎫 Centro Assistenza', description = null) {
+  const keys = (Array.isArray(types) && types.length ? types : Object.keys(TICKET_TYPES))
+    .filter((k) => TICKET_TYPES[k]);
+  const rows = [];
+  let row = new ActionRowBuilder();
+  for (const key of keys.slice(0, 5)) {
+    const t = TICKET_TYPES[key];
+    row.addComponents(
+      new ButtonBuilder().setCustomId(`ticket_open:${key}`).setLabel(t.label.slice(0, 80)).setEmoji(t.emoji).setStyle(TYPE_STYLE[key] || ButtonStyle.Primary)
+    );
+    if (row.components.length >= 5) { rows.push(row); row = new ActionRowBuilder(); }
+  }
+  if (row.components.length) rows.push(row);
+  const embed = new EmbedBuilder()
+    .setColor(0x5865f2)
+    .setTitle(String(title || '🎫 Centro Assistenza').slice(0, 256))
+    .setDescription(
+      String(description || 'Hai bisogno di aiuto? Premi il bottone della sezione giusta e si aprirà un ticket privato con lo staff.\n\n' +
+      keys.map((k) => `${TICKET_TYPES[k].emoji} **${TICKET_TYPES[k].label}** — ${TICKET_TYPES[k].descrizione}`).join('\n') +
+      '\n\n⚠️ Non aprire ticket per scherzo: è punibile.').slice(0, 4000)
+    )
+    .setFooter({ text: 'Lo staff ti risponderà il prima possibile' })
+    .setTimestamp();
+  return { embeds: [embed], components: rows };
+}
+
+/** Modale domande pre-apertura per un tipo. null se nessuna domanda. */
+function buildQuestionsModal(guildId, typeKey) {
+  const questions = getQuestions(guildId, typeKey);
+  if (!questions.length) return null;
+  const t = TICKET_TYPES[typeKey];
+  const modal = new ModalBuilder().setCustomId(`ticket_open_modal:${typeKey}`).setTitle(`Ticket ${t.label}`.slice(0, 45));
+  questions.slice(0, 4).forEach((q, i) => {
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId(`q${i}`)
+          .setLabel(q.slice(0, 45))
+          .setStyle(i === 0 ? TextInputStyle.Short : TextInputStyle.Paragraph)
+          .setRequired(i === 0)
+          .setMaxLength(1000)
+      )
+    );
+  });
+  return { modal, questions };
+}
+
 // ---------- Creazione ticket ----------
 
 // Lock anti-race: una sola creazione alla volta per utente (doppi click sul select).
@@ -103,7 +158,7 @@ function ticketButtons(closed = false) {
   ];
 }
 
-async function createTicket(interaction, typeKey) {
+async function createTicket(interaction, typeKey, answers = []) {
   const { guild } = interaction;
   const lockKey = `${guild.id}:${interaction.user.id}`;
   if (creatingTickets.has(lockKey)) {
@@ -114,13 +169,13 @@ async function createTicket(interaction, typeKey) {
   }
   creatingTickets.add(lockKey);
   try {
-    await createTicketInner(interaction, typeKey);
+    await createTicketInner(interaction, typeKey, answers);
   } finally {
     creatingTickets.delete(lockKey);
   }
 }
 
-async function createTicketInner(interaction, typeKey) {
+async function createTicketInner(interaction, typeKey, answers = []) {
   const { guild } = interaction;
   const config = getConfig(guild.id);
 
@@ -200,6 +255,7 @@ async function createTicketInner(interaction, typeKey) {
     createdAt: Date.now(),
     closedAt: null,
     closeReason: null,
+    answers: Array.isArray(answers) ? answers : [],
   });
 
   const supportPing = supportRoleIds.map((id) => `<@&${id}>`).join(' ');
@@ -210,6 +266,12 @@ async function createTicketInner(interaction, typeKey) {
     .addFields({ name: '⚡ Priorità', value: priorityLabel('normale'), inline: true })
     .setFooter({ text: `Ticket #${number} • Usa i pulsanti qui sotto per gestirlo` })
     .setTimestamp();
+  if (Array.isArray(answers) && answers.length) {
+    welcome.addFields({
+      name: '📋 Risposte pre-apertura',
+      value: answers.map((a) => `**${a.q.slice(0, 100)}**\n${a.a.slice(0, 300)}`).join('\n\n').slice(0, 1024),
+    });
+  }
 
   await channel.send({ content: `${interaction.user} ${supportPing}`, embeds: [welcome], components: ticketButtons(false) });
   await interaction.editReply(`✅ Ticket creato: ${channel}`);
@@ -299,6 +361,12 @@ async function doClose(channel, guild, ticket, closedBy, reason) {
     .setTimestamp();
   if (ticket.subject) logEmbed.addFields({ name: '📝 Oggetto', value: ticket.subject.slice(0, 1024) });
   if (notesLine) logEmbed.addFields({ name: `📌 Note staff (${ticket.notes.length})`, value: notesLine });
+  if (Array.isArray(ticket.answers) && ticket.answers.length) {
+    logEmbed.addFields({
+      name: '📋 Risposte pre-apertura',
+      value: ticket.answers.map((a) => `**${String(a.q || '').slice(0, 100)}**\n${String(a.a || '').slice(0, 300)}`).join('\n\n').slice(0, 1024),
+    });
+  }
   const logCh = await resolveLogChannel(guild);
   if (logCh?.isTextBased()) {
     await logCh.send({ embeds: [logEmbed], files: transcript ? [transcript] : [] }).catch(() => {});
@@ -330,7 +398,7 @@ async function handle(interaction) {
   // Gate modulo (on/off + protezione) già applicato a monte dal Commander
   // (interactionCreate): qui non si ricontrolla, si esegue e basta.
 
-  // --- Select: creazione ticket ---
+  // --- Select: creazione ticket (pannello classico) ---
   if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_create') {
     const chosen = interaction.values?.[0];
     if (!chosen) {
@@ -339,7 +407,49 @@ async function handle(interaction) {
       }
       return true;
     }
+    // Domande pre-apertura? -> modale, altrimenti creazione diretta.
+    try {
+      const built = buildQuestionsModal(guild.id, chosen);
+      if (built) {
+        await interaction.showModal(built.modal);
+        return true;
+      }
+    } catch {
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: '❌ Impossibile aprire il modulo. Riprova.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      }
+      return true;
+    }
     await createTicket(interaction, chosen);
+    return true;
+  }
+
+  // --- Modale: risposte pre-apertura -> crea il ticket ---
+  if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_open_modal:')) {
+    const typeKey = interaction.customId.split(':')[1];
+    if (!TICKET_TYPES[typeKey]) {
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: '❌ Tipo di ticket non valido.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      }
+      return true;
+    }
+    const questions = getQuestions(guild.id, typeKey);
+    const answers = [];
+    questions.slice(0, 4).forEach((q, i) => {
+      let a = '';
+      try {
+        a = interaction.fields.getTextInputValue(`q${i}`);
+      } catch { a = ''; }
+      a = String(a || '').trim().slice(0, 1000);
+      if (a) answers.push({ q: q.slice(0, 200), a });
+    });
+    if (questions.length && !answers.length) {
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: '❌ Rispondi almeno alla prima domanda.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      }
+      return true;
+    }
+    await createTicket(interaction, typeKey, answers);
     return true;
   }
 
@@ -368,6 +478,31 @@ async function handle(interaction) {
   if (!id.startsWith('ticket_')) return false;
 
   const config = getConfig(guild.id);
+
+  // --- Bottone pannello PRO: ticket_open:<tipo> ---
+  if (id.startsWith('ticket_open:')) {
+    const typeKey = id.split(':')[1];
+    if (!TICKET_TYPES[typeKey]) {
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: '❌ Tipo di ticket non valido.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      }
+      return true;
+    }
+    try {
+      const built = buildQuestionsModal(guild.id, typeKey);
+      if (built) {
+        await interaction.showModal(built.modal);
+        return true;
+      }
+    } catch {
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: '❌ Impossibile aprire il modulo. Riprova.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      }
+      return true;
+    }
+    await createTicket(interaction, typeKey);
+    return true;
+  }
 
   if (id === 'ticket_claim') {
     const ticket = await requireTicket(interaction);
@@ -554,4 +689,4 @@ async function handle(interaction) {
   return false;
 }
 
-module.exports = { handle, isSupport, sendPanel, buildPanel, createTicket, doClose, typeLabel, priorityLabel, requireTicket, ticketButtons };
+module.exports = { handle, isSupport, sendPanel, buildPanel, buildTypePanel, buildQuestionsModal, createTicket, doClose, typeLabel, priorityLabel, requireTicket, ticketButtons };

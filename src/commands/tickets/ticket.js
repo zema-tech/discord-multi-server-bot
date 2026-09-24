@@ -3,7 +3,7 @@ const {
   EmbedBuilder, MessageFlags,
 } = require('discord.js');
 const { getConfig, getTicket, getStats } = require('../../database/tickets');
-const { isSupport, doClose, typeLabel, priorityLabel, ticketButtons } = require('../../handlers/ticketHandler');
+const { isSupport, doClose, typeLabel, priorityLabel, ticketButtons, buildTypePanel } = require('../../handlers/ticketHandler');
 const { buildTranscript } = require('../../utils/transcript');
 
 function dashboardMsg(guildId, sezione) {
@@ -44,7 +44,38 @@ module.exports = {
         .addRoleOption((o) => o.setName('ruolo-supporto-2').setDescription('Secondo ruolo staff (opzionale)').setRequired(false))
         .addIntegerOption((o) => o.setName('max-per-utente').setDescription('Max ticket aperti per utente (default 3)').setMinValue(1).setMaxValue(10).setRequired(false))
     )
-    .addSubcommand((s) => s.setName('panel').setDescription('Ripubblica il pannello ticket'))
+    .addSubcommand((s) => s.setName('panel').setDescription('Pubblica il pannello ticket con bottoni (staff)')
+      .addChannelOption((o) => o.setName('canale').setDescription('Dove pubblicarlo (default: qui)').addChannelTypes(ChannelType.GuildText).setRequired(false))
+      .addStringOption((o) => o.setName('tipi').setDescription('Tipi separati da virgola (default: tutti)').setRequired(false).setMaxLength(100))
+      .addStringOption((o) => o.setName('titolo').setDescription('Titolo del pannello').setRequired(false).setMaxLength(100)))
+    .addSubcommand((s) => s.setName('domande-mostra').setDescription('Mostra le domande pre-apertura per tipo')
+      .addStringOption((o) => o.setName('tipo').setDescription('Tipo di ticket').setRequired(true)
+        .addChoices(
+          { name: '🛠️ Supporto', value: 'supporto' },
+          { name: '🐛 Bug', value: 'bug' },
+          { name: '⚖️ Appeal', value: 'appeal' },
+          { name: '🤝 Partnership', value: 'partnership' },
+        )))
+    .addSubcommand((s) => s.setName('domande-imposta').setDescription('Imposta le domande pre-apertura (staff, max 4)')
+      .addStringOption((o) => o.setName('tipo').setDescription('Tipo di ticket').setRequired(true)
+        .addChoices(
+          { name: '🛠️ Supporto', value: 'supporto' },
+          { name: '🐛 Bug', value: 'bug' },
+          { name: '⚖️ Appeal', value: 'appeal' },
+          { name: '🤝 Partnership', value: 'partnership' },
+        ))
+      .addStringOption((o) => o.setName('d1').setDescription('Domanda 1 (obbligatoria)').setRequired(true).setMaxLength(200))
+      .addStringOption((o) => o.setName('d2').setDescription('Domanda 2').setRequired(false).setMaxLength(200))
+      .addStringOption((o) => o.setName('d3').setDescription('Domanda 3').setRequired(false).setMaxLength(200))
+      .addStringOption((o) => o.setName('d4').setDescription('Domanda 4').setRequired(false).setMaxLength(200)))
+    .addSubcommand((s) => s.setName('domande-reset').setDescription('Rimuove le domande pre-apertura (staff)')
+      .addStringOption((o) => o.setName('tipo').setDescription('Tipo di ticket').setRequired(true)
+        .addChoices(
+          { name: '🛠️ Supporto', value: 'supporto' },
+          { name: '🐛 Bug', value: 'bug' },
+          { name: '⚖️ Appeal', value: 'appeal' },
+          { name: '🤝 Partnership', value: 'partnership' },
+        )))
     .addSubcommand((s) =>
       s.setName('aggiungi').setDescription('Aggiungi un utente al ticket')
         .addUserOption((o) => o.setName('utente').setDescription('Utente da aggiungere').setRequired(true))
@@ -99,12 +130,73 @@ module.exports = {
       return interaction.reply({ content: dashboardMsg(interaction.guild.id, 'Ticket'), flags: MessageFlags.Ephemeral });
     }
 
-    // ---- PANEL ----
+    // ---- PANEL PRO: pubblica pannello con bottoni per sezione ----
     if (sub === 'panel') {
       if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
         return interaction.reply({ embeds: [themeErr('Ti serve il permesso **Gestisci Server**.')], flags: MessageFlags.Ephemeral });
       }
-      return interaction.reply({ content: dashboardMsg(interaction.guild.id, 'Ticket'), flags: MessageFlags.Ephemeral });
+      const { TICKET_TYPES, savePanel } = require('../../database/tickets');
+      const target = interaction.options.getChannel('canale') || interaction.channel;
+      if (!target || target.type !== ChannelType.GuildText) {
+        return interaction.reply({ embeds: [themeErr('Canale di testo non valido.')], flags: MessageFlags.Ephemeral });
+      }
+      const rawTipi = (interaction.options.getString('tipi') || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+      const types = rawTipi.length ? rawTipi.filter((t) => TICKET_TYPES[t]) : Object.keys(TICKET_TYPES);
+      if (!types.length) {
+        return interaction.reply({ embeds: [themeErr(`Tipi non validi. Usa: ${Object.keys(TICKET_TYPES).join(', ')}.`)], flags: MessageFlags.Ephemeral });
+      }
+      const titolo = (interaction.options.getString('titolo') || '🎫 Centro Assistenza').slice(0, 100);
+      let msg;
+      try {
+        const payload = buildTypePanel(types, titolo);
+        msg = await target.send(payload);
+      } catch {
+        return interaction.reply({ embeds: [themeErr('Non riesco a scrivere in quel canale.')], flags: MessageFlags.Ephemeral });
+      }
+      try {
+        savePanel(interaction.guild.id, { channelId: target.id, messageId: msg.id, types, title: titolo });
+      } catch (e) {
+        return interaction.reply({ embeds: [themeErr(e?.message || 'Pannello pubblicato ma non registrato.')], flags: MessageFlags.Ephemeral });
+      }
+      return interaction.reply({ content: `✅ Pannello pubblicato in ${target} (${types.length} sezioni).`, flags: MessageFlags.Ephemeral }).catch(() => null);
+    }
+
+    // ---- DOMANDE PRE-APERTURA ----
+    if (sub === 'domande-mostra') {
+      const { getQuestions } = require('../../database/tickets');
+      const tipo = interaction.options.getString('tipo', true);
+      const list = getQuestions(interaction.guild.id, tipo);
+      if (!list.length) {
+        return interaction.reply({ content: `ℹ️ Nessuna domanda pre-apertura per **${typeLabel(tipo)}**: il ticket si apre subito.`, flags: MessageFlags.Ephemeral }).catch(() => null);
+      }
+      const embed = new EmbedBuilder()
+        .setColor(COLORS.primary)
+        .setTitle(`📋 Domande pre-apertura — ${typeLabel(tipo)}`)
+        .setDescription(list.map((q, i) => `**${i + 1}.** ${q}${i === 0 ? ' *(obbligatoria)*' : ''}`).join('\n'))
+        .setTimestamp();
+      applyFooter(embed, interaction);
+      return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral }).catch(() => null);
+    }
+
+    if (sub === 'domande-imposta') {
+      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+        return interaction.reply({ embeds: [themeErr('Ti serve il permesso **Gestisci Server**.')], flags: MessageFlags.Ephemeral });
+      }
+      const { setQuestions } = require('../../database/tickets');
+      const tipo = interaction.options.getString('tipo', true);
+      const list = ['d1', 'd2', 'd3', 'd4'].map((k) => interaction.options.getString(k) || '').filter((s) => s.trim());
+      const saved = setQuestions(interaction.guild.id, tipo, list);
+      return interaction.reply({ content: `✅ Domande per **${typeLabel(tipo)}** impostate (${saved.length}):\n${saved.map((q, i) => `**${i + 1}.** ${q}`).join('\n')}`, flags: MessageFlags.Ephemeral }).catch(() => null);
+    }
+
+    if (sub === 'domande-reset') {
+      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+        return interaction.reply({ embeds: [themeErr('Ti serve il permesso **Gestisci Server**.')], flags: MessageFlags.Ephemeral });
+      }
+      const { setQuestions } = require('../../database/tickets');
+      const tipo = interaction.options.getString('tipo', true);
+      setQuestions(interaction.guild.id, tipo, []);
+      return interaction.reply({ content: `✅ Domande per **${typeLabel(tipo)}** rimosse: il ticket si apre subito.`, flags: MessageFlags.Ephemeral }).catch(() => null);
     }
 
     // ---- STATS ----
