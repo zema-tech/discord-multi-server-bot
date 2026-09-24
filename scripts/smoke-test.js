@@ -2176,6 +2176,37 @@ try {
   fail(`ticket (qatest): ${e.message.split('\n')[0]}`);
 }
 
+// ------------------------------------------------- (c10) LIVELLI PRO
+console.log('== [10/5] Livelli pro (totali veri, vocali, posizione) ==');
+try {
+  const levels = require(path.join(DB_DIR, 'levels.js'));
+  const { load, save, dbFile } = require(path.join(DB_DIR, 'jsonDb.js'));
+  const LQ = 'qatest_lv';
+  for (const fn of ['getLevel', 'addXp', 'getLeaderboard', 'getRankPosition', 'xpForLevel', 'totalXp']) {
+    if (typeof levels[fn] !== 'function') fail(`livelli: levels.${fn} mancante`);
+  }
+  // Totale reale sulla curva: L2 = 100 + 175 + resto.
+  if (levels.totalXp({ level: 2, xp: 50 }) !== 325) fail('livelli: totalXp errato');
+  // Record vecchio senza voiceMinutes -> backfill 0, mai NaN.
+  const r1 = levels.addXp(LQ, 'u1', 100, { messages: 0, voiceMinutes: 30 });
+  if (r1.voiceMinutes !== 30 || r1.messageCount !== 0) fail('livelli: tracking vocale separato rotto');
+  const r2 = levels.addXp(LQ, 'u2', 50);
+  if (r2.messageCount !== 1 || r2.voiceMinutes !== 0) fail('livelli: default messaggi rotto');
+  levels.addXp(LQ, 'u3', 1000);
+  const lb = levels.getLeaderboard(LQ, 10);
+  if (lb.map((e) => e.id).join() !== 'u3,u1,u2') fail(`livelli: ordine per totale vero rotto (${lb.map((e) => e.id)})`);
+  if (levels.getRankPosition(LQ, 'u1') !== 2) fail('livelli: posizione errata');
+  if (levels.getRankPosition(LQ, 'fantasma') !== null) fail('livelli: fantasma dovrebbe essere null');
+  const f = dbFile('levels');
+  const db = load(f);
+  delete db[LQ];
+  save(f, db);
+  if (load(f)[LQ] !== undefined) fail('livelli: cleanup QA fallito');
+  console.log('livelli: totali veri, vocali separati, posizioni ok');
+} catch (e) {
+  fail(`livelli (qatest): ${e.message.split('\n')[0]}`);
+}
+
 // ------------------------------------------------------------------ REPORT
 function report() {
 console.log('\n================ SMOKE TEST ================');

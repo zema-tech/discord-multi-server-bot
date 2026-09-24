@@ -100,7 +100,8 @@ module.exports = {
         const xp = Math.min(minutes * XP_PER_MINUTE, MAX_XP_PER_SESSION);
         let res;
         try {
-          res = addXp(guildId, userId, xp);
+          // XP vocale: minuti tracciati a parte, niente messaggi conteggiati.
+          res = addXp(guildId, userId, xp, { messages: 0, voiceMinutes: minutes });
         } catch {
           return;
         }
