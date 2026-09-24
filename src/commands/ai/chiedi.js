@@ -60,12 +60,12 @@ module.exports = {
 
     const systemPrompt = resolveSystemPrompt(interaction.guildId);
 
-    // Cervello del server (skill/memorie/file): mai rompere il flusso se fallisce.
+    // Cervello del server (profilo/skill/memorie/file/persona): mai rompere il flusso se fallisce.
     let brainSystem = '';
     let brainSources = '';
     try {
       const { buildContext, sourcesLine } = require('../../brain/kernel');
-      const ctx = buildContext({ guildId: interaction.guildId, query: domanda });
+      const ctx = buildContext({ guildId: interaction.guildId, query: domanda, userId: interaction.user?.id, guild: interaction.guild });
       brainSystem = ctx.system;
       brainSources = sourcesLine(ctx.sources);
     } catch {}
@@ -78,6 +78,14 @@ module.exports = {
       return;
     }
 
+    // Auto-apprendimento: fatti importanti detti dall'utente (mai fatale).
+    let learned = '';
+    try {
+      const { learnFrom } = require('../../brain/learn');
+      const res = learnFrom(interaction.guildId, interaction.user?.id, domanda, interaction.user?.username);
+      if (res && res !== 'dup') learned = res;
+    } catch {}
+
     const embed = new EmbedBuilder()
       .setColor(COLORS.primary)
       .setTitle('🤖 Risposta AI')
@@ -86,7 +94,7 @@ module.exports = {
     applyFooter(embed, interaction);
     try {
       const base = embed.data?.footer?.text ?? `Richiesto da ${interaction?.user?.username ?? 'Utente'}`;
-      const extra = `${brainSources ? ` • 🧠 ${brainSources}` : ''} • powered by AI gratuita`;
+      const extra = `${brainSources ? ` • 🧠 ${brainSources}` : ''}${learned ? ' • 🧠 +1 ricordo' : ''} • powered by AI gratuita`;
       embed.setFooter({ text: truncate(`${base}${extra}`, 2048) });
     } catch {}
 

@@ -4,6 +4,8 @@ const {
 const skills = require('../../brain/skills');
 const memory = require('../../brain/memory');
 const files = require('../../brain/files');
+const people = require('../../brain/people');
+const profile = require('../../brain/profile');
 
 function needGuild(interaction) {
   if (!interaction.guild) {
@@ -83,7 +85,16 @@ module.exports = {
     .addSubcommand((s) => s.setName('file-leggi').setDescription('Leggi un file (staff)')
       .addStringOption((o) => o.setName('nome').setDescription('Nome file').setRequired(true).setMaxLength(64)))
     .addSubcommand((s) => s.setName('file-rimuovi').setDescription('Elimina un file (staff)')
-      .addStringOption((o) => o.setName('nome').setDescription('Nome file').setRequired(true).setMaxLength(64))),
+      .addStringOption((o) => o.setName('nome').setDescription('Nome file').setRequired(true).setMaxLength(64)))
+    .addSubcommand((s) => s.setName('persona-mostra').setDescription('Mostra i ricordi su di te (o di un utente, staff)')
+      .addUserOption((o) => o.setName('utente').setDescription('Utente (solo staff)').setRequired(false)))
+    .addSubcommand((s) => s.setName('persona-dimentica').setDescription('Dimentica un ricordo (numero o testo)')
+      .addStringOption((o) => o.setName('rif').setDescription('Numero dalla lista o parte del testo (o "tutto")').setRequired(true).setMaxLength(200))
+      .addUserOption((o) => o.setName('utente').setDescription('Utente (solo staff)').setRequired(false)))
+    .addSubcommand((s) => s.setName('profilo').setDescription('Mostra la scheda del server vista dall\u2019AI'))
+    .addSubcommand((s) => s.setName('profilo-imposta').setDescription('Nota libera sul server per l\u2019AI (staff)')
+      .addStringOption((o) => o.setName('testo').setDescription('Max 1000 caratteri').setRequired(true).setMaxLength(1000)))
+    .addSubcommand((s) => s.setName('profilo-reset').setDescription('Rimuove la nota staff sul server (staff)')),
   cooldown: 5,
   async execute(interaction) {
     if (!needGuild(interaction)) return;
@@ -93,7 +104,15 @@ module.exports = {
       'skill-crea', 'skill-toggle', 'skill-rimuovi',
       'memoria-salva', 'memoria-mostra', 'memoria-dimentica',
       'file-aggiungi', 'file-leggi', 'file-rimuovi',
+      'profilo-imposta', 'profilo-reset',
     ].includes(s);
+    // persona-*: sui propri dati chiunque; sui dati altrui serve lo staff.
+    const targetUser = interaction.options.getUser
+      ? interaction.options.getUser('utente', false)
+      : null;
+    if ((sub === 'persona-mostra' || sub === 'persona-dimentica') && targetUser && targetUser.id !== interaction.user.id) {
+      if (!needStaff(interaction)) return;
+    }
 
     try {
       // ---- stato ----
@@ -102,14 +121,18 @@ module.exports = {
         const notes = memory.listNotes(gid);
         const fs_ = files.listFiles(gid);
         const bytes = files.guildBytes(gid);
+        const np = people.countPeople(gid);
+        const hasProfile = profile.getOverride(gid) ? 'sì' : 'no';
         const embed = new EmbedBuilder()
           .setColor(0x5865f2)
           .setTitle('🧠 Cervello del server')
           .setDescription(
             `**Skill:** ${sk.filter((s) => s.enabled).length}/${sk.length} attive\n` +
             `**Memorie:** ${notes.length} note\n` +
-            `**File:** ${fs_.length} (${Math.round(bytes / 1024)}KB / 1024KB)\n\n` +
-            'L\u2019AI usa skill, memorie e file per rispondere in modo pertinente (/chiedi, menzioni, ticket).'
+            `**File:** ${fs_.length} (${Math.round(bytes / 1024)}KB / 1024KB)\n` +
+            `**Persone:** ${np} con ricordi\n` +
+            `**Scheda server:** ${hasProfile === 'sì' ? 'auto + nota staff' : 'auto'}\n\n` +
+            'L\u2019AI usa skill, memorie, file, scheda server e ricordi per rispondere in modo pertinente (/chiedi, menzioni, ticket).'
           )
           .setTimestamp();
         return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral }).catch(() => null);
@@ -137,6 +160,49 @@ module.exports = {
           .setFooter({ text: `Scope: ${sk.scope}` })
           .setTimestamp();
         return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral }).catch(() => null);
+      }
+      // ---- persone e profilo ----
+      if (sub === 'persona-mostra') {
+        const uid = targetUser ? targetUser.id : interaction.user.id;
+        const facts = people.getFacts(gid, uid);
+        const label = targetUser ? `<@${uid}>` : 'te';
+        if (!facts.length) return err(interaction, `Nessun ricordo su ${label}. L\u2019AI memorizza i fatti importanti che dici (es. "ricordati che odio il giallo").`);
+        const embed = new EmbedBuilder()
+          .setColor(0x5865f2)
+          .setTitle(`🧑 Ricordi su ${targetUser ? targetUser.username : 'di te'} (${facts.length})`)
+          .setDescription(facts.map((f, i) => `**${i + 1}.** ${f}`).join('\n').slice(0, 4000))
+          .setFooter({ text: 'Dimentica con /brain persona-dimentica' })
+          .setTimestamp();
+        return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral }).catch(() => null);
+      }
+      if (sub === 'persona-dimentica') {
+        const uid = targetUser ? targetUser.id : interaction.user.id;
+        const rif = interaction.options.getString('rif', true);
+        if (rif.trim().toLowerCase() === 'tutto') {
+          const ok = people.forgetAll(gid, uid);
+          return interaction.reply({ content: ok ? '✅ Tutti i ricordi dimenticati.' : '❌ Nessun ricordo da dimenticare.', flags: MessageFlags.Ephemeral }).catch(() => null);
+        }
+        const removed = people.removeFact(gid, uid, rif);
+        return interaction.reply({ content: removed ? `✅ Dimenticato: "${removed.slice(0, 150)}"` : '❌ Ricordo non trovato (usa il numero di `/brain persona-mostra`).', flags: MessageFlags.Ephemeral }).catch(() => null);
+      }
+      if (sub === 'profilo') {
+        const scheda = profile.getProfile(interaction.guild, gid);
+        const embed = new EmbedBuilder()
+          .setColor(0x5865f2)
+          .setTitle('🏰 Scheda del server')
+          .setDescription((scheda || 'Nessuna informazione.').slice(0, 4000))
+          .setTimestamp();
+        return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral }).catch(() => null);
+      }
+      if (staffOnly(sub) && !needStaff(interaction)) return;
+
+      if (sub === 'profilo-imposta') {
+        profile.saveOverride(gid, interaction.options.getString('testo', true));
+        return interaction.reply({ content: '✅ Nota server salvata: l\u2019AI la userà come contesto.', flags: MessageFlags.Ephemeral }).catch(() => null);
+      }
+      if (sub === 'profilo-reset') {
+        const ok = profile.clearOverride(gid);
+        return interaction.reply({ content: ok ? '✅ Nota server rimossa.' : '❌ Nessuna nota da rimuovere.', flags: MessageFlags.Ephemeral }).catch(() => null);
       }
       if (staffOnly(sub) && !needStaff(interaction)) return;
 

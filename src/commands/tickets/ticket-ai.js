@@ -58,11 +58,11 @@ function isStaff(member, ticketConfig) {
   }
 }
 
-/** Contesto cervello (skill/memorie/file) sulla conversazione: mai fatale. */
-function brainExtra(guildId, text) {
+/** Contesto cervello (profilo/skill/memorie/file) sulla conversazione: mai fatale. */
+function brainExtra(guildId, text, guild = null) {
   try {
     const { buildContext, sourcesLine } = require('../../brain/kernel');
-    const ctx = buildContext({ guildId, query: text });
+    const ctx = buildContext({ guildId, query: text, guild });
     return { system: ctx.system, sources: sourcesLine(ctx.sources) };
   } catch {
     return { system: '', sources: '' };
@@ -126,7 +126,7 @@ module.exports = {
 
     if (sub === 'riassumi') {
       let riassunto;
-      const brain = brainExtra(interaction.guild.id, conversazione);
+      const brain = brainExtra(interaction.guild.id, conversazione, interaction.guild);
       try {
         riassunto = await askAI(
           `Riassumi questo ticket di assistenza in esattamente 5 punti brevi:\n${conversazione}`,
@@ -150,7 +150,7 @@ module.exports = {
 
     // ---- suggerisci ----
     let bozza;
-    const brainSugg = brainExtra(interaction.guild.id, conversazione);
+    const brainSugg = brainExtra(interaction.guild.id, conversazione, interaction.guild);
     try {
       bozza = await askAI(
         `Scrivi una bozza di risposta dello staff per questo ticket di assistenza:\n${conversazione}`,

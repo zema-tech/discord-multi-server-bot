@@ -1973,6 +1973,79 @@ try {
   fail(`commander (qatest): ${e.message.split('\n')[0]}`);
 }
 
+// ------------------------------------------------- (c7) CERVELLO (people/profilo/learn)
+console.log('== [7/5] Cervello (memoria persone, profilo server, auto-learn) ==');
+try {
+  const fs = require('fs');
+  const os = require('os');
+  const qaBrain = fs.mkdtempSync(path.join(os.tmpdir(), 'brain-qa-'));
+  process.env.BRAIN_DIR = qaBrain;
+  const people = require(path.join(ROOT, 'src', 'brain', 'people.js'));
+  const learn = require(path.join(ROOT, 'src', 'brain', 'learn.js'));
+  const profile = require(path.join(ROOT, 'src', 'brain', 'profile.js'));
+  const kernel = require(path.join(ROOT, 'src', 'brain', 'kernel.js'));
+
+  // people: CRUD + isolamento guild + dedup + cap input
+  if (people.saveFact(QGUILD, '111', 'odio il giallo', 'Qa') !== true) fail('cervello: saveFact dovrebbe ritornare true');
+  if (people.saveFact(QGUILD, '111', 'ODIO il GIALLO', 'Qa') !== false) fail('cervello: dedup case-insensitive rotto');
+  if (people.getFacts(QGUILD, '111').join() !== 'odio il giallo') fail('cervello: getFacts inatteso');
+  if (people.getFacts('altra_guild', '111').length !== 0) fail('cervello: fatti trapelati tra guild!');
+  if (people.removeFact(QGUILD, '111', 'giallo') !== 'odio il giallo') fail('cervello: removeFact inatteso');
+  try {
+    people.saveFact(QGUILD, '111', 'x'.repeat(500), 'Qa');
+    fail('cervello: fatto oltre cap dovrebbe lanciare');
+  } catch {}
+  people.saveFact(QGUILD, '111', 'tifa Napoli', 'Qa');
+  if (people.forgetAll(QGUILD, '111') !== true || people.getFacts(QGUILD, '111').length !== 0) {
+    fail('cervello: forgetAll non pulisce');
+  }
+
+  // learn: pattern forti sì, rumore no, mai throw
+  const learnCases = [
+    ['ricordati che odio il giallo', 'odio il giallo'],
+    ['tifo Napoli', 'tifa Napoli'],
+    ['sono allergico alle noci', 'è allergico alle noci'],
+    ['che ore sono?', null],
+    ['/chiedi ciao', null],
+    ['ciao come va', null],
+  ];
+  for (const [msg, want] of learnCases) {
+    const got = learn.extractFact(msg);
+    if (got !== want) fail(`cervello: extractFact(${msg}) atteso ${want}, ottenuto ${got}`);
+  }
+  if (learn.learnFrom(QGUILD, '222', 'ricordati che amo la pizza', 'Qa') !== 'amo la pizza') {
+    fail('cervello: learnFrom non salva');
+  }
+  if (learn.learnFrom(QGUILD, '222', 'ricordati che amo la pizza', 'Qa') !== 'dup') {
+    fail('cervello: learnFrom dovrebbe segnalare dup');
+  }
+  people.forgetAll(QGUILD, '222');
+
+  // profile: snapshot puro + override, mai throw
+  const snap = profile.snapshotGuild({ name: 'QA', memberCount: 10, preferredLocale: 'it', channels: { cache: { filter: () => ({ map: () => ['a'] }) } } });
+  if (!snap.includes('QA') || !snap.includes('10 membri')) fail(`cervello: snapshot inatteso ${snap}`);
+  if (profile.snapshotGuild(null) !== '') fail('cervello: snapshot null dovrebbe essere stringa vuota');
+  profile.saveOverride(QGUILD, 'Server di test QA');
+  const scheda = profile.getProfile({ name: 'QA', id: QGUILD }, QGUILD);
+  if (!scheda.includes('QA') || !scheda.includes('test QA')) fail('cervello: profilo senza snapshot+override');
+  profile.clearOverride(QGUILD);
+
+  // kernel retrocompatibile: senza userId/guild non aggiunge persona/profilo
+  const kOld = kernel.buildContext({ guildId: QGUILD, query: 'ciao' });
+  if (kOld.sources.some((s) => s.type === 'persona')) fail('cervello: kernel senza userId non deve avere persona');
+  people.saveFact(QGUILD, '333', 'odio il giallo', 'Qa');
+  const kNew = kernel.buildContext({ guildId: QGUILD, query: 'giallo', userId: '333', guild: { name: 'QA', id: QGUILD } });
+  if (!kNew.sources.some((s) => s.type === 'persona')) fail('cervello: kernel con userId dovrebbe avere persona');
+  if (!kNew.sources.some((s) => s.type === 'profilo')) fail('cervello: kernel con guild dovrebbe avere profilo');
+  people.forgetAll(QGUILD, '333');
+
+  delete process.env.BRAIN_DIR;
+  fs.rmSync(qaBrain, { recursive: true, force: true });
+  console.log('cervello: people/profilo/learn/kernel ok (isolamento guild verificato)');
+} catch (e) {
+  fail(`cervello (qatest): ${e.message.split('\n')[0]}`);
+}
+
 // ------------------------------------------------------------------ REPORT
 function report() {
 console.log('\n================ SMOKE TEST ================');

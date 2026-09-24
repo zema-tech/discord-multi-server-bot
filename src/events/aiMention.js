@@ -97,8 +97,16 @@ module.exports = {
       // Cervello del server: mai rompere il flusso se fallisce.
       try {
         const { buildContext } = require('../brain/kernel');
-        const ctx = buildContext({ guildId: message.guild.id, query: domanda });
+        const ctx = buildContext({ guildId: message.guild.id, query: domanda, userId: message.author.id, guild: message.guild });
         if (ctx.system) system = `${system}\n\n${ctx.system}`;
+      } catch {}
+
+      // Auto-apprendimento: fatti importanti detti dall'utente (mai fatale).
+      let learned = '';
+      try {
+        const { learnFrom } = require('../brain/learn');
+        const res = learnFrom(message.guild.id, message.author.id, domanda, message.author.username);
+        if (res && res !== 'dup') learned = res;
       } catch {}
 
       let risposta;
@@ -112,7 +120,8 @@ module.exports = {
       }
 
       try {
-        await message.reply(risposta.slice(0, MAX_REPLY_CHARS));
+        const suffix = learned ? `\n\n🧠 *Memorizzato: ${learned.slice(0, 120)}*` : '';
+        await message.reply((risposta + suffix).slice(0, MAX_REPLY_CHARS + suffix.length));
       } catch {}
     } catch {}
   },
