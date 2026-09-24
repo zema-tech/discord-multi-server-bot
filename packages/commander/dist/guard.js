@@ -69,7 +69,8 @@ function withTimeout(fn, ms) {
 /**
  * Esegue `fn` isolata con timeout. Registra l'errore via `onError`
  * (il chiamante decide dove: registry.recordError) e non lancia mai.
- */ async function executeIsolated(fn, opts) {
+ */
+async function executeIsolated(fn, opts) {
     const timeoutMs = typeof opts.timeoutMs === "number" && opts.timeoutMs > 0 ? opts.timeoutMs : types_js_1.DEFAULT_COMMAND_TIMEOUT_MS;
     const res = await withTimeout(fn, timeoutMs);
     if (res.timedOut) {

@@ -26,7 +26,8 @@ export declare function withTimeout<T>(fn: () => Promise<T>, ms: number): Promis
 /**
  * Esegue `fn` isolata con timeout. Registra l'errore via `onError`
  * (il chiamante decide dove: registry.recordError) e non lancia mai.
- */ export declare function executeIsolated(fn: () => Promise<unknown>, opts: {
+ */
+export declare function executeIsolated(fn: () => Promise<unknown>, opts: {
     featureId: string | null;
     timeoutMs?: number;
     onError?: (featureId: string | null, error: unknown) => void;

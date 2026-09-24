@@ -74,7 +74,8 @@ export function withTimeout<T>(fn: () => Promise<T>, ms: number): Promise<Timeou
 /**
  * Esegue `fn` isolata con timeout. Registra l'errore via `onError`
  * (il chiamante decide dove: registry.recordError) e non lancia mai.
- */export async function executeIsolated(
+ */
+export async function executeIsolated(
   fn: () => Promise<unknown>,
   opts: {
     featureId: string | null;
