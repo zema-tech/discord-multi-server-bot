@@ -119,8 +119,9 @@ function buildHealthPayload(client) {
   } catch { /* default standalone */ }
   let features = 0;
   try {
-    const registry = require('../modules/registry');
-    if (registry && typeof registry.list === 'function') features = registry.list().length;
+    // Via Commander (orchestratore): la dashboard non tocca mai il registry diretto.
+    const commander = require('../modules/commander');
+    if (commander && typeof commander.listModules === 'function') features = commander.listModules().length;
   } catch { features = 0; }
   return {
     ok: true,

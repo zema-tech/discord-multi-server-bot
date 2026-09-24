@@ -2046,6 +2046,36 @@ try {
   fail(`cervello (qatest): ${e.message.split('\n')[0]}`);
 }
 
+// ------------------------------------------------- (c8) ORCHESTRATORE (no bypass)
+// Dashboard e /modulo parlano ai moduli SOLO via Commander: vietato
+// require diretto di modules/registry (domani cambia solo il trasporto).
+console.log('== [8/5] Orchestratore (dashboard/modulo via Commander) ==');
+try {
+  const dashDir = path.join(ROOT, 'src', 'dashboard');
+  const dashFiles = fs.readdirSync(dashDir).filter((f) => f.endsWith('.js'));
+  for (const f of dashFiles) {
+    const src = fs.readFileSync(path.join(dashDir, f), 'utf8');
+    if (/(?:require|safeRequire)\(['"]\.\.\/modules\/registry['"]\)/.test(src)) {
+      fail(`orchestratore: src/dashboard/${f} richiede modules/registry diretto (usare modules/commander)`);
+    }
+  }
+  const moduloSrc = fs.readFileSync(path.join(ROOT, 'src', 'commands', 'utility', 'modulo.js'), 'utf8');
+  if (/require\(['"]\.\.\/\.\.\/modules\/registry['"]\)/.test(moduloSrc)) {
+    fail('orchestratore: modulo.js richiede modules/registry diretto (usare modules/commander)');
+  }
+  // La facciata esiste e risponde (su guild QA, senza sporcare i file).
+  const commander = require(path.join(ROOT, 'src', 'modules', 'commander.js'));
+  for (const fn of ['listModules', 'moduleHealth', 'setModuleEnabled', 'reloadModule', 'resetModule']) {
+    if (typeof commander[fn] !== 'function') fail(`orchestratore: commander.${fn} mancante`);
+  }
+  if (!Array.isArray(commander.listModules()) || !commander.listModules().length) {
+    fail('orchestratore: listModules vuota');
+  }
+  console.log('orchestratore: nessun bypass, facciata completa');
+} catch (e) {
+  fail(`orchestratore (qatest): ${e.message.split('\n')[0]}`);
+}
+
 // ------------------------------------------------------------------ REPORT
 function report() {
 console.log('\n================ SMOKE TEST ================');

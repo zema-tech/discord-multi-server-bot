@@ -802,12 +802,13 @@ function createApiRouter(client) {
         }
       } catch { /* extra opzionale: mai 500 per questo */ }
 
-      // Controller feature: stato on/off + salute per modulo (mai 500).
+      // Controller feature via Commander (orchestratore): stato on/off + salute
+      // per modulo (mai 500). La dashboard non richiede mai il registry diretto.
       let controller = [];
       try {
-        const registry = safeRequire('../modules/registry');
-        if (registry && typeof registry.health === 'function') {
-          const h = registry.health(gid);
+        const commander = safeRequire('../modules/commander');
+        if (commander && typeof commander.moduleHealth === 'function') {
+          const h = commander.moduleHealth(gid);
           controller = Array.isArray(h) ? h : [];
         }
       } catch { controller = []; }
@@ -1228,10 +1229,11 @@ function createApiRouter(client) {
   }
 
   // ---- PUT /api/guilds/:gid/modules/controller ---------------------------
-  // Toggle on/off feature per guild. Body: { id, enabled:bool }.
+  // Toggle on/off feature per guild via Commander (orchestratore).
+  // Body: { id, enabled:bool }.
   function handleController(gid, req, res) {
-    const registry = safeRequire('../modules/registry');
-    if (!registry) return res.status(501).json({ errore: 'Controller non disponibile.' });
+    const commander = safeRequire('../modules/commander');
+    if (!commander) return res.status(501).json({ errore: 'Controller non disponibile.' });
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const { id, enabled } = body;
     if (!id || typeof id !== 'string') {
@@ -1241,8 +1243,7 @@ function createApiRouter(client) {
       return res.status(400).json({ errore: 'Campo enabled mancante: true o false.' });
     }
     try {
-      const updated = registry.setEnabled(gid, id, enabled);
-      const entry = (registry.health(gid) || []).find((h) => h.id === id) || updated;
+      const entry = commander.setModuleEnabled(gid, id, enabled);
       return res.json(sanitizeForJson({ ok: true, module: 'controller', controller: entry }));
     } catch (e) {
       return res.status(400).json({ errore: e && e.message ? e.message : 'Toggle fallito.' });

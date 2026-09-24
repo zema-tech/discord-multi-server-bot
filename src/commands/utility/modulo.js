@@ -71,12 +71,13 @@ module.exports = {
     ),
   cooldown: 3,
   async execute(interaction) {
-    const registry = require('../../modules/registry');
+    // Via Commander (orchestratore): mai registry diretto.
+    const commander = require('../../modules/commander');
     const sub = interaction.options.getSubcommand();
     const guildId = interaction.guild?.id || null;
 
     if (sub === 'stato') {
-      const list = registry.health(guildId);
+      const list = commander.moduleHealth(guildId);
       const righe = list.map((m) => {
         const flag = statusIcon(m);
         const extra = m.isolated ? ' · 🛡️ protezione' : (!m.enabled ? ' · spento' : (m.errors?.length ? ` · ${m.errors[0].count}x` : ''));
@@ -96,45 +97,30 @@ module.exports = {
       return interaction.reply({ embeds: [err('Ti serve il permesso **Gestisci Server**.')], flags: MessageFlags.Ephemeral }).catch(() => null);
     }
     const nome = String(interaction.options.getString('nome') || '').toLowerCase().trim();
-    if (!registry.ids().includes(nome)) {
+    if (!commander.listModules().some((m) => m.id === nome)) {
       return interaction.reply({ embeds: [err(`Modulo sconosciuto \`${nome}\`. Usa \`/modulo stato\` per la lista.`)], flags: MessageFlags.Ephemeral }).catch(() => null);
     }
 
     if (sub === 'on' || sub === 'off') {
       const enable = sub === 'on';
+      let entry;
       try {
-        registry.setEnabled(guildId, nome, enable);
+        entry = commander.setModuleEnabled(guildId, nome, enable);
       } catch (e) {
         return interaction.reply({ embeds: [err(e?.message || 'Toggle fallito.')], flags: MessageFlags.Ephemeral }).catch(() => null);
       }
-      const entry = (registry.health(guildId) || []).find((h) => h.id === nome);
       const stato = enable ? 'riattivato ✅' : 'disattivato ⏸️';
       return interaction.reply({ embeds: [withFooter(ok(`Modulo ${nome} ${stato}`, `${entry?.title || nome} — ${entry?.description || ''}\nComandi: ${entry?.commands ?? '?'} · Errori azzerati, protezione rimossa.`.slice(0, 4000)), interaction)] }).catch(() => null);
     }
 
     if (sub === 'reload') {
-      // Reload senza restart: invalida la cache del registry + ricarica il
-      // file del modulo per validarne la sintassi. I comandi restano quelli
-      // già caricati in memoria (hot-swap completo = restart); qui si
-      // verifica che il modulo sia sano e si azzerano errori/protezione.
+      // Reload senza restart via Commander: valida la sintassi, ricarica il
+      // descrittore e azzera errori + protezione. I comandi restano quelli
+      // già caricati in memoria (hot-swap completo = restart).
       try {
-        const path = require('path');
-        const fs = require('fs');
-        const modFile = path.join(__dirname, '..', '..', 'modules', `${nome}.js`);
-        if (fs.existsSync(modFile)) {
-          delete require.cache[require.resolve(modFile)];
-          require(modFile); // lancia se sintassi rotta -> catch sotto
-        }
-        registry.reload();
-        registry.clearErrors(guildId, nome);
-        const entry = (registry.health(guildId) || []).find((h) => h.id === nome);
-        if (!entry) throw new Error('modulo sparito dopo il reload');
+        const entry = commander.reloadModule(guildId, nome);
         return interaction.reply({ embeds: [withFooter(ok(`Modulo ${nome} ricaricato ✅`, `${entry.title} — ${entry.commands} comandi · protezione azzerata, nessun restart.`.slice(0, 4000)), interaction)] }).catch(() => null);
       } catch (e) {
-        try {
-          const feat = nome;
-          registry.recordError(feat, guildId, e);
-        } catch {}
         return interaction.reply({ embeds: [err(`Reload fallito per \`${nome}\`: ${(e?.message || e).toString().slice(0, 1500)}\nIl resto del bot resta attivo.`)], flags: MessageFlags.Ephemeral }).catch(() => null);
       }
     }

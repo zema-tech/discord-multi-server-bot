@@ -152,11 +152,115 @@ async function guardEvent(file, event, args, client) {
   }
 }
 
+// ------------------------------------------------------------------
+// Facciata orchestratore: UNICO ingresso per dashboard e /modulo verso i
+// moduli (lista, salute, toggle, reload, reset protezione). La dashboard non
+// richiede mai il registry diretto: così domani cambia solo il trasporto
+// (in-process -> HTTP) senza riscrivere le chiamate.
+// ------------------------------------------------------------------
+
+/** Descrittori moduli (statici). [] se controller non disponibile. */
+function listModules() {
+  try {
+    const registry = getRegistry();
+    if (registry && typeof registry.list === 'function') return registry.list();
+  } catch { /* default sotto */ }
+  return [];
+}
+
+/** Salute moduli per guild. [] in errore (mai lanciare). */
+function moduleHealth(guildId) {
+  try {
+    const registry = getRegistry();
+    if (registry && typeof registry.health === 'function') {
+      const h = registry.health(guildId);
+      return Array.isArray(h) ? h : [];
+    }
+  } catch { /* default sotto */ }
+  return [];
+}
+
+function healthEntry(guildId, id) {
+  try {
+    return (moduleHealth(guildId) || []).find((h) => h && h.id === id) || null;
+  } catch { return null; }
+}
+
+function assertModuleId(id) {
+  const nome = String(id || '').toLowerCase().trim();
+  if (!nome) throw new Error('ID modulo mancante.');
+  const registry = getRegistry();
+  let ids = [];
+  try {
+    ids = typeof registry?.ids === 'function' ? registry.ids() : [];
+  } catch { ids = []; }
+  if (!ids.includes(nome)) throw new Error(`Modulo sconosciuto \`${nome}\`.`);
+  return nome;
+}
+
+/**
+ * Toggle on/off per guild. Ritorna la voce salute aggiornata.
+ * Riattivare azzera anche protezione ed errori (via registry).
+ */
+function setModuleEnabled(guildId, id, enabled) {
+  const nome = assertModuleId(id);
+  const registry = getRegistry();
+  if (!registry || typeof registry.setEnabled !== 'function') {
+    throw new Error('Controller moduli non disponibile.');
+  }
+  const updated = registry.setEnabled(guildId, nome, enabled === true);
+  return healthEntry(guildId, nome) || updated;
+}
+
+/**
+ * Reload senza restart: ricarica il descrittore (sintassi validata),
+ * azzera errori E protezione breaker. Ritorna la voce salute.
+ */
+function reloadModule(guildId, id) {
+  const nome = assertModuleId(id);
+  const registry = getRegistry();
+  if (!registry) throw new Error('Controller moduli non disponibile.');
+  try {
+    const path = require('path');
+    const fs = require('fs');
+    const modFile = path.join(__dirname, `${nome}.js`);
+    if (fs.existsSync(modFile)) {
+      delete require.cache[require.resolve(modFile)];
+      require(modFile); // lancia se sintassi rotta
+    }
+    if (typeof registry.reload === 'function') registry.reload();
+  } catch (e) {
+    try { registry?.recordError?.(nome, guildId, e); } catch {}
+    throw e;
+  }
+  try { registry.clearErrors?.(guildId, nome); } catch {}
+  try { registry.resetBreaker?.(guildId, nome); } catch {}
+  const entry = healthEntry(guildId, nome);
+  if (!entry) throw new Error('modulo sparito dopo il reload');
+  return entry;
+}
+
+/** Azzera errori + protezione di un modulo. Ritorna la voce salute. */
+function resetModule(guildId, id) {
+  const nome = assertModuleId(id);
+  const registry = getRegistry();
+  if (!registry) throw new Error('Controller moduli non disponibile.');
+  try { registry.clearErrors?.(guildId, nome); } catch {}
+  try { registry.resetBreaker?.(guildId, nome); } catch {}
+  return healthEntry(guildId, nome);
+}
+
 module.exports = {
   executeCommand,
   checkGate,
   guardEvent,
   featureOfEvent,
   featureOfComponent,
+  // Facciata orchestratore: unico ingresso per dashboard e /modulo.
+  listModules,
+  moduleHealth,
+  setModuleEnabled,
+  reloadModule,
+  resetModule,
   DEFAULT_TIMEOUT_MS,
 };
