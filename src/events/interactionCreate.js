@@ -4,6 +4,39 @@ const { logger, logCommand } = require('../utils/logger');
 module.exports = {
   name: Events.InteractionCreate,
   async execute(interaction, client) {
+    // --- Commander gate su componenti (bottoni/select/modali): prima degli
+    // handler, come per i comandi. Modulo spento o in protezione -> stop qui.
+    // customId sconosciuto (fail-open) e DM: sempre consentiti.
+    try {
+      const isComponent = (
+        (typeof interaction.isButton === 'function' && interaction.isButton()) ||
+        (typeof interaction.isAnySelectMenu === 'function' && interaction.isAnySelectMenu()) ||
+        (typeof interaction.isStringSelectMenu === 'function' && interaction.isStringSelectMenu()) ||
+        (typeof interaction.isModalSubmit === 'function' && interaction.isModalSubmit())
+      );
+      if (isComponent && interaction.guild) {
+        const commander = require('../modules/commander');
+        const modules = require('../modules/registry');
+        const featureId = commander.featureOfComponent(interaction.customId);
+        if (featureId && typeof modules.canRun === 'function') {
+          const run = modules.canRun(interaction.guild.id, featureId);
+          if (run && run.ok === false) {
+            const msg = run.reason === 'isolated'
+              ? `🛡️ Il modulo \`${featureId}\` è in protezione automatica: componente disabilitato finché non si stabilizza.`
+              : `⏸️ Il modulo \`${featureId}\` è disattivato in questo server.`;
+            if (interaction.replied || interaction.deferred) {
+              await interaction.followUp({ content: msg, flags: MessageFlags.Ephemeral }).catch(() => {});
+            } else {
+              await interaction.reply({ content: msg, flags: MessageFlags.Ephemeral }).catch(() => {});
+            }
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      console.error('commander component gate:', e);
+    }
+
     // --- Ticket: select, modali e bottoni ---
     try {
       const ticketHandler = require('../handlers/ticketHandler');

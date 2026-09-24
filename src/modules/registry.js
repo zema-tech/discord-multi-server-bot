@@ -93,6 +93,25 @@ function featureOfCommand(name) {
   }
 }
 
+/** Feature di un evento Discord (primo descrittore che lo dichiara). null = nessuno. */
+function featureOfEvent(eventName) {
+  if (!eventName || typeof eventName !== 'string') return null;
+  try {
+    for (const f of loadAll()) {
+      if (Array.isArray(f.events) && f.events.includes(eventName)) return f.id;
+    }
+  } catch { /* best-effort */ }
+  return null;
+}
+
+/** Feature di un componente (bottone/select/modal) dal customId. null = fail-open. */
+function featureOfComponent(customId) {
+  try {
+    const { resolveComponentFeature } = require('../../packages/commander/dist/index.js');
+    return resolveComponentFeature(customId, (name) => featureOfCommand(name));
+  } catch { return null; }
+}
+
 function moduleState() {
   try {
     return require('../database/moduleState');
@@ -282,7 +301,7 @@ function health(guildId) {
 }
 
 module.exports = {
-  ids, get, list, isLocked, featureOfCommand,
+  ids, get, list, isLocked, featureOfCommand, featureOfEvent, featureOfComponent,
   isEnabled, setEnabled, recordError, getErrors, clearErrors, health,
   canRun, isIsolated, resetBreaker, reload,
   BREAKER_THRESHOLD, BREAKER_WINDOW_MS,

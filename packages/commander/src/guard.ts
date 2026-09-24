@@ -74,8 +74,7 @@ export function withTimeout<T>(fn: () => Promise<T>, ms: number): Promise<Timeou
 /**
  * Esegue `fn` isolata con timeout. Registra l'errore via `onError`
  * (il chiamante decide dove: registry.recordError) e non lancia mai.
- */
-export async function executeIsolated(
+ */export async function executeIsolated(
   fn: () => Promise<unknown>,
   opts: {
     featureId: string | null;
@@ -104,4 +103,53 @@ export async function executeIsolated(
     return { ok: false, timedOut: false, featureId: opts.featureId, error: res.error };
   }
   return { ok: true, timedOut: false, featureId: opts.featureId };
+}
+
+/**
+ * customId (bottoni/select/modal) -> feature. Strategia:
+ * 1. match esatto (modali embed builder),
+ * 2. testa prima dei ':' -> nome comando (bottoni dinamici `trivia:uid:...`),
+ * 3. prefissi statici (`ticket_`, `rr_`, `nuke_`, `wizard_`, `embed_`).
+ * Sconosciuto -> null (fail-open: i collettori effimeri vivono già sotto gate).
+ */
+export const COMPONENT_PREFIXES: Array<[string, string]> = [
+  ["ticketai_", "tickets"],
+  ["ticket_", "tickets"],
+  ["rr_", "reactionRoles"],
+  ["nuke_", "moderation"],
+  ["wizard_", "utility"],
+  ["embed_", "utility"],
+];
+
+export const COMPONENT_EXACT: Record<string, string> = {
+  embed_builder: "utility",
+  titolo: "utility",
+  descrizione: "utility",
+  colore: "utility",
+  footer: "utility",
+  immagine: "utility",
+};
+
+export function resolveComponentFeature(
+  customId: unknown,
+  commandFeature: (name: string) => string | null,
+): string | null {
+  if (typeof customId !== "string" || !customId) return null;
+  const head = customId.split(":")[0];
+  if (Object.prototype.hasOwnProperty.call(COMPONENT_EXACT, head)) {
+    return COMPONENT_EXACT[head];
+  }
+  try {
+    const fromCommand = commandFeature(head);
+    if (fromCommand) return fromCommand;
+  } catch {
+    /* fail-open sotto */
+  }
+  const candidates = head !== customId ? [head, customId] : [customId];
+  for (const c of candidates) {
+    for (const [prefix, featureId] of COMPONENT_PREFIXES) {
+      if (c.startsWith(prefix)) return featureId;
+    }
+  }
+  return null;
 }

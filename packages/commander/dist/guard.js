@@ -1,8 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.COMPONENT_EXACT = exports.COMPONENT_PREFIXES = void 0;
 exports.checkGate = checkGate;
 exports.withTimeout = withTimeout;
 exports.executeIsolated = executeIsolated;
+exports.resolveComponentFeature = resolveComponentFeature;
 const types_js_1 = require("./types.js");
 /**
  * Gate unificato: toggle persistente + circuit-breaker.
@@ -67,8 +69,7 @@ function withTimeout(fn, ms) {
 /**
  * Esegue `fn` isolata con timeout. Registra l'errore via `onError`
  * (il chiamante decide dove: registry.recordError) e non lancia mai.
- */
-async function executeIsolated(fn, opts) {
+ */ async function executeIsolated(fn, opts) {
     const timeoutMs = typeof opts.timeoutMs === "number" && opts.timeoutMs > 0 ? opts.timeoutMs : types_js_1.DEFAULT_COMMAND_TIMEOUT_MS;
     const res = await withTimeout(fn, timeoutMs);
     if (res.timedOut) {
@@ -91,5 +92,52 @@ async function executeIsolated(fn, opts) {
         return { ok: false, timedOut: false, featureId: opts.featureId, error: res.error };
     }
     return { ok: true, timedOut: false, featureId: opts.featureId };
+}
+/**
+ * customId (bottoni/select/modal) -> feature. Strategia:
+ * 1. match esatto (modali embed builder),
+ * 2. testa prima dei ':' -> nome comando (bottoni dinamici `trivia:uid:...`),
+ * 3. prefissi statici (`ticket_`, `rr_`, `nuke_`, `wizard_`, `embed_`).
+ * Sconosciuto -> null (fail-open: i collettori effimeri vivono già sotto gate).
+ */
+exports.COMPONENT_PREFIXES = [
+    ["ticketai_", "tickets"],
+    ["ticket_", "tickets"],
+    ["rr_", "reactionRoles"],
+    ["nuke_", "moderation"],
+    ["wizard_", "utility"],
+    ["embed_", "utility"],
+];
+exports.COMPONENT_EXACT = {
+    embed_builder: "utility",
+    titolo: "utility",
+    descrizione: "utility",
+    colore: "utility",
+    footer: "utility",
+    immagine: "utility",
+};
+function resolveComponentFeature(customId, commandFeature) {
+    if (typeof customId !== "string" || !customId)
+        return null;
+    const head = customId.split(":")[0];
+    if (Object.prototype.hasOwnProperty.call(exports.COMPONENT_EXACT, head)) {
+        return exports.COMPONENT_EXACT[head];
+    }
+    try {
+        const fromCommand = commandFeature(head);
+        if (fromCommand)
+            return fromCommand;
+    }
+    catch {
+        /* fail-open sotto */
+    }
+    const candidates = head !== customId ? [head, customId] : [customId];
+    for (const c of candidates) {
+        for (const [prefix, featureId] of exports.COMPONENT_PREFIXES) {
+            if (c.startsWith(prefix))
+                return featureId;
+        }
+    }
+    return null;
 }
 //# sourceMappingURL=guard.js.map

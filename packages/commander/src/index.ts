@@ -1,5 +1,5 @@
 export { Breaker } from "./breaker.js";
-export { checkGate, executeIsolated, withTimeout, type TimeoutResult } from "./guard.js";
+export { checkGate, executeIsolated, withTimeout, resolveComponentFeature, COMPONENT_PREFIXES, COMPONENT_EXACT, type TimeoutResult } from "./guard.js";
 export {
   BREAKER_THRESHOLD,
   BREAKER_WINDOW_MS,

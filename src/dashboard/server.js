@@ -110,11 +110,25 @@ function buildHealthPayload(client) {
       commands = client.commands.cache.size;
     }
   } catch { commands = 0; }
+  // mode onesto: embedded = client Discord reale (numeri veri), standalone =
+  // processo dashboard separato (guilds dal roster presence, commands non visibili).
+  let mode = 'standalone';
+  try {
+    const guildsMod = require('./guilds');
+    mode = guildsMod.isSource(client) ? 'standalone' : 'embedded';
+  } catch { /* default standalone */ }
+  let features = 0;
+  try {
+    const registry = require('../modules/registry');
+    if (registry && typeof registry.list === 'function') features = registry.list().length;
+  } catch { features = 0; }
   return {
     ok: true,
+    mode,
     uptimeSec: Math.floor(process.uptime()),
     guilds,
     commands,
+    features,
     backend: resolveDbBackend(),
     db: resolveDbBackend(),
     time: new Date().toISOString(),

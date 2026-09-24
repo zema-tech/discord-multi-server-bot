@@ -93,22 +93,28 @@ function checkGate(commandName, guildId) {
 }
 
 /**
- * Wrappa un listener eventi: esegue event.execute isolato.
- * Un modulo rotto logga + recordError, gli altri listener restano attivi.
- * featureId dedotto dalla mappa eventi del registry (best-effort).
+ * Feature di un evento Discord: delega al registry (unica mappa eventi).
+ * Resta qui come scorciatoia per i chiamanti del Commander.
  */
 function featureOfEvent(eventName) {
   try {
     const registry = getRegistry();
-    if (!registry) return null;
-    // get() non basta: scansiona tutti i descrittori.
-    const all = require('./registry').list ? null : null;
-    void all;
-    // Accesso diretto via loadAll non esposto: riusa health/get per id noti.
-    const ids = registry.ids();
-    for (const id of ids) {
-      const f = registry.get(id);
-      if (f && Array.isArray(f.events) && f.events.includes(eventName)) return id;
+    if (registry && typeof registry.featureOfEvent === 'function') {
+      return registry.featureOfEvent(eventName);
+    }
+  } catch { /* best-effort */ }
+  return null;
+}
+
+/**
+ * Feature di un componente (bottone/select/modal) dal customId.
+ * Delega al registry (mappa customId, core TS). null = fail-open.
+ */
+function featureOfComponent(customId) {
+  try {
+    const registry = getRegistry();
+    if (registry && typeof registry.featureOfComponent === 'function') {
+      return registry.featureOfComponent(customId);
     }
   } catch { /* best-effort */ }
   return null;
@@ -151,5 +157,6 @@ module.exports = {
   checkGate,
   guardEvent,
   featureOfEvent,
+  featureOfComponent,
   DEFAULT_TIMEOUT_MS,
 };

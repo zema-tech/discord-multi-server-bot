@@ -1870,7 +1870,111 @@ try {
   fail(`dashboard lotto: ${e.message.split('\n')[0]}`);
 }
 
+// ------------------------------------------------- (c6) COMMANDER (gate/breaker)
+// Verifica: modulo OFF -> comando bloccato; timeout/errore -> breaker senza
+// crash; featureOfComponent/featureOfEvent senza throw. Parte sync, parte
+// async: il REPORT aspetta `commanderPromise` (con keep-alive, perché i
+// timeout del Commander usano timer unref che da soli non tengono vivo il loop).
+console.log('== [6/5] Commander (gate, breaker, no-crash) ==');
+let commanderPromise = Promise.resolve();
+try {
+  const registry = require(path.join(ROOT, 'src', 'modules', 'registry.js'));
+  const commander = require(path.join(ROOT, 'src', 'modules', 'commander.js'));
+  const moduleState = require(path.join(DB_DIR, 'moduleState.js'));
+
+  // Mappa customId -> feature (componenti persistenti + bottoni dinamici).
+  const compCases = [
+    ['ticket_claim', 'tickets'],
+    ['ticket_close_modal', 'tickets'],
+    ['ticketai_publish', 'tickets'],
+    ['rr_select', 'reactionRoles'],
+    ['nuke_confirm:123', 'moderation'],
+    ['wizard_abort', 'utility'],
+    ['embed_builder', 'utility'],
+    ['titolo', 'utility'],
+    ['trivia:u:n:0', 'fun'],
+    ['preferiresti:a:b:si', 'fun'],
+    ['balance', 'economy'],
+    ['sconosciuto_xyz', null],
+    [null, null],
+  ];
+  for (const [cid, want] of compCases) {
+    let got;
+    try {
+      got = registry.featureOfComponent(cid);
+    } catch (e) {
+      fail(`commander: featureOfComponent(${cid}) lancia: ${e.message.split('\n')[0]}`);
+      continue;
+    }
+    if (got !== want) fail(`commander: featureOfComponent(${cid}) atteso ${want}, ottenuto ${got}`);
+  }
+
+  // Mappa eventi -> feature: mai throw, ritorna id o null.
+  for (const ev of ['guildMemberAdd', 'messageCreate', 'voiceStateUpdate', 'evento_che_non_esiste']) {
+    let got;
+    try {
+      got = registry.featureOfEvent(ev);
+    } catch (e) {
+      fail(`commander: featureOfEvent(${ev}) lancia: ${e.message.split('\n')[0]}`);
+      continue;
+    }
+    if (got !== null && typeof got !== 'string') fail(`commander: featureOfEvent(${ev}) tipo inatteso`);
+  }
+
+  // Modulo OFF -> comando bloccato; ON -> consentito (con ripristino file).
+  moduleState.setEnabled(QGUILD, 'economy', false);
+  const blocked = commander.checkGate('balance', QGUILD);
+  if (!blocked || blocked.ok !== false || blocked.reason !== 'disabled') {
+    fail(`commander: modulo OFF dovrebbe bloccare /balance, ottenuto ${JSON.stringify(blocked)}`);
+  }
+  moduleState.setEnabled(QGUILD, 'economy', true);
+  const allowed = commander.checkGate('balance', QGUILD);
+  if (!allowed || allowed.ok !== true) fail('commander: modulo ON dovrebbe consentire /balance');
+  if (moduleState.getDisabled(QGUILD).length !== 0) {
+    fail('commander: moduleState sporco dopo ripristino (chiave qatest rimasta)');
+  }
+
+  // Parte async: timeout -> errore isolato; 5 errori -> breaker; guardEvent no-crash.
+  const keepAlive = setInterval(() => {}, 250);
+  commanderPromise = (async () => {
+    try {
+      const hanging = { data: { name: 'balance' }, execute: () => new Promise(() => {}) };
+      const to = await commander.executeCommand(hanging, { guildId: QGUILD }, {}, { timeoutMs: 50 });
+      if (!to || to.ok !== false || to.timedOut !== true) {
+        fail(`commander: execute appeso dovrebbe andare in timeout, ottenuto ${JSON.stringify({ ok: to && to.ok, timedOut: to && to.timedOut })}`);
+      }
+      if (!to.error || to.error.code !== 'COMMANDER_TIMEOUT') {
+        fail('commander: timeout senza code COMMANDER_TIMEOUT');
+      }
+      for (let i = 0; i < 4; i += 1) registry.recordError('economy', QGUILD, new Error(`qa boom ${i}`));
+      if (!registry.isIsolated(QGUILD, 'economy')) fail('commander: dopo 5 errori economy dovrebbe essere isolata');
+      const gated = commander.checkGate('balance', QGUILD);
+      if (!gated || gated.ok !== false || gated.reason !== 'isolated') {
+        fail(`commander: modulo isolato dovrebbe bloccare /balance, ottenuto ${JSON.stringify(gated)}`);
+      }
+      const boom = { name: 'messageCreate', execute: async () => { throw new Error('qa boom evento'); } };
+      let gev;
+      try {
+        gev = await commander.guardEvent('qa-test.js', boom, [{ guildId: QGUILD }], {});
+      } catch (e) {
+        fail(`commander: guardEvent ha lanciato (doveva isolare): ${e.message.split('\n')[0]}`);
+      }
+      if (gev && gev.ok !== false) fail('commander: guardEvent su evento rotto atteso ok:false');
+    } finally {
+      try { registry.clearErrors(QGUILD, 'economy'); } catch {}
+      try { moduleState.setEnabled(QGUILD, 'economy', true); } catch {}
+      clearInterval(keepAlive);
+    }
+  })().catch((e) => {
+    fail(`commander async (qatest): ${e.message.split('\n')[0]}`);
+    try { clearInterval(keepAlive); } catch {}
+  });
+} catch (e) {
+  fail(`commander (qatest): ${e.message.split('\n')[0]}`);
+}
+
 // ------------------------------------------------------------------ REPORT
+function report() {
 console.log('\n================ SMOKE TEST ================');
 console.log(`Comandi: ${commandFiles.length} file, ${seenNames.size} nomi unici (${[...seenNames.keys()].sort().join(', ')})`);
 console.log(`Eventi: ${eventFiles.length} file (${[...seenEvents.keys()].sort().join(', ')})`);
@@ -1886,3 +1990,8 @@ if (errors.length) {
 } else {
   console.log('\n✅ Tutto ok: comandi, eventi e database superano lo smoke test.');
 }
+}
+
+// Il REPORT aspetta i test async del Commander (c6): errori registrati dopo
+// il report non verrebbero stampati ma cambierebbero solo l'exit code.
+Promise.resolve(commanderPromise).then(report);
