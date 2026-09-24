@@ -2065,13 +2065,33 @@ try {
   }
   // La facciata esiste e risponde (su guild QA, senza sporcare i file).
   const commander = require(path.join(ROOT, 'src', 'modules', 'commander.js'));
-  for (const fn of ['listModules', 'moduleHealth', 'setModuleEnabled', 'reloadModule', 'resetModule']) {
+  for (const fn of ['listModules', 'moduleHealth', 'setModuleEnabled', 'reloadModule', 'resetModule', 'updateModuleConfig']) {
     if (typeof commander[fn] !== 'function') fail(`orchestratore: commander.${fn} mancante`);
   }
   if (!Array.isArray(commander.listModules()) || !commander.listModules().length) {
     fail('orchestratore: listModules vuota');
   }
-  console.log('orchestratore: nessun bypass, facciata completa');
+  // Dispatch config: scrive via Commander sul modulo giusto, poi scrub.
+  const before = (() => {
+    try {
+      const tickets = require(path.join(DB_DIR, 'tickets.js'));
+      return tickets.getConfig(QGUILD);
+    } catch { return null; }
+  })();
+  const upd = commander.updateModuleConfig(QGUILD, 'tickets', { maxPerUser: 3 });
+  if (!upd || upd.maxPerUser !== 3) fail('orchestratore: dispatch tickets non applica la patch');
+  try {
+    commander.updateModuleConfig(QGUILD, 'modulo_che_non_esiste', {});
+    fail('orchestratore: dispatch su modulo ignoto dovrebbe lanciare');
+  } catch (e) {
+    if (e.status !== 400) fail(`orchestratore: dispatch ignoto atteso status 400, ottenuto ${e.status}`);
+  }
+  scrubTestKeys();
+  const { load, dbFile } = require(path.join(DB_DIR, 'jsonDb.js'));
+  const rawTickets = fs.readFileSync(dbFile('tickets'), 'utf8');
+  if (rawTickets.includes(QGUILD)) fail('orchestratore: cleanup tickets incompleto dopo dispatch');
+  void before;
+  console.log('orchestratore: nessun bypass, facciata + dispatch ok');
 } catch (e) {
   fail(`orchestratore (qatest): ${e.message.split('\n')[0]}`);
 }

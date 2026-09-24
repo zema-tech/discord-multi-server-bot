@@ -250,6 +250,93 @@ function resetModule(guildId, id) {
   return healthEntry(guildId, nome);
 }
 
+// ------------------------------------------------------------------
+// Dispatch configurazioni: la dashboard valida la richiesta (HTTP) e il
+// Commander decide QUALE modulo la esegue. I DB dei moduli restano dietro
+// questa funzione: domani cambia solo il trasporto (in-process -> HTTP).
+// Errori con .status per mappatura HTTP fedele. Mai toccare req/res qui.
+// ------------------------------------------------------------------
+
+function dispatchError(status, message) {
+  const e = new Error(message);
+  e.status = status;
+  return e;
+}
+
+function needDb(rel, status, message) {
+  let mod = null;
+  try {
+    mod = require(rel);
+  } catch { mod = null; }
+  if (!mod) throw dispatchError(status, message);
+  return mod;
+}
+
+/**
+ * Applica una patch config già validata (chiavi/tipi/range) al modulo.
+ * Ritorna la config aggiornata. Lancia errori con .status (400/500/501).
+ */
+function updateModuleConfig(guildId, mod, patch) {
+  const p = patch && typeof patch === 'object' ? patch : {};
+  switch (mod) {
+    case 'general': {
+      const guildConfig = needDb('../database/guildConfig', 500, 'Modulo guildConfig non disponibile.');
+      const { language, logChannelId, suggestChannelId, levelupChannelId, levelupEnabled } = p;
+      const q = {};
+      if (language !== undefined) q.language = language;
+      if (logChannelId !== undefined) q.logChannelId = logChannelId;
+      if (suggestChannelId !== undefined) q.suggestChannelId = suggestChannelId;
+      if (levelupChannelId !== undefined) q.levelupChannelId = levelupChannelId;
+      if (levelupEnabled !== undefined) q.levelupEnabled = levelupEnabled;
+      return guildConfig.updateGuild(guildId, q);
+    }
+    case 'welcome':
+    case 'logging':
+    case 'levels': {
+      const guildConfig = needDb('../database/guildConfig', 500, 'Modulo guildConfig non disponibile.');
+      return guildConfig.updateGuild(guildId, p);
+    }
+    case 'automod': {
+      const guildConfig = needDb('../database/guildConfig', 500, 'Modulo guildConfig non disponibile.');
+      const q = { ...p };
+      if (typeof q.badWords === 'string') {
+        q.badWords = q.badWords.split(/[,;\n]+/).map((w) => w.trim().toLowerCase())
+          .filter(Boolean).slice(0, 50).map((w) => w.slice(0, 30));
+      }
+      return guildConfig.updateGuild(guildId, { automod: q });
+    }
+    case 'autorole': {
+      const autorole = needDb('../database/autorole', 501, 'Modulo autorole non ancora disponibile.');
+      return autorole.setConfig(guildId, p);
+    }
+    case 'starboard': {
+      const starboard = needDb('../database/starboard', 501, 'Modulo starboard non ancora disponibile.');
+      return starboard.setStarboard(guildId, p);
+    }
+    case 'confessioni': {
+      const confessioni = needDb('../database/confessioni', 501, 'Modulo confessioni non ancora disponibile.');
+      if (p.channelId === null) return confessioni.disableConfessioni(guildId);
+      return confessioni.setCanale(guildId, p.channelId);
+    }
+    case 'tickets': {
+      const tickets = needDb('../database/tickets', 500, 'Modulo tickets non disponibile.');
+      return tickets.setConfig(guildId, p);
+    }
+    case 'tempvoice': {
+      const tempvoice = needDb('../database/tempvoice', 501, 'Modulo tempvoice non ancora disponibile.');
+      return tempvoice.setConfig(guildId, p);
+    }
+    case 'ai': {
+      const aiConfig = needDb('../database/aiConfig', 501, 'Modulo AI non ancora disponibile.');
+      if (typeof aiConfig.setConfig === 'function') return aiConfig.setConfig(guildId, p);
+      if (typeof aiConfig.updateConfig === 'function') return aiConfig.updateConfig(guildId, p);
+      throw dispatchError(501, 'Modulo AI senza API di scrittura.');
+    }
+    default:
+      throw dispatchError(400, `Modulo sconosciuto: ${mod}.`);
+  }
+}
+
 module.exports = {
   executeCommand,
   checkGate,
@@ -262,5 +349,7 @@ module.exports = {
   setModuleEnabled,
   reloadModule,
   resetModule,
+  // Dispatch: dashboard valida, Commander esegue sul modulo giusto.
+  updateModuleConfig,
   DEFAULT_TIMEOUT_MS,
 };

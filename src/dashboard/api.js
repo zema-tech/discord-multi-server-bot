@@ -1080,75 +1080,22 @@ function createApiRouter(client) {
         patch[k] = v;
       }
 
-      const guildConfig = safeRequire('../database/guildConfig');
-      const tickets = safeRequire('../database/tickets');
-      const tempvoice = safeRequire('../database/tempvoice');
-      const aiConfig = safeRequire('../database/aiConfig');
-      const autorole = safeRequire('../database/autorole');
-      const starboard = safeRequire('../database/starboard');
-      const confessioni = safeRequire('../database/confessioni');
+      // Dispatch al modulo via Commander (orchestratore): la dashboard ha già
+      // validato chiavi/tipi/range/canali; QUI decide solo il Commander quale
+      // modulo esegue. Errori con .status mappati 1:1 sullo status HTTP.
+      const commander = safeRequire('../modules/commander');
+      if (!commander || typeof commander.updateModuleConfig !== 'function') {
+        return res.status(500).json({ errore: 'Orchestratore non disponibile.' });
+      }
       let updated;
-
-      switch (mod) {
-        case 'general': {
-          if (!guildConfig) return res.status(500).json({ errore: 'Modulo guildConfig non disponibile.' });
-          const { language, logChannelId, suggestChannelId, levelupChannelId, levelupEnabled } = patch;
-          const p = {};
-          if (language !== undefined) p.language = language;
-          if (logChannelId !== undefined) p.logChannelId = logChannelId;
-          if (suggestChannelId !== undefined) p.suggestChannelId = suggestChannelId;
-          if (levelupChannelId !== undefined) p.levelupChannelId = levelupChannelId;
-          if (levelupEnabled !== undefined) p.levelupEnabled = levelupEnabled;
-          updated = guildConfig.updateGuild(gid, p);
-          break;
-        }
-        case 'welcome':
-        case 'logging':
-        case 'levels':
-          if (!guildConfig) return res.status(500).json({ errore: 'Modulo guildConfig non disponibile.' });
-          updated = guildConfig.updateGuild(gid, patch);
-          break;
-        case 'automod': {
-          if (!guildConfig) return res.status(500).json({ errore: 'Modulo guildConfig non disponibile.' });
-          const p = { ...patch };
-          if (typeof p.badWords === 'string') {
-            p.badWords = p.badWords.split(/[,;\n]+/).map((w) => w.trim().toLowerCase())
-              .filter(Boolean).slice(0, 50).map((w) => w.slice(0, 30));
-          }
-          updated = guildConfig.updateGuild(gid, { automod: p });
-          break;
-        }
-        case 'autorole':
-          if (!autorole) return res.status(501).json({ errore: 'Modulo autorole non ancora disponibile.' });
-          updated = autorole.setConfig(gid, patch);
-          break;
-        case 'starboard':
-          if (!starboard) return res.status(501).json({ errore: 'Modulo starboard non ancora disponibile.' });
-          updated = starboard.setStarboard(gid, patch);
-          break;
-        case 'confessioni':
-          if (!confessioni) return res.status(501).json({ errore: 'Modulo confessioni non ancora disponibile.' });
-          if (patch.channelId === null) updated = confessioni.disableConfessioni(gid);
-          else {
-            updated = confessioni.setCanale(gid, patch.channelId);
-          }
-          break;
-        case 'tickets':
-          if (!tickets) return res.status(500).json({ errore: 'Modulo tickets non disponibile.' });
-          updated = tickets.setConfig(gid, patch);
-          break;
-        case 'tempvoice':
-          if (!tempvoice) return res.status(501).json({ errore: 'Modulo tempvoice non ancora disponibile.' });
-          updated = tempvoice.setConfig(gid, patch);
-          break;
-        case 'ai':
-          if (!aiConfig) return res.status(501).json({ errore: 'Modulo AI non ancora disponibile.' });
-          if (typeof aiConfig.setConfig === 'function') updated = aiConfig.setConfig(gid, patch);
-          else if (typeof aiConfig.updateConfig === 'function') updated = aiConfig.updateConfig(gid, patch);
-          else return res.status(501).json({ errore: 'Modulo AI senza API di scrittura.' });
-          break;
-        default:
-          return res.status(400).json({ errore: `Modulo sconosciuto: ${mod}.` });
+      try {
+        updated = commander.updateModuleConfig(gid, mod, patch);
+      } catch (we) {
+        const st = we && Number.isFinite(we.status) ? we.status : 500;
+        const msg = we && we.message ? we.message : 'Salvataggio fallito, riprova.';
+        if (st !== 500) return res.status(st).json({ errore: msg });
+        logDashboardError('PUT module', we);
+        return res.status(500).json({ errore: 'Salvataggio fallito, riprova.' });
       }
       return res.json(sanitizeForJson({ ok: true, module: mod, config: updated }));
     } catch (e) {
