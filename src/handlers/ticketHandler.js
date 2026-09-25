@@ -16,7 +16,31 @@ const {
   setRating, getQuestions,
 } = require('../database/tickets');
 const { getGuild } = require('../database/guildConfig');
-const { buildTranscript } = require('../utils/transcript');
+const { buildTranscript, buildHtmlTranscript } = require('../utils/transcript');
+
+/** Transcript HTML (stile open-ticket), fallback .txt se fallisce. */
+async function ticketTranscript(channel, ticket) {
+  try {
+    const ownerTag = ticket ? `<@${ticket.ownerId}>` : '—';
+    return await buildHtmlTranscript(channel, {
+      number: ticket?.number,
+      type: ticket?.type,
+      owner: ownerTag,
+      priority: ticket?.priority,
+      subject: ticket?.subject,
+      reason: ticket?.closeReason,
+      closedBy: ticket?.closedBy,
+    });
+  } catch (e) {
+    console.error('transcript html:', e.message);
+  }
+  try {
+    return await buildTranscript(channel);
+  } catch (e) {
+    console.error('transcript:', e.message);
+    return null;
+  }
+}
 
 function isSupport(member, config) {
   if (!member) return false;
@@ -191,6 +215,15 @@ async function createTicketInner(interaction, typeKey, answers = []) {
     }
     return;
   }
+  try {
+    const { isBlacklisted } = require('../database/tickets');
+    if (isBlacklisted(guild.id, interaction.user.id)) {
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: '⛔ Non puoi aprire ticket in questo server. Contatta lo staff.', flags: MessageFlags.Ephemeral }).catch(() => {});
+      }
+      return;
+    }
+  } catch {}
   const open = getUserOpenTickets(guild.id, interaction.user.id);
   if (open.length >= (config.maxPerUser || 3)) {
     if (!interaction.replied && !interaction.deferred) {
@@ -307,12 +340,7 @@ async function doClose(channel, guild, ticket, closedBy, reason) {
   const owner = await guild.members.fetch(ticket.ownerId).catch(() => null);
   const ownerTag = owner ? owner.user.tag : `ID ${ticket.ownerId}`;
 
-  let transcript = null;
-  try {
-    transcript = await buildTranscript(channel);
-  } catch (e) {
-    console.error('transcript:', e.message);
-  }
+  const transcript = await ticketTranscript(channel, ticket);
 
   // Blocca il canale e rinominalo
   try {
@@ -331,7 +359,7 @@ async function doClose(channel, guild, ticket, closedBy, reason) {
 
   const closedEmbed = new EmbedBuilder()
     .setColor(0xed4245)
-    .setTitle(`🔒 Ticket #${ticket.number} chiuso`)
+    .setTitle(`🔒 Ticket #${ticket.number} chiuso${ticket.pinned ? ' 📌' : ''}`)
     .addFields(
       { name: 'Proprietario', value: `${ownerTag}`, inline: true },
       { name: 'Chiuso da', value: `${closedBy.tag}`, inline: true },
@@ -678,7 +706,8 @@ async function handle(interaction) {
     }
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     try {
-      const file = await buildTranscript(interaction.channel);
+      const file = await ticketTranscript(interaction.channel, ticket);
+      if (!file) throw new Error('vuoto');
       await interaction.editReply({ content: `📝 Transcript del ticket #${ticket.number}:`, files: [file] });
     } catch {
       await interaction.editReply('❌ Errore nella generazione del transcript.');
@@ -689,4 +718,4 @@ async function handle(interaction) {
   return false;
 }
 
-module.exports = { handle, isSupport, sendPanel, buildPanel, buildTypePanel, buildQuestionsModal, createTicket, doClose, typeLabel, priorityLabel, requireTicket, ticketButtons };
+module.exports = { handle, isSupport, sendPanel, buildPanel, buildTypePanel, buildQuestionsModal, createTicket, doClose, typeLabel, priorityLabel, requireTicket, ticketButtons, ticketTranscript };

@@ -17,6 +17,9 @@ const DEFAULT_CONFIG = {
   maxPerUser: 3,
   // PEAK: giorni di inattività prima della chiusura automatica (0 = disattivato).
   autoCloseDays: 0,
+  // OPEN-TICKET style: giorni dopo la chiusura prima di eliminare il canale (0 = off).
+  autoDeleteDays: 0,
+  blacklist: [],
   // PRO: pannelli pubblicati per sezione + domande pre-apertura per tipo.
   panels: [],
   questions: {},
@@ -81,6 +84,15 @@ function sanitizePatch(patch) {
     const n = Math.floor(Number(patch.autoCloseDays));
     out.autoCloseDays = Number.isFinite(n) ? Math.min(Math.max(0, n), 365) : DEFAULT_CONFIG.autoCloseDays;
   }
+  if (patch.autoDeleteDays !== undefined) {
+    const n = Math.floor(Number(patch.autoDeleteDays));
+    out.autoDeleteDays = Number.isFinite(n) ? Math.min(Math.max(0, n), 90) : DEFAULT_CONFIG.autoDeleteDays;
+  }
+  if (patch.blacklist !== undefined) {
+    out.blacklist = Array.isArray(patch.blacklist)
+      ? [...new Set(patch.blacklist.filter((r) => typeof r === 'string' && r))].slice(0, 200)
+      : [];
+  }
   return out;
 }
 
@@ -138,6 +150,7 @@ function normalizeTicket(t) {
   if (!t.rating || typeof t.rating !== 'object' || ![1, 2, 3, 4, 5].includes(t.rating.score)) {
     t.rating = null;
   }
+  if (t.pinned !== true) t.pinned = false;
   if (!Array.isArray(t.answers)) t.answers = [];
   t.answers = t.answers
     .filter((a) => a && typeof a === 'object' && typeof a.a === 'string' && a.a.trim())
@@ -198,6 +211,92 @@ function setRating(guildId, channelId, score) {
   t.rating = { score: n, at: Date.now() };
   persist(guildId, data);
   return true;
+}
+
+// ---------- OPEN-TICKET style: blacklist, pin, tipo ----------
+
+/** true se l'utente non può aprire ticket in questo server. */
+function isBlacklisted(guildId, userId) {
+  try {
+    const bl = guildData(guildId).config.blacklist;
+    return Array.isArray(bl) && bl.includes(String(userId));
+  } catch {
+    return false;
+  }
+}
+
+/** Aggiunge/rimuove dalla blacklist. Ritorna true se cambiato. */
+function setBlacklisted(guildId, userId, blocked) {
+  const data = guildData(guildId);
+  if (!Array.isArray(data.config.blacklist)) data.config.blacklist = [];
+  const id = String(userId);
+  const has = data.config.blacklist.includes(id);
+  if (blocked && !has) {
+    if (data.config.blacklist.length >= 200) throw new Error('Blacklist piena (max 200).');
+    data.config.blacklist.push(id);
+    persist(guildId, data);
+    return true;
+  }
+  if (!blocked && has) {
+    data.config.blacklist = data.config.blacklist.filter((x) => x !== id);
+    persist(guildId, data);
+    return true;
+  }
+  return false;
+}
+
+/** Protegge/sprotegge un ticket da autoclose e auto-eliminazione. */
+function setPinned(guildId, channelId, pinned) {
+  const data = guildData(guildId);
+  const t = data.tickets[channelId];
+  if (!t) return null;
+  t.pinned = pinned === true;
+  persist(guildId, data);
+  return t;
+}
+
+/** Cambia il tipo di un ticket. Lancia su tipo sconosciuto. */
+function setTicketType(guildId, channelId, type) {
+  const t = assertKnownType(type);
+  const data = guildData(guildId);
+  const rec = data.tickets[channelId];
+  if (!rec) return null;
+  rec.type = t;
+  persist(guildId, data);
+  return rec;
+}
+
+/** Trasferisce la proprietà. Ritorna il ticket o null. */
+function transferTicket(guildId, channelId, newOwnerId) {
+  if (typeof newOwnerId !== 'string' || !newOwnerId) throw new Error('Nuovo proprietario non valido.');
+  const data = guildData(guildId);
+  const t = data.tickets[channelId];
+  if (!t) return null;
+  t.ownerId = newOwnerId;
+  t.claimedBy = null;
+  persist(guildId, data);
+  return t;
+}
+
+/** Statistiche per staffer: chiusure e rating medio dei ticket chiusi da lui. */
+function getStaffStats(guildId, limit = 5) {
+  const tickets = openTickets(guildId).filter((t) => t.status === 'closed' && typeof t.closedBy === 'string' && t.closedBy);
+  const by = new Map();
+  for (const t of tickets) {
+    let e = by.get(t.closedBy);
+    if (!e) { e = { userId: t.closedBy, closed: 0, ratings: [] }; by.set(t.closedBy, e); }
+    e.closed += 1;
+    if (t.rating && [1, 2, 3, 4, 5].includes(t.rating.score)) e.ratings.push(t.rating.score);
+  }
+  return [...by.values()]
+    .map((e) => ({
+      userId: e.userId,
+      closed: e.closed,
+      avgRating: e.ratings.length ? Math.round((e.ratings.reduce((a, b) => a + b, 0) / e.ratings.length) * 10) / 10 : null,
+      ratingsCount: e.ratings.length,
+    }))
+    .sort((a, b) => b.closed - a.closed)
+    .slice(0, Math.max(1, Math.floor(limit) || 5));
 }
 
 // ---------- PRO: domande pre-apertura ----------
@@ -358,6 +457,12 @@ module.exports = {
   setSubject,
   addNote,
   setRating,
+  isBlacklisted,
+  setBlacklisted,
+  setPinned,
+  setTicketType,
+  transferTicket,
+  getStaffStats,
   getQuestions,
   setQuestions,
   getPanels,

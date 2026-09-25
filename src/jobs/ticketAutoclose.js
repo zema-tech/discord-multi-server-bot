@@ -31,6 +31,7 @@ function readDbGuildIds() {
 
 async function checkOnce(client) {
   const closed = [];
+  const deleted = [];
   const guildIds = new Set([...(client.guilds?.cache?.keys() || []), ...readDbGuildIds()]);
 
   for (const guildId of guildIds) {
@@ -41,7 +42,7 @@ async function checkOnce(client) {
       continue;
     }
     const days = Math.floor(Number(config.autoCloseDays));
-    if (!Number.isFinite(days) || days <= 0) continue; // 0 = off (default)
+    const delDays = Math.floor(Number(config.autoDeleteDays));
 
     const guild = await client.guilds.fetch(guildId).catch(() => null);
     if (!guild) continue;
@@ -53,11 +54,38 @@ async function checkOnce(client) {
     } catch {
       continue;
     }
-    const tickets = Object.values(db[guildId]?.tickets || {}).filter((t) => t && t.status === 'open');
-    const threshold = days * MS_PER_DAY;
+    const records = Object.values(db[guildId]?.tickets || {}).filter((t) => t && typeof t === 'object');
     const now = Date.now();
 
+    // --- Auto-eliminazione chiusi (se configurata): canale + record. I pin resistono.
+    if (Number.isFinite(delDays) && delDays > 0) {
+      const delThreshold = Math.min(delDays, 90) * MS_PER_DAY;
+      for (const ticket of records.filter((t) => t.status === 'closed' && !t.pinned)) {
+        const closedAt = Number.isFinite(ticket.closedAt) ? ticket.closedAt : now;
+        if (now - closedAt < delThreshold) continue;
+        try {
+          const channel = await guild.channels.fetch(ticket.channelId).catch(() => null);
+          if (channel) {
+            await channel.delete(`Auto-eliminazione ticket #${ticket.number} chiuso da oltre ${delDays} giorni`).catch(() => {});
+            const stillThere = await guild.channels.fetch(ticket.channelId).catch(() => null);
+            if (stillThere) continue;
+          }
+          try { removeTicket(guildId, ticket.channelId); } catch {}
+          deleted.push({ guildId, channelId: ticket.channelId, number: ticket.number });
+        } catch (e) {
+          console.error(`ticketAutodelete #${ticket.number}:`, e.message);
+        }
+      }
+    }
+
+    if (!Number.isFinite(days) || days <= 0) continue; // 0 = off (default)
+
+    const tickets = records.filter((t) => t.status === 'open');
+    const threshold = days * MS_PER_DAY;
+
     for (const ticket of tickets) {
+      // I pin resistono alla chiusura automatica (ticket a lungo termine).
+      if (ticket.pinned) continue;
       const lastActivity = Number.isFinite(ticket.lastActivityAt) ? ticket.lastActivityAt
         : Number.isFinite(ticket.createdAt) ? ticket.createdAt : now;
       if (now - lastActivity < threshold) continue;
@@ -78,7 +106,7 @@ async function checkOnce(client) {
       }
     }
   }
-  return closed;
+  return { closed, deleted };
 }
 
 function startTicketAutoclose(client, intervalMs = 15 * 60 * 1000) {

@@ -4,7 +4,6 @@ const {
 } = require('discord.js');
 const { getConfig, getTicket, getStats } = require('../../database/tickets');
 const { isSupport, doClose, typeLabel, priorityLabel, ticketButtons, buildTypePanel } = require('../../handlers/ticketHandler');
-const { buildTranscript } = require('../../utils/transcript');
 
 function dashboardMsg(guildId, sezione) {
   const base = (process.env.BASE_URL || '').trim().replace(/\/+$/, '');
@@ -113,7 +112,40 @@ module.exports = {
       s.setName('nota').setDescription('Aggiungi una nota staff al ticket (staff)')
         .addStringOption((o) => o.setName('testo').setDescription('Nota interna (max 500)').setRequired(true).setMaxLength(500))
     )
-    .addSubcommand((s) => s.setName('stats').setDescription('Statistiche dei ticket del server')),
+    .addSubcommand((s) => s.setName('stats').setDescription('Statistiche dei ticket del server'))
+    .addSubcommand((s) =>
+      s.setName('rinomina').setDescription('Rinomina il canale del ticket')
+        .addStringOption((o) => o.setName('nome').setDescription('Nuovo nome (max 80)').setRequired(true).setMaxLength(80))
+    )
+    .addSubcommand((s) =>
+      s.setName('tipo').setDescription('Cambia il tipo del ticket (staff)')
+        .addStringOption((o) => o.setName('nuovo').setDescription('Nuovo tipo').setRequired(true)
+          .addChoices(
+            { name: '🛠️ Supporto', value: 'supporto' },
+            { name: '🐛 Bug', value: 'bug' },
+            { name: '⚖️ Appeal', value: 'appeal' },
+            { name: '🤝 Partnership', value: 'partnership' },
+          ))
+    )
+    .addSubcommand((s) =>
+      s.setName('trasferisci').setDescription('Trasferisci la proprietà del ticket (staff)')
+        .addUserOption((o) => o.setName('utente').setDescription('Nuovo proprietario').setRequired(true))
+    )
+    .addSubcommand((s) => s.setName('proteggi').setDescription('Proteggi il ticket da auto-chiusura/eliminazione (staff)'))
+    .addSubcommand((s) =>
+      s.setName('blacklist').setDescription('Blocca/sblocca utenti dai ticket (staff)')
+        .addStringOption((o) => o.setName('azione').setDescription('Aggiungi, rimuovi o lista').setRequired(true)
+          .addChoices(
+            { name: 'Aggiungi', value: 'aggiungi' },
+            { name: 'Rimuovi', value: 'rimuovi' },
+            { name: 'Lista', value: 'lista' },
+          ))
+        .addUserOption((o) => o.setName('utente').setDescription('Utente').setRequired(false))
+    )
+    .addSubcommand((s) =>
+      s.setName('autoelimina').setDescription('Elimina i ticket chiusi dopo N giorni, 0 = off (staff)')
+        .addIntegerOption((o) => o.setName('giorni').setDescription('Giorni (0-90)').setRequired(true).setMinValue(0).setMaxValue(90))
+    ),
   cooldown: 3,
   async execute(interaction) {
     if (!interaction.guild) {
@@ -219,6 +251,17 @@ module.exports = {
       if (st.avgRating !== null) {
         embed.addFields({ name: '⭐ Valutazione media', value: `${st.avgRating}/5 (${st.ratingsCount} voti)`, inline: true });
       }
+      // Classifica staff: chiusure + gradimento.
+      try {
+        const { getStaffStats } = require('../../database/tickets');
+        const top = getStaffStats(interaction.guild.id, 3);
+        if (top.length) {
+          embed.addFields({
+            name: '🏆 Top staff',
+            value: truncate(top.map((s, i) => `${['🥇', '🥈', '🥉'][i] || '•'} <@${s.userId}>: **${s.closed}** chiusure${s.avgRating !== null ? ` • ⭐ ${s.avgRating}` : ''}`).join('\n'), 1024),
+          });
+        }
+      } catch {}
       applyFooter(embed, interaction);
       return interaction.reply({ embeds: [embed] });
     }
@@ -355,7 +398,8 @@ module.exports = {
       }
       let file = null;
       try {
-        file = await buildTranscript(interaction.channel);
+        const { ticketTranscript } = require('../../handlers/ticketHandler');
+        file = await ticketTranscript(interaction.channel, ticket);
       } catch {
         return interaction.editReply({ embeds: [themeErr('Errore nella generazione del transcript.')] }).catch(() => {});
       }
@@ -363,6 +407,104 @@ module.exports = {
         return interaction.editReply({ embeds: [themeErr('Errore nella generazione del transcript.')] }).catch(() => {});
       }
       return interaction.editReply({ content: `📝 Transcript del ticket #${ticket.number}:`, files: [file] }).catch(() => {});
+    }
+
+    if (sub === 'rinomina') {
+      const allowed = staff || ticket.ownerId === interaction.user.id;
+      if (!allowed) return interaction.reply({ embeds: [themeErr('Solo il proprietario o lo staff.')], flags: MessageFlags.Ephemeral });
+      const nome = interaction.options.getString('nome', true).toLowerCase()
+        .replace(/[^a-z0-9-_]/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || `ticket-${ticket.number}`;
+      try {
+        await interaction.channel.setName(nome);
+        return interaction.reply({ embeds: [applyFooter(ok('✏️ Rinomina', `Canale rinominato in **${nome}**.`), interaction)] });
+      } catch {
+        return interaction.reply({ embeds: [themeErr('Non riesco a rinominare: verifica i miei permessi.')], flags: MessageFlags.Ephemeral });
+      }
+    }
+
+    if (sub === 'tipo') {
+      if (!staff) return interaction.reply({ embeds: [themeErr('Solo lo staff.')], flags: MessageFlags.Ephemeral });
+      const nuovo = interaction.options.getString('nuovo', true);
+      const { setTicketType } = require('../../database/tickets');
+      try {
+        setTicketType(interaction.guild.id, interaction.channelId, nuovo);
+      } catch {
+        return interaction.reply({ embeds: [themeErr('Tipo non valido.')], flags: MessageFlags.Ephemeral });
+      }
+      return interaction.reply({ embeds: [applyFooter(ok('🔄 Tipo cambiato', `Ticket #${ticket.number} ora è **${typeLabel(nuovo)}**.`), interaction)] });
+    }
+
+    if (sub === 'trasferisci') {
+      if (!staff) return interaction.reply({ embeds: [themeErr('Solo lo staff.')], flags: MessageFlags.Ephemeral });
+      const target = interaction.options.getUser('utente');
+      if (!target || target.bot) return interaction.reply({ embeds: [themeErr('Utente non valido.')], flags: MessageFlags.Ephemeral });
+      if (target.id === ticket.ownerId) return interaction.reply({ embeds: [themeErr('È già il proprietario.')], flags: MessageFlags.Ephemeral });
+      const { transferTicket } = require('../../database/tickets');
+      try {
+        transferTicket(interaction.guild.id, interaction.channelId, target.id);
+      } catch {
+        return interaction.reply({ embeds: [themeErr('Trasferimento fallito.')], flags: MessageFlags.Ephemeral });
+      }
+      try {
+        await interaction.channel.permissionOverwrites.edit(target.id, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true });
+        await interaction.channel.permissionOverwrites.delete(ticket.ownerId).catch(() => null);
+      } catch {}
+      try {
+        const topic = `Ticket #${ticket.number} | owner ${target.id} | tipo ${ticket.type}`;
+        await interaction.channel.setTopic(topic.slice(0, 1024)).catch(() => null);
+      } catch {}
+      return interaction.reply({ embeds: [applyFooter(ok('🔄 Ticket trasferito', `Ticket #${ticket.number} ora appartiene a ${target}.`), interaction)] });
+    }
+
+    if (sub === 'proteggi') {
+      if (!staff) return interaction.reply({ embeds: [themeErr('Solo lo staff.')], flags: MessageFlags.Ephemeral });
+      const { setPinned } = require('../../database/tickets');
+      const updated = setPinned(interaction.guild.id, interaction.channelId, !ticket.pinned);
+      if (!updated) return interaction.reply({ embeds: [themeErr('Ticket non trovato.')], flags: MessageFlags.Ephemeral });
+      return interaction.reply({
+        embeds: [applyFooter(ok(updated.pinned ? '📌 Ticket protetto' : '📌 Protezione rimossa',
+          updated.pinned ? `Il ticket #${ticket.number} resiste ad auto-chiusura ed eliminazione.` : `Il ticket #${ticket.number} segue di nuovo le regole automatiche.`), interaction)],
+      });
+    }
+
+    if (sub === 'blacklist') {
+      if (!staff) return interaction.reply({ embeds: [themeErr('Solo lo staff.')], flags: MessageFlags.Ephemeral });
+      const { setBlacklisted, getConfig: getTConfig } = require('../../database/tickets');
+      const azione = interaction.options.getString('azione', true);
+      if (azione === 'lista') {
+        const bl = getTConfig(interaction.guild.id).blacklist || [];
+        return interaction.reply({
+          content: bl.length ? `⛔ Blacklist ticket (${bl.length}):\n${bl.map((id) => `• <@${id}>`).join('\n').slice(0, 3500)}` : '⛔ Blacklist vuota.',
+          flags: MessageFlags.Ephemeral,
+        }).catch(() => null);
+      }
+      const target = interaction.options.getUser('utente');
+      if (!target) return interaction.reply({ embeds: [themeErr('Specifica un utente.')], flags: MessageFlags.Ephemeral });
+      if (target.bot) return interaction.reply({ embeds: [themeErr('Non puoi bloccare un bot.')], flags: MessageFlags.Ephemeral });
+      try {
+        const changed = setBlacklisted(interaction.guild.id, target.id, azione === 'aggiungi');
+        return interaction.reply({
+          content: azione === 'aggiungi'
+            ? (changed ? `⛔ ${target} non potrà più aprire ticket.` : `ℹ️ ${target} era già in blacklist.`)
+            : (changed ? `✅ ${target} rimosso dalla blacklist.` : `ℹ️ ${target} non era in blacklist.`),
+          flags: MessageFlags.Ephemeral,
+        }).catch(() => null);
+      } catch (e) {
+        return interaction.reply({ embeds: [themeErr(e?.message || 'Operazione fallita.')], flags: MessageFlags.Ephemeral });
+      }
+    }
+
+    if (sub === 'autoelimina') {
+      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+        return interaction.reply({ embeds: [themeErr('Ti serve il permesso **Gestisci Server**.')], flags: MessageFlags.Ephemeral });
+      }
+      const giorni = interaction.options.getInteger('giorni', true);
+      const { setConfig } = require('../../database/tickets');
+      setConfig(interaction.guild.id, { autoDeleteDays: giorni });
+      return interaction.reply({
+        content: giorni > 0 ? `🗑️ I ticket chiusi verranno eliminati dopo **${giorni} giorni** (i 📌 protetti resistono).` : '🗑️ Auto-eliminazione disattivata.',
+        flags: MessageFlags.Ephemeral,
+      }).catch(() => null);
     }
   },
 };

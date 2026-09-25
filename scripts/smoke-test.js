@@ -1877,6 +1877,7 @@ try {
 // timeout del Commander usano timer unref che da soli non tengono vivo il loop).
 console.log('== [6/5] Commander (gate, breaker, no-crash) ==');
 let commanderPromise = Promise.resolve();
+let ticketPromise = Promise.resolve();
 try {
   const registry = require(path.join(ROOT, 'src', 'modules', 'registry.js'));
   const commander = require(path.join(ROOT, 'src', 'modules', 'commander.js'));
@@ -2171,6 +2172,57 @@ try {
   delete fin[TQ];
   save(f, fin);
   if (load(f)[TQ] !== undefined) fail('ticket: cleanup QA v2 fallito');
+
+  // OPEN-TICKET style: blacklist, pin, tipo, trasferimento, staff-stats, HTML.
+  if (tickets.setBlacklisted(TQ, 'u9', true) !== true || !tickets.isBlacklisted(TQ, 'u9')) {
+    fail('ticket: blacklist add');
+  }
+  if (tickets.setBlacklisted(TQ, 'u9', true) !== false) fail('ticket: blacklist dup');
+  if (tickets.setBlacklisted(TQ, 'u9', false) !== true || tickets.isBlacklisted(TQ, 'u9')) {
+    fail('ticket: blacklist remove');
+  }
+  const db2 = load(f);
+  db2[TQ] = {
+    config: tickets.getConfig(TQ), counter: 2,
+    tickets: {
+      c1: { channelId: 'c1', ownerId: 'u1', type: 'bug', number: 1, status: 'closed', createdAt: 1, closedAt: 2, closedBy: 's1' },
+      c2: { channelId: 'c2', ownerId: 'u2', type: 'supporto', number: 2, status: 'open', createdAt: 1 },
+    },
+  };
+  save(f, db2);
+  if (tickets.setPinned(TQ, 'c1', true).pinned !== true) fail('ticket: pin');
+  if (tickets.setTicketType(TQ, 'c2', 'appeal').type !== 'appeal') fail('ticket: cambio tipo');
+  try {
+    tickets.setTicketType(TQ, 'c2', 'nope');
+    fail('ticket: tipo invalido dovrebbe lanciare');
+  } catch {}
+  if (tickets.transferTicket(TQ, 'c2', 'u9').ownerId !== 'u9') fail('ticket: trasferimento');
+  tickets.setRating(TQ, 'c1', 4);
+  const staff = tickets.getStaffStats(TQ, 5);
+  if (!staff.length || staff[0].userId !== 's1' || staff[0].closed !== 1 || staff[0].avgRating !== 4) {
+    fail(`ticket: staff-stats inattese (${JSON.stringify(staff)})`);
+  }
+  const cfg = tickets.setConfig(TQ, { autoDeleteDays: 7 });
+  if (cfg.autoDeleteDays !== 7) fail('ticket: autoDeleteDays non salvato');
+  // HTML transcript: escape, badge bot, meta — con canale mock (async).
+  ticketPromise = (async () => {
+    try {
+      const { buildHtmlTranscript } = require(path.join(DB_DIR, '..', 'utils', 'transcript.js'));
+      const mockMsgs = [
+        { id: '2', createdTimestamp: 1700000000000, content: 'ciao <b>x</b>', author: { tag: 'U#1', username: 'U', bot: false, displayAvatarURL: () => 'https://x/y.png' }, attachments: new Map(), embeds: [] },
+      ];
+      const mockCh = { name: 'ticket-x', id: 'c9', messages: { fetch: async () => ({ size: 1, values: () => mockMsgs, last: () => mockMsgs[0] }) } };
+      const htmlAtt = await buildHtmlTranscript(mockCh, { number: 9, type: 'bug' });
+      const html = htmlAtt.attachment.toString('utf8');
+      if (!html.includes('&lt;b&gt;') || !html.includes('#9')) fail('ticket: HTML transcript (escape/meta)');
+    } catch (e) {
+      fail(`ticket html (qatest): ${e.message.split('\n')[0]}`);
+    }
+  })();
+  const fin2 = load(f);
+  delete fin2[TQ];
+  save(f, fin2);
+  if (load(f)[TQ] !== undefined) fail('ticket: cleanup QA v3 fallito');
   console.log('ticket: backfill/priorita/oggetto/note/rating/stats ok');
 } catch (e) {
   fail(`ticket (qatest): ${e.message.split('\n')[0]}`);
@@ -2228,4 +2280,4 @@ if (errors.length) {
 
 // Il REPORT aspetta i test async del Commander (c6): errori registrati dopo
 // il report non verrebbero stampati ma cambierebbero solo l'exit code.
-Promise.resolve(commanderPromise).then(report);
+Promise.all([commanderPromise, ticketPromise]).then(report);
