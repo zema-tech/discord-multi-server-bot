@@ -20,7 +20,12 @@ const COLORS = {
 const RESET = '\x1b[0m';
 
 function currentLevelName() {
-  const raw = String(process.env.LOG_LEVEL || 'info').toLowerCase().trim();
+  let raw = 'info';
+  try {
+    raw = String(require('../database/settings').effectiveEnv().LOG_LEVEL || 'info').toLowerCase().trim();
+  } catch {
+    raw = String(process.env.LOG_LEVEL || 'info').toLowerCase().trim();
+  }
   return LEVELS[raw] !== undefined ? raw : 'info';
 }
 

@@ -2550,6 +2550,50 @@ try {
   fail(`host (qatest): ${e.message.split('\n')[0]}`);
 }
 
+// ------------------------------------------------- (c16) CONFIG DA CHAT
+console.log('== [16/5] /config runtime (Termux-friendly) ==');
+try {
+  const settings = require(path.join(DB_DIR, 'settings.js'));
+  for (const fn of ['getOverride', 'listKeys', 'setOverride', 'deleteOverride', 'effectiveEnv', 'mask']) {
+    if (typeof settings[fn] !== 'function') fail(`config: settings.${fn} mancante`);
+  }
+  try {
+    settings.setOverride('NOPE', 'x');
+    fail('config: chiave ignota dovrebbe lanciare');
+  } catch {}
+  try {
+    settings.setOverride('AI_PROVIDER', 'nope');
+    fail('config: provider invalido dovrebbe lanciare');
+  } catch {}
+  try {
+    settings.setOverride('AI_DAILY_LIMIT', 'abc');
+    fail('config: limite invalido dovrebbe lanciare');
+  } catch {}
+  settings.setOverride('ai_provider', 'groq');
+  settings.setOverride('AI_DAILY_LIMIT', '42');
+  if (settings.getOverride('AI_PROVIDER') !== 'groq') fail('config: get override');
+  const eff = settings.effectiveEnv({ AI_PROVIDER: 'openai', ALTRO: '1' });
+  if (eff.AI_PROVIDER !== 'groq' || eff.ALTRO !== '1') fail('config: precedenza override>env');
+  if (!settings.listKeys().some((k) => k.key === 'GROQ_API_KEY' && k.secret)) fail('config: secret flag');
+  if (settings.mask('segretissimo123').includes('tissimo')) fail('config: mask perde segreto');
+  // Lettori onorano l'override subito (niente restart).
+  const ap = require(path.join(ROOT, 'src', 'ai', 'aiProviders.js'));
+  if (ap.detectProvider().name !== 'groq') fail('config: detectProvider ignora override');
+  if (settings.deleteOverride('AI_PROVIDER') !== true) fail('config: delete');
+  if (settings.deleteOverride('AI_PROVIDER') !== false) fail('config: delete2 dovrebbe essere false');
+  const { load, save, dbFile } = require(path.join(DB_DIR, 'jsonDb.js'));
+  const f = dbFile('settings');
+  const db = load(f);
+  delete db.AI_DAILY_LIMIT;
+  save(f, db);
+  if (settings.getOverride('AI_DAILY_LIMIT') !== undefined) fail('config: cleanup fallito');
+  const registry = require(path.join(ROOT, 'src', 'modules', 'registry.js'));
+  if (registry.featureOfCommand('config') !== 'utility') fail('config: /config non mappato a utility');
+  console.log('config: whitelist, override live, masking ok');
+} catch (e) {
+  fail(`config (qatest): ${e.message.split('\n')[0]}`);
+}
+
 // ------------------------------------------------------------------ REPORT
 function report() {
 console.log('\n================ SMOKE TEST ================');

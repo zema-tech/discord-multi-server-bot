@@ -32,7 +32,12 @@ function toItalian(err) {
  * Da env AI_DAILY_LIMIT, default 500, 0 = illimitato.
  */
 function dailyLimit() {
-  const raw = process.env.AI_DAILY_LIMIT;
+  let raw;
+  try {
+    raw = require('../database/settings').effectiveEnv().AI_DAILY_LIMIT;
+  } catch {
+    raw = process.env.AI_DAILY_LIMIT;
+  }
   if (raw === undefined || raw === null || String(raw).trim() === '') return DEFAULT_DAILY_LIMIT;
   const n = Number.parseInt(String(raw).trim(), 10);
   if (!Number.isFinite(n)) return DEFAULT_DAILY_LIMIT;

@@ -16,6 +16,17 @@
 
 const TIMEOUT_MS = 25000;
 
+/** Override /config sopra process.env (solo quando il chiamante usa il default). */
+function withOverrides(env) {
+  try {
+    if (env === process.env) {
+      const { effectiveEnv } = require('../database/settings');
+      return effectiveEnv();
+    }
+  } catch {}
+  return env;
+}
+
 // Cap system prompt: Pollinations lo passa in query-string (?system=...) quindi un
 // system gigante genera URL enormi (414/fetch failed). Vale per tutti i provider.
 const SYSTEM_MAX_CHARS = 2000;
@@ -70,6 +81,7 @@ function isNetworkError(err) {
  * @returns {{name,label,kind,url,model,key}}
  */
 function detectProvider(env = process.env) {
+  env = withOverrides(env);
   const wanted = String(env.AI_PROVIDER || 'auto').toLowerCase().trim();
   const model = String(env.AI_MODEL || '').trim();
 
@@ -261,6 +273,7 @@ function extractLooseText(raw) {
  * @param {{messages:Array<{role:string,content:string}>, system?:string, maxTokens?:number, env?:object}} opts
  */
 async function complete({ messages, system = '', maxTokens = 800, env = process.env }) {
+  env = withOverrides(env);
   const { system: sys, messages: msgs } = normalizeMessages(messages, system);
   if (!msgs.length) throw errWith('empty', 'Prompt vuoto.');
   const provider = detectProvider(env);
