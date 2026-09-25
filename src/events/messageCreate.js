@@ -12,7 +12,7 @@ const xpCooldown = new Map();
 // Controller feature: interruttore on/off per guild (default on, mai crashare).
 function modulesEnabled(guildId, featureId) {
   try {
-    return require('../modules/registry').isEnabled(guildId, featureId) !== false;
+    return require('../modules/commander').canRun(guildId, featureId).ok !== false;
   } catch {
     return true;
   }

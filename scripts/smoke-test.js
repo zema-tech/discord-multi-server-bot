@@ -2069,6 +2069,14 @@ try {
   if (/require\(['"]\.\.\/modules\/registry['"]\)/.test(ticketH)) {
     fail('orchestratore: ticketHandler richiede modules/registry diretto (gate nel Commander)');
   }
+  // Eventi (tranne interactionCreate, che E' il cablaggio Commander): solo commander.canRun.
+  const evDir = path.join(ROOT, 'src', 'events');
+  for (const f of fs.readdirSync(evDir).filter((x) => x.endsWith('.js') && x !== 'interactionCreate.js')) {
+    const src = fs.readFileSync(path.join(evDir, f), 'utf8');
+    if (/require\(['"]\.\.\/modules\/registry['"]\)/.test(src)) {
+      fail(`orchestratore: src/events/${f} richiede modules/registry diretto (usare commander.canRun)`);
+    }
+  }
   // La facciata esiste e risponde (su guild QA, senza sporcare i file).
   const commander = require(path.join(ROOT, 'src', 'modules', 'commander.js'));
   for (const fn of ['listModules', 'moduleHealth', 'setModuleEnabled', 'reloadModule', 'resetModule', 'updateModuleConfig']) {
@@ -2077,6 +2085,14 @@ try {
   if (!Array.isArray(commander.listModules()) || !commander.listModules().length) {
     fail('orchestratore: listModules vuota');
   }
+  // canRun: stesso verdetto del registry, mai throw, fail-open su ignoto.
+  const moduleState = require(path.join(DB_DIR, 'moduleState.js'));
+  moduleState.setEnabled(QGUILD, 'economy', false);
+  if (commander.canRun(QGUILD, 'economy').ok !== false) fail('orchestratore: canRun modulo spento');
+  moduleState.setEnabled(QGUILD, 'economy', true);
+  if (commander.canRun(QGUILD, 'economy').ok !== true) fail('orchestratore: canRun modulo acceso');
+  if (commander.canRun(QGUILD, 'inesistente').ok !== true) fail('orchestratore: canRun fail-open');
+  if (moduleState.getDisabled(QGUILD).length !== 0) fail('orchestratore: moduleState sporco');
   // Dispatch config: scrive via Commander sul modulo giusto, poi scrub.
   const before = (() => {
     try {

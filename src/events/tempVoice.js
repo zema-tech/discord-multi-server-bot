@@ -14,7 +14,7 @@ module.exports = {
       const guild = newState.guild || oldState.guild;
       // Controller feature 'tempvoice' (default on, mai crashare).
       try {
-        if (guild && !require('../modules/registry').isEnabled(guild.id, 'tempvoice')) return;
+        if (guild && !require('../modules/commander').canRun(guild.id, 'tempvoice').ok) return;
       } catch {}
       if (!guild) return;
 

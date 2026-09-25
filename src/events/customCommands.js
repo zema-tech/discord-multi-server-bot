@@ -31,7 +31,7 @@ module.exports = {
     if (message.system) return;
     // Controller feature 'customCommands' (default on, mai crashare).
     try {
-      if (!require('../modules/registry').isEnabled(message.guild.id, 'customCommands')) return;
+      if (!require('../modules/commander').canRun(message.guild.id, 'customCommands').ok) return;
     } catch {}
 
     const content = typeof message.content === 'string' ? message.content : '';

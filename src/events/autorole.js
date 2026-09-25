@@ -10,7 +10,7 @@ module.exports = {
       if (!member?.guild) return;
       // Controller feature 'autorole' (default on, mai crashare).
       try {
-        if (!require('../modules/registry').isEnabled(member.guild.id, 'autorole')) return;
+        if (!require('../modules/commander').canRun(member.guild.id, 'autorole').ok) return;
       } catch {}
       const cfg = getConfig(member.guild.id);
       if (!cfg.enabled) return;

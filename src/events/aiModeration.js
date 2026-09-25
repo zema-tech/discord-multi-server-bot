@@ -107,7 +107,7 @@ module.exports = {
       if (message.author.bot) return;
       // Controller feature 'ai' (default on, mai crashare).
       try {
-        if (!require('../modules/registry').isEnabled(message.guild.id, 'ai')) return;
+        if (!require('../modules/commander').canRun(message.guild.id, 'ai').ok) return;
       } catch {}
       const content = message.content || '';
       if (content.length < 20) return;

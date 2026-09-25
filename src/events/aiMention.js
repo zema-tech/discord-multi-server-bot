@@ -39,7 +39,7 @@ module.exports = {
       if (!client?.user) return;
       // Controller feature 'ai' (default on, mai crashare).
       try {
-        if (!require('../modules/registry').isEnabled(message.guild.id, 'ai')) return;
+        if (!require('../modules/commander').canRun(message.guild.id, 'ai').ok) return;
       } catch {}
 
       // Solo menzione diretta del bot: niente reply-all (@everyone/@here) e niente bot.

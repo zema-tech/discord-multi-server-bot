@@ -50,7 +50,7 @@ module.exports = {
       if (!guildId || !userId) return;
       // Controller feature 'levels' (default on, mai crashare).
       try {
-        if (!require('../modules/registry').isEnabled(guildId, 'levels')) return;
+        if (!require('../modules/commander').canRun(guildId, 'levels').ok) return;
       } catch {}
 
       const joinedChannelId = newState.channelId;

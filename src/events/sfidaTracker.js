@@ -13,7 +13,7 @@ module.exports = {
       if (!message.guild || message.author?.bot) return;
       // Controller feature 'fun' (default on, mai crashare).
       try {
-        if (!require('../modules/registry').isEnabled(message.guild.id, 'fun')) return;
+        if (!require('../modules/commander').canRun(message.guild.id, 'fun').ok) return;
       } catch {}
       const key = `${message.guild.id}:${message.author.id}`;
       const now = Date.now();

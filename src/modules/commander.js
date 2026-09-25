@@ -61,6 +61,21 @@ async function executeCommand(command, interaction, client, opts = {}) {
 }
 
 /**
+ * Gate per feature (non per comando): toggle + breaker. Per eventi e handler
+ * che conoscono già il featureId. Ritorna { ok:true } | { ok:false, reason }.
+ * Mai lanciare: in dubbio consente (fail-open, come prima).
+ */
+function canRun(guildId, featureId) {
+  try {
+    const registry = getRegistry();
+    if (registry && typeof registry.canRun === 'function') {
+      return registry.canRun(guildId, featureId);
+    }
+  } catch { /* default sotto */ }
+  return { ok: true, featureId };
+}
+
+/**
  * Gate unificato prima dell'esecuzione: toggle + breaker.
  * Ritorna { ok:true } oppure { ok:false, reason, featureId }.
  */
@@ -340,6 +355,7 @@ function updateModuleConfig(guildId, mod, patch) {
 module.exports = {
   executeCommand,
   checkGate,
+  canRun,
   guardEvent,
   featureOfEvent,
   featureOfComponent,

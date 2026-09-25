@@ -44,7 +44,7 @@ module.exports = {
     if (typeof content !== 'string' || !content) return;
     // Controller feature 'autoresponder' (default on, mai crashare).
     try {
-      if (!require('../modules/registry').isEnabled(message.guild.id, 'autoresponder')) return;
+      if (!require('../modules/commander').canRun(message.guild.id, 'autoresponder').ok) return;
     } catch {}
     // Lo staff (e gli staff-bot) sono esenti: evita loop di risposta.
     try {

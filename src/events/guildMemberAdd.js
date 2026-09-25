@@ -18,7 +18,7 @@ module.exports = {
       if (!cfg.welcomeChannelId) return;
       // Controller feature 'utility' per i messaggi di benvenuto (default on).
       try {
-        if (!require('../modules/registry').isEnabled(member.guild.id, 'utility')) return;
+        if (!require('../modules/commander').canRun(member.guild.id, 'utility').ok) return;
       } catch {}
       const ch = await member.guild.channels.fetch(cfg.welcomeChannelId).catch(() => null);
       if (!ch?.isTextBased?.()) return;
