@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } = require('discord.js');
-const { addWarn, getWarnings } = require('../../database/warnings');
+const { addWarn, getWarnings, getWarnActions, actionFor } = require('../../database/warnings');
 const { sendLog, hierarchyAllows } = require('../../utils/helpers');
 const { logCase } = require('../../database/cases');
 
@@ -19,7 +19,7 @@ const truncate = theme?.truncate ?? ((s, m) => String(s ?? '').slice(0, m));
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('warn')
-    .setDescription('Avvisa un utente (3 warn = timeout automatico 10m)')
+    .setDescription('Avvisa un utente (azioni automatiche a soglia, vedi /warnazioni)')
     .addUserOption((o) => o.setName('utente').setDescription('Utente da avvisare').setRequired(true))
     .addStringOption((o) => o.setName('motivo').setDescription('Motivo').setRequired(true))
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
@@ -45,14 +45,25 @@ module.exports = {
     try { logCase(interaction.guild.id, { type: 'warn', userId: user.id, modId: interaction.user.id, reason, meta: { warnId: warn.id } }); } catch {}
     const total = getWarnings(interaction.guild.id, user.id).length;
 
-    // Escalation automatica: 3 warn -> timeout 10 minuti
+    // Escalation automatica configurabile (/warnazioni): applica la soglia
+    // più alta raggiunta (timeout/kick/ban). Best-effort, mai fatale.
     let extra = '';
-    if (total >= 3 && member?.moderatable) {
-      try {
-        await member.timeout(10 * 60 * 1000, `3 warn raggiunti | Mod: ${interaction.user.tag}`.slice(0, 512));
-        extra = '\n⚠️ **3 warn raggiunti: timeout automatico di 10 minuti.**';
-      } catch {}
-    }
+    try {
+      const rule = actionFor(total, getWarnActions(interaction.guild.id));
+      if (rule && member) {
+        const tag = interaction.user.tag ?? interaction.user.username;
+        if (rule.action === 'timeout' && member.moderatable) {
+          await member.timeout(rule.minutes * 60 * 1000, `${rule.warns} warn raggiunti | Mod: ${tag}`.slice(0, 512));
+          extra = `\n⚠️ **${rule.warns} warn raggiunti: timeout automatico di ${rule.minutes} minuti.**`;
+        } else if (rule.action === 'kick' && member.kickable) {
+          await member.kick(`${rule.warns} warn raggiunti | Mod: ${tag}`.slice(0, 512));
+          extra = `\n⚠️ **${rule.warns} warn raggiunti: espulsione automatica.**`;
+        } else if (rule.action === 'ban' && member.bannable) {
+          await member.ban({ reason: `${rule.warns} warn raggiunti | Mod: ${tag}`.slice(0, 512) });
+          extra = `\n⚠️ **${rule.warns} warn raggiunti: ban automatico.**`;
+        }
+      }
+    } catch {}
 
     const embed = new EmbedBuilder()
       .setColor(COLORS.warn)

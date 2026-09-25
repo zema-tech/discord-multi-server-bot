@@ -2293,6 +2293,44 @@ try {
   fail(`livelli (qatest): ${e.message.split('\n')[0]}`);
 }
 
+// ------------------------------------------------- (c11) MODERAZIONE RED-STYLE
+console.log('== [11/5] Moderazione (warn actions, segnala, clear filtri) ==');
+try {
+  const warnings = require(path.join(DB_DIR, 'warnings.js'));
+  const { load, save, dbFile } = require(path.join(DB_DIR, 'jsonDb.js'));
+  const MQ = 'qatest_md';
+  for (const fn of ['getWarnings', 'addWarn', 'clearWarnings', 'removeWarn', 'getWarnActions', 'setWarnActions', 'actionFor']) {
+    if (typeof warnings[fn] !== 'function') fail(`moderazione: warnings.${fn} mancante`);
+  }
+  const def = warnings.getWarnActions(MQ);
+  if (def.length !== 1 || def[0].warns !== 3 || def[0].action !== 'timeout' || def[0].minutes !== 10) {
+    fail('moderazione: default storico cambiato (3 warn -> timeout 10m)');
+  }
+  if (warnings.actionFor(2, def) !== null) fail('moderazione: sotto soglia non deve scattare');
+  const rules = warnings.setWarnActions(MQ, [{ warns: 2, action: 'timeout', minutes: 60 }, { warns: 5, action: 'kick' }, { warns: 7, action: 'ban' }]);
+  if (rules.map((r) => r.warns).join() !== '2,5,7') fail('moderazione: ordinamento regole');
+  if (warnings.actionFor(6, rules).action !== 'kick') fail('moderazione: soglia più alta <= totale');
+  for (const bad of [[], [{ warns: 2, action: 'timeout' }, { warns: 2, action: 'kick' }], [{ warns: 99, action: 'kick' }], [{ warns: 3, action: 'mute' }]]) {
+    try {
+      warnings.setWarnActions(MQ, bad);
+      fail(`moderazione: regole invalide accettate (${JSON.stringify(bad)})`);
+    } catch {}
+  }
+  // Nuovi comandi registrati nel modulo moderation (gate incluso).
+  const registry = require(path.join(ROOT, 'src', 'modules', 'registry.js'));
+  for (const cmd of ['warnazioni', 'segnala']) {
+    if (registry.featureOfCommand(cmd) !== 'moderation') fail(`moderazione: /${cmd} non mappato a moderation`);
+  }
+  const f = dbFile('warnings');
+  const db = load(f);
+  delete db[MQ];
+  save(f, db);
+  if (load(f)[MQ] !== undefined) fail('moderazione: cleanup QA fallito');
+  console.log('moderazione: warn actions, gate nuovi comandi ok');
+} catch (e) {
+  fail(`moderazione (qatest): ${e.message.split('\n')[0]}`);
+}
+
 // ------------------------------------------------------------------ REPORT
 function report() {
 console.log('\n================ SMOKE TEST ================');
