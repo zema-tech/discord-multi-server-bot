@@ -35,6 +35,13 @@ module.exports = {
       console.error('ticketAutoclose:', e.message);
     }
 
+    // DIGEST: report giornaliero moderazione nel canale log (unref dentro il job).
+    try {
+      require('../jobs/modDigest').startModDigest(client);
+    } catch (e) {
+      console.error('modDigest:', e.message);
+    }
+
     // BACKUP: copia notturna del database ore 03:00 (interval con unref dentro il job).
     try {
       require('../jobs/backup').startBackup(client);

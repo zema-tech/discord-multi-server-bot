@@ -2468,6 +2468,35 @@ try {
   fail(`schema (qatest): ${e.message.split('\n')[0]}`);
 }
 
+// ------------------------------------------------- (c14) MUSICA + DIGEST
+console.log('== [14/5] Musica (coda/testi/cronologia) + digest ==');
+try {
+  const musica = require(path.join(ROOT, 'src', 'commands', 'music', 'musica.js'));
+  const subs = (musica.data.options || []).map((o) => o.name);
+  for (const s of ['play', 'skip', 'coda', 'mescola', 'ripeti', 'testi', 'cronologia']) {
+    if (!subs.includes(s)) fail(`musica: subcommand /${s} mancante`);
+  }
+  const hist = require(path.join(DB_DIR, 'musicHistory.js'));
+  hist.pushTrack('qatest_mh', { title: 'A', url: 'u1' });
+  hist.pushTrack('qatest_mh', { title: 'A', url: 'u1' });
+  hist.pushTrack('qatest_mh', { title: 'B', url: 'u2' });
+  const rec = hist.recentTracks('qatest_mh', 10).map((t) => t.title);
+  if (rec.join() !== 'B,A') fail(`musica: cronologia/dedup (${rec})`);
+  const { load, save, dbFile } = require(path.join(DB_DIR, 'jsonDb.js'));
+  const f = dbFile('musicHistory');
+  const db = load(f);
+  delete db['qatest_mh'];
+  save(f, db);
+  const digest = require(path.join(ROOT, 'src', 'jobs', 'modDigest.js'));
+  for (const fn of ['startModDigest', 'checkOnce', 'lastDayCases', 'lastDayWarns']) {
+    if (typeof digest[fn] !== 'function') fail(`digest: modDigest.${fn} mancante`);
+  }
+  if (digest.lastDayCases('qatest_mh', Date.now()).length !== 0) fail('digest: guild vuota');
+  console.log('musica + digest ok');
+} catch (e) {
+  fail(`musica (qatest): ${e.message.split('\n')[0]}`);
+}
+
 // ------------------------------------------------------------------ REPORT
 function report() {
 console.log('\n================ SMOKE TEST ================');

@@ -92,6 +92,38 @@ function setThumb(embed, track) {
   return embed;
 }
 
+/** Testo via LRCLIB (gratis, senza chiave). null se assente. Mai lanciare. */
+async function fetchLyrics(artist, title) {
+  try {
+    const a = String(artist || '').trim();
+    const t = String(title || '').trim();
+    if (!t) return null;
+    const url = `https://lrclib.net/api/get?${a ? `artist_name=${encodeURIComponent(a)}&` : ''}track_name=${encodeURIComponent(t)}`;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => { try { ctrl.abort(); } catch {} }, 15000);
+    try {
+      const res = await fetch(url, { signal: ctrl.signal, headers: { 'User-Agent': 'discord-multi-server-bot' } });
+      if (!res.ok) return null;
+      const j = await res.json().catch(() => null);
+      const txt = j && typeof j.plainLyrics === 'string' ? j.plainLyrics.trim() : '';
+      return txt || null;
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {
+    return null;
+  }
+}
+
+/** Enum repeat di discord-player con fallback numerico (dipendenze opzionali). */
+function repeatModes() {
+  try {
+    const dp = require('discord-player');
+    if (dp && dp.QueueRepeatMode) return dp.QueueRepeatMode;
+  } catch {}
+  return { OFF: 0, TRACK: 1, QUEUE: 2, AUTOPLAY: 3 };
+}
+
 function mapPlayError(e, query) {
   const msg = String(e?.message ?? e ?? '');
   if (/abort|timeout|timed out|ETIMEDOUT/i.test(msg)) return '⏱️ Ricerca scaduta per timeout. Riprova tra poco.';
@@ -140,7 +172,19 @@ module.exports = {
           o.setName('livello').setDescription('Volume da 0 a 100').setMinValue(0).setMaxValue(100).setRequired(true)
         )
     )
-    .addSubcommand((s) => s.setName('attuale').setDescription('Mostra il brano in riproduzione')),
+    .addSubcommand((s) => s.setName('attuale').setDescription('Mostra il brano in riproduzione'))
+    .addSubcommand((s) => s.setName('mescola').setDescription('Mescola la coda di riproduzione'))
+    .addSubcommand((s) =>
+      s.setName('ripeti').setDescription('Ripetizione: spenta, brano o coda')
+        .addStringOption((o) => o.setName('modo').setDescription('Modalità').setRequired(true)
+          .addChoices(
+            { name: 'Spenta', value: 'off' },
+            { name: '🔂 Brano', value: 'brano' },
+            { name: '🔁 Coda', value: 'coda' },
+          ))
+    )
+    .addSubcommand((s) => s.setName('testi').setDescription('Testo del brano in riproduzione'))
+    .addSubcommand((s) => s.setName('cronologia').setDescription('Ultimi brani riprodotti in questo server')),
   cooldown: 3,
 
   async execute(interaction) {
@@ -196,6 +240,12 @@ module.exports = {
       if (!track) {
         return replyEphemeral(interaction, `❌ Nessun risultato per **${safeText(query, 100)}**. Prova con un altro titolo o un link diretto.`);
       }
+      // Cronologia server (best-effort, mai fatale).
+      try {
+        require('../../database/musicHistory').pushTrack(interaction.guild.id, {
+          title: track.title, author: track.author, url: track.url, by: interaction.user.tag,
+        });
+      } catch {}
       const queue = res.queue ?? getQueue(player, interaction.guild.id);
       // Parte un brano: cancella un eventuale timer di auto-leave pendente.
       try {
@@ -304,6 +354,37 @@ module.exports = {
       return replyEmbed(interaction, embed);
     }
 
+    if (sub === 'testi') {
+      if (!current) return replyEphemeral(interaction, '❌ Niente in riproduzione al momento.');
+      await interaction.deferReply().catch(() => null);
+      if (!interaction.deferred && !interaction.replied) return;
+      const lyrics = await fetchLyrics(current.author, current.title);
+      if (!lyrics) {
+        return interaction.editReply('❌ Testo non trovato per questo brano.').catch(() => {});
+      }
+      const embed = new EmbedBuilder()
+        .setColor(COLORS.primary)
+        .setTitle(`📝 ${safeText(current.title, 200)}`.slice(0, 256))
+        .setDescription(safeText(lyrics, 4000))
+        .setFooter({ text: `Testo via LRCLIB • Richiesto da ${trunc(interaction.user.tag, 120)}` })
+        .setTimestamp();
+      return interaction.editReply({ embeds: [embed] }).catch(() => {});
+    }
+
+    if (sub === 'cronologia') {
+      let list = [];
+      try {
+        list = require('../../database/musicHistory').recentTracks(interaction.guild.id, 10);
+      } catch { list = []; }
+      if (!list.length) return replyEphemeral(interaction, '📭 Nessun brano recente. Usa `/musica play`!');
+      const embed = new EmbedBuilder()
+        .setColor(COLORS.primary)
+        .setTitle('🕘 Ultimi brani')
+        .setDescription(safeText(list.map((t, i) => `**${i + 1}.** [${safeText(t.title, 80)}](${t.url || 'https://discord.com/'})${t.author ? ` — ${safeText(t.author, 50)}` : ''}`).join('\n'), 4000))
+        .setTimestamp();
+      return replyEmbed(interaction, embed);
+    }
+
     // ---- SKIP / STOP / PAUSA / RIPRENDI / VOLUME: serve una coda attiva ----
     if (!queue || !current) {
       return replyEphemeral(interaction, '❌ Niente in riproduzione. Usa `/musica play` per iniziare!');
@@ -322,6 +403,34 @@ module.exports = {
       // FIX: non annunciare currentTrack subito dopo skip (potrebbe essere ancora il vecchio:
       // discord-player aggiorna in async) → messaggio senza titolo potenzialmente stale.
       return replyEphemeral(interaction, '⏭️ Brano saltato.');
+    }
+
+    if (sub === 'mescola') {
+      try {
+        if (typeof queue.tracks?.shuffle !== 'function') {
+          return replyEphemeral(interaction, '❌ Mescolamento non supportato da questa versione del player.');
+        }
+        queue.tracks.shuffle();
+      } catch {
+        return replyEphemeral(interaction, '❌ Non riesco a mescolare. Riprova.');
+      }
+      return replyEphemeral(interaction, '🔀 Coda mescolata!');
+    }
+
+    if (sub === 'ripeti') {
+      const modo = interaction.options.getString('modo', true);
+      const RM = repeatModes();
+      const target = modo === 'brano' ? RM.TRACK : modo === 'coda' ? RM.QUEUE : RM.OFF;
+      try {
+        if (typeof queue.setRepeatMode !== 'function') {
+          return replyEphemeral(interaction, '❌ Ripetizione non supportata da questa versione del player.');
+        }
+        queue.setRepeatMode(target);
+      } catch {
+        return replyEphemeral(interaction, '❌ Non riesco a impostare la ripetizione. Riprova.');
+      }
+      const label = modo === 'brano' ? '🔂 Ripetizione brano attiva.' : modo === 'coda' ? '🔁 Ripetizione coda attiva.' : '➡️ Ripetizione spenta.';
+      return replyEphemeral(interaction, label);
     }
 
     if (sub === 'stop') {
