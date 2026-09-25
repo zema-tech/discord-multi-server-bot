@@ -1,153 +1,43 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Accedi con Discord per gestire i tuoi server.">
-  <title>Accedi — Multi-Server Bot</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg: #0a0a0f;
-      --card: #14161d;
-      --border: #2a2e3b;
-      --accent: #c5f82a;
-      --accent-hover: #d6ff4d;
-      --text: #f4f5f7;
-      --muted: #b5bac1;
-      --radius: 16px;
-      --danger: #f04747;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-      background-color: var(--bg);
-      background-image: radial-gradient(700px 380px at 50% -80px, rgba(88, 101, 242, 0.22), transparent 65%);
-      color: var(--text);
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 1.5rem 1rem;
-      line-height: 1.5;
-    }
-    .card {
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 30%), var(--card);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 2.5rem 2rem;
-      max-width: 400px;
-      width: 100%;
-      text-align: center;
-      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(88, 101, 242, 0.08);
-      animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
-    }
-    @keyframes rise {
-      from { opacity: 0; transform: translateY(12px); }
-      to { opacity: 1; transform: none; }
-    }
-    .logo {
-      width: 56px;
-      height: 56px;
-      border-radius: 14px;
-      background: rgba(88, 101, 242, 0.12);
-      border: 1px solid var(--border);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 1.25rem;
-    }
-    .logo svg { width: 30px; height: 30px; }
-    h1 { font-family: "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif; font-size: 1.7rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 0.4rem; }
-    .sub { color: var(--muted); font-size: 0.95rem; margin-bottom: 1.5rem; }
-    .error {
-      display: none;
-      background: rgba(240, 71, 71, 0.1);
-      border: 1px solid rgba(240, 71, 71, 0.4);
-      color: #ff9a9a;
-      font-size: 0.85rem;
-      border-radius: 10px;
-      padding: 0.65rem 0.9rem;
-      margin-bottom: 1.25rem;
-      overflow-wrap: break-word;
-    }
-    .error.visible { display: block; }
-    .btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.65rem;
-      width: 100%;
-      background: var(--accent);
-      color: #0c0e05;
-      font-weight: 700;
-      font-size: 1rem;
-      padding: 0.85rem 1.5rem;
-      border-radius: 10px;
-      text-decoration: none;
-      transition: background 0.15s ease, transform 0.15s ease;
-    }
-    .btn:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 12px 28px rgba(88, 101, 242, 0.45); }
-    .btn:active { transform: translateY(1px); }
-    .scopes { margin-top: 1.25rem; font-size: 0.8rem; color: var(--muted); }
-    .scopes code {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      padding: 0.1rem 0.35rem;
-      border-radius: 6px;
-      font-size: 0.78rem;
-      color: var(--text);
-    }
-    .home { margin-top: 1.25rem; font-size: 0.9rem; }
-    .home a { color: var(--accent); text-decoration: none; font-weight: 500; }
-    .home a:hover { text-decoration: underline; }
-    a:focus-visible, .btn:focus-visible {
-      outline: 2px solid var(--accent);
-      outline-offset: 3px;
-      border-radius: 6px;
-    }
-    @media (max-width: 480px) {
-      .card { padding: 2rem 1.25rem; }
-      h1 { font-size: 1.3rem; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after { transition: none; animation: none; }
-    }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Accesso — Mission Control</title>
+<link rel="stylesheet" href="/css/tokens.css">
+<link rel="stylesheet" href="/css/site.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Plus+Jakarta+Sans:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 </head>
 <body>
-  <main class="card">
-    <span class="logo" aria-hidden="true">
-      <svg viewBox="0 0 32 32" fill="none" stroke="#c5f82a" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
-        <line x1="5" y1="10" x2="27" y2="10" stroke="#2a2e38"></line>
-        <line x1="5" y1="16" x2="27" y2="16" stroke="#2a2e38"></line>
-        <line x1="5" y1="22" x2="27" y2="22" stroke="#2a2e38"></line>
-        <circle cx="12" cy="10" r="3.2" fill="#1a1d24"></circle>
-        <circle cx="20" cy="16" r="3.2" fill="#1a1d24"></circle>
-        <circle cx="10" cy="22" r="3.2" fill="#1a1d24"></circle>
-      </svg>
-    </span>
-    <h1>Accedi</h1>
-    <p class="sub">Accedi per gestire i tuoi server Discord.</p>
-    <p class="error" id="error" role="alert"></p>
-    <a class="btn" href="/login">Accedi con Discord</a>
-    <p class="scopes">L'accesso usa solo gli ambiti <code>identify</code> + <code>guilds</code>.</p>
-    <p class="home"><a href="/">← Torna alla home</a></p>
-  </main>
-  <script>
-    (function () {
-      try {
-        var params = new URLSearchParams(window.location.search);
-        var err = params.get("error");
-        if (err) {
-          var box = document.getElementById("error");
-          box.textContent = err;
-          box.classList.add("visible");
-        }
-      } catch (e) { /* ignora: nessun errore da mostrare */ }
-    })();
-  </script>
+<nav class="nav">
+  <a class="brand" href="/"><span class="brand-mark">🎛️</span>Mission&nbsp;Control</a>
+</nav>
+<div class="login-wrap">
+  <div class="login-card">
+    <span class="brand-mark" style="width:52px;height:52px;font-size:1.7rem;">🎛️</span>
+    <h1>Accesso operatore</h1>
+    <p>Handshake col Commander via OAuth Discord. Niente password da ricordare.</p>
+    <div class="boot" id="boot" aria-hidden="true"></div>
+    <a class="btn btn-primary" id="loginBtn" href="/login" style="width:100%;justify-content:center;">Accedi con Discord</a>
+    <p style="margin-top:1rem;font-size:0.8rem;color:var(--text-dim);">Sessione cifrata · solo i tuoi server gestibili</p>
+  </div>
+</div>
+<script>
+(function () {
+  var lines = [
+    '<span class="ok">✔</span> canale sicuro',
+    '<span class="ok">✔</span> oauth discord pronto',
+    '<span class="ok">✔</span> commander in ascolto',
+    '<span style="color:var(--accent-soft)">→</span> in attesa di operatore…'
+  ];
+  var el = document.getElementById('boot');
+  var i = 0;
+  var t = setInterval(function () {
+    if (i >= lines.length || !el) { clearInterval(t); return; }
+    el.innerHTML += (i ? '<br>' : '') + lines[i++];
+  }, 420);
+})();
+</script>
 </body>
 </html>

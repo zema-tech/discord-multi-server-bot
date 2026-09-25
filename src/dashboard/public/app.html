@@ -1,284 +1,34 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Pannello di gestione del bot per i tuoi server Discord.">
-  <meta name="theme-color" content="#0a0a0c">
-  <title>Pannello — Multi-Server Bot</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css">
-  <script src="js/icons.js" defer></script>
-  <script src="js/core.js" defer></script>
-  <script src="js/home.js" defer></script>
-  <script src="js/panoramica.js" defer></script>
-  <script src="js/modules.js" defer></script>
-  <script src="js/lists.js" defer></script>
-  <script src="js/perms.js" defer></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Console — Mission Control</title>
+<link rel="stylesheet" href="/css/tokens.css">
+<link rel="stylesheet" href="/css/site.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Plus+Jakarta+Sans:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
-  <a class="skip-link" href="#view">Salta al contenuto</a>
-
-  <div class="app">
-    <aside id="sidebar" aria-label="Lista server">
-      <a class="brand" href="/">
-        <svg class="brand-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9"/><path d="M17 7h3"/><circle cx="15" cy="7" r="2"/><path d="M4 17h3"/><path d="M11 17h9"/><circle cx="9" cy="17" r="2"/></svg>
-        <span>Multi-Server Bot</span>
-      </a>
-
-      <div id="user-chip">
-        <img id="user-avatar" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="Avatar utente">
-        <div>
-          <div id="user-name">Caricamento…</div>
-          <div id="user-sub">Connessione…</div>
-        </div>
-        <a id="logout-link" href="/logout" title="Esci">Esci</a>
-      </div>
-
-      <div class="side-search">
-        <label class="visually-hidden" for="guild-search">Cerca server</label>
-        <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input type="search" id="guild-search" placeholder="Cerca server…" autocomplete="off">
-        <kbd class="search-kbd">/</kbd>
-      </div>
-
-      <div class="chips" role="group" aria-label="Filtro server">
-        <button type="button" class="chip is-active" data-filter="all">Tutti</button>
-        <button type="button" class="chip" data-filter="bot">Con bot</button>
-        <button type="button" class="chip" data-filter="missing">Da aggiungere</button>
-      </div>
-
-      <h2>Server <span id="guild-count" class="count-pill"></span></h2>
-      <ul id="guild-list"></ul>
-
-      <div class="sidebar-foot">
-        <a class="btn btn-secondary btn-sm" href="/">Home</a>
-        <a class="btn btn-secondary btn-sm" href="/login">Cambia account</a>
-      </div>
-    </aside>
-
-    <div class="main-col">
-      <header id="topbar">
-        <button id="nav-toggle" class="btn btn-secondary btn-sm" type="button" aria-expanded="false" aria-controls="sidebar" aria-label="Apri lista server">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
-        </button>
-        <div id="ctx">
-          <span id="ctx-icon" class="guild-icon" aria-hidden="true">?</span>
-          <div>
-            <h1 id="ctx-name">I tuoi server</h1>
-            <p id="ctx-sub">Scegli un server dalla lista.</p>
-          </div>
-        </div>
-        <nav id="crumbs" aria-label="Percorso"><ol id="crumb-list"></ol></nav>
-        <button id="page-save" class="btn btn-primary btn-sm" type="button" hidden>Salva</button>
-        <span id="top-status" class="status-pill" hidden><span class="dot"></span><span class="status-txt">Online</span></span>
-        <img id="top-avatar" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="Avatar utente">
-        <a id="top-logout" class="icon-btn" href="/logout" title="Esci" aria-label="Esci">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
-        </a>
-      </header>
-
-      <main id="view" tabindex="-1">
-        <p id="status" class="status-line" role="status"></p>
-
-        <section id="view-home">
-          <div id="overview-stats" class="stats-cards"></div>
-          <div id="overview-grid" class="ov-grid"></div>
-        </section>
-
-        <section id="view-server" hidden>
-          <aside id="module-side">
-            <div class="mod-search">
-              <label class="visually-hidden" for="module-search">Cerca modulo</label>
-              <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-              <input type="search" id="module-search" placeholder="Cerca modulo…" autocomplete="off">
-            </div>
-            <div id="module-sections" class="chips" role="group" aria-label="Filtra moduli per sezione"></div>
-            <nav id="module-list" aria-label="Moduli"></nav>
-          </aside>
-
-          <div id="module-main">
-            <section id="sec-panoramica">
-              <div class="card chart-card">
-                <div class="chart-head">
-                  <div>
-                    <h2 id="stats-h">Attività ultimi 30 giorni</h2>
-                    <p id="chart-summary" class="muted small">Messaggi, ingressi e uscite giornalieri.</p>
-                  </div>
-                  <div class="legend">
-                    <span class="legend-item"><span class="sw sw-msg"></span>Messaggi</span>
-                    <span class="legend-item"><span class="sw sw-join"></span>Ingressi</span>
-                    <span class="legend-item"><span class="sw sw-leave"></span>Uscite</span>
-                  </div>
-                </div>
-                <div id="chart-wrap" class="chart-wrap">
-                  <div id="chart-tip" class="chart-tip" hidden></div>
-                </div>
-              </div>
-              <div id="stats" class="stats-cards"></div>
-              <div class="ov-grid two">
-                <div class="card">
-                  <h3>Top livelli</h3>
-                  <ol id="top-levels" class="toplist"></ol>
-                </div>
-                <div class="card">
-                  <h3>Top economy</h3>
-                  <ol id="top-eco" class="toplist"></ol>
-                </div>
-              </div>
-            </section>
-
-            <section id="sec-module" hidden>
-              <div id="module-detail">
-                <div id="modules"></div>
-              </div>
-            </section>
-
-            <section id="sec-lists" hidden>
-              <div class="lists-grid">
-                <div class="card">
-                  <h3>Risposte automatiche</h3>
-                  <p class="muted small">Associa una parola o frase a una risposta del bot.</p>
-                  <ul id="ar-list" class="itemlist"></ul>
-                  <form id="ar-form" class="stack">
-                    <div class="field">
-                      <label for="ar-match">Parola o frase</label>
-                      <input type="text" id="ar-match" maxlength="200" placeholder="es. orari" required>
-                    </div>
-                <div class="field">
-                  <label for="ar-response">Risposta</label>
-                  <textarea id="ar-response" maxlength="1500" placeholder="Il server apre alle…" required></textarea>
-                </div>
-                <div class="field">
-                  <label for="ar-mode">Tipo di corrispondenza</label>
-                  <select id="ar-mode">
-                    <option value="include">Contiene la parola</option>
-                    <option value="exact">Frase esatta</option>
-                    <option value="regex">Espressione regolare</option>
-                  </select>
-                </div>
-                <button class="btn btn-primary btn-sm" type="submit">Aggiungi</button>
-                  </form>
-                </div>
-                <div class="card">
-                  <h3>Comandi personalizzati</h3>
-                  <p class="muted small">Comandi con nome breve e risposta personalizzata.</p>
-                  <ul id="cc-list" class="itemlist"></ul>
-                  <form id="cc-form" class="stack">
-                    <div class="field">
-                      <label for="cc-name">Nome comando</label>
-                      <input type="text" id="cc-name" maxlength="20" placeholder="es. regole" required>
-                    </div>
-                    <div class="field">
-                      <label for="cc-response">Risposta</label>
-                      <textarea id="cc-response" maxlength="1500" placeholder="Leggi il regolamento…" required></textarea>
-                    </div>
-                    <button class="btn btn-primary btn-sm" type="submit">Salva comando</button>
-                  </form>
-                </div>
-                <div class="card">
-                  <h3>Ricompense di livello</h3>
-                  <p class="muted small">Ruolo assegnato al raggiungimento di un livello.</p>
-                  <ul id="rw-list" class="itemlist"></ul>
-                  <form id="rw-form" class="stack">
-                    <div class="row2">
-                      <div class="field">
-                        <label for="rw-level">Livello</label>
-                        <input type="number" id="rw-level" min="1" max="100" step="1" required>
-                      </div>
-                      <div class="field">
-                        <label for="rw-role">Ruolo</label>
-                        <select id="rw-role" required></select>
-                      </div>
-                    </div>
-                    <button class="btn btn-primary btn-sm" type="submit">Assegna</button>
-                  </form>
-                </div>
-                <div class="card">
-                  <h3>Negozio ruoli</h3>
-                  <p class="muted small">Ruoli acquistabili con le monete del server.</p>
-                  <ul id="sh-list" class="itemlist"></ul>
-                  <form id="sh-form" class="stack">
-                    <div class="row2">
-                      <div class="field">
-                        <label for="sh-role">Ruolo in vendita</label>
-                        <select id="sh-role" required></select>
-                      </div>
-                      <div class="field">
-                        <label for="sh-price">Prezzo</label>
-                        <input type="number" id="sh-price" min="1" max="10000000" step="1" required>
-                      </div>
-                    </div>
-                <button class="btn btn-primary btn-sm" type="submit">Metti in vendita</button>
-              </form>
-            </div>
-            <div class="card" id="card-rr">
-              <h3>Opzioni reaction roles</h3>
-              <p class="muted small">Associa emoji e ruoli al pannello reaction roles.</p>
-              <ul id="rr-list" class="itemlist"></ul>
-              <form id="rr-form" class="stack">
-                <div class="row2">
-                  <div class="field">
-                    <label for="rr-role">Ruolo</label>
-                    <select id="rr-role" required></select>
-                  </div>
-                  <div class="field">
-                    <label for="rr-emoji">Emoji</label>
-                    <input type="text" id="rr-emoji" maxlength="50" placeholder="es. stella">
-                  </div>
-                </div>
-                <div class="field">
-                  <label for="rr-label">Etichetta</label>
-                  <input type="text" id="rr-label" maxlength="100" placeholder="es. Annunci">
-                </div>
-                <button class="btn btn-primary btn-sm" type="submit">Aggiungi opzione</button>
-              </form>
-            </div>
-          </div>
-        </section>
-
-        <section id="sec-perms" hidden>
-              <div class="card">
-                <h3>Chi può usare cosa</h3>
-                <p class="muted small">Seleziona i ruoli ammessi per ogni comando. Riga vuota uguale nessun limite.</p>
-                <div class="matrix-scroll">
-                  <table id="perms-matrix" class="matrix">
-                    <thead id="perms-head"></thead>
-                    <tbody id="perms-body"></tbody>
-                  </table>
-                </div>
-              </div>
-            </section>
-          </div>
-        </section>
-      </main>
-    </div>
+<nav class="nav">
+  <a class="brand" href="/"><span class="brand-mark">🎛️</span>Mission&nbsp;Control</a>
+  <div class="nav-links">
+    <span id="meBox" class="mono" style="font-size:.8rem;color:var(--text-dim);"></span>
+    <a href="/logout">Esci</a>
   </div>
-
-  <div id="dirty-bar" class="dirty-bar" hidden>
-    <span class="dirty-dot" aria-hidden="true"></span>
-    <span id="dirty-count" role="status">Modifiche non salvate</span>
-    <span class="dirty-actions">
-      <button id="dirty-discard" class="btn btn-secondary btn-sm" type="button">Annulla</button>
-      <button id="dirty-save" class="btn btn-primary btn-sm" type="button">Salva tutto</button>
-    </span>
-  </div>
-
-  <div id="nav-overlay" hidden></div>
-
-  <div id="confirm-backdrop" class="modal-backdrop" hidden>
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-msg">
-      <h2 id="confirm-title">Confermi?</h2>
-      <p id="confirm-msg"></p>
-      <div class="modal-actions">
-        <button id="confirm-cancel" class="btn btn-secondary btn-sm" type="button">Annulla</button>
-        <button id="confirm-ok" class="btn btn-primary btn-sm" type="button">Conferma</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="toasts" class="toast-wrap" aria-live="polite"></div>
+</nav>
+<div class="app">
+  <aside class="sidebar">
+    <div class="guild-pick"><select id="guildSel" aria-label="Server"></select></div>
+    <div class="side-label">Console</div>
+    <div id="sideNav"></div>
+  </aside>
+  <main class="main" id="view"></main>
+</div>
+<div id="toasts"></div>
+<div id="cmdkMount"></div>
+<script src="/js/api.js"></script>
+<script src="/js/app.js"></script>
 </body>
 </html>

@@ -1,1 +1,0 @@
-/* app.js pensionato: bootstrap diviso in js/icons.js, js/core.js, js/home.js, js/panoramica.js, js/modules.js, js/lists.js, js/perms.js (ordine nei tag script di app.html). File tenuto per retrocompatibilità. */

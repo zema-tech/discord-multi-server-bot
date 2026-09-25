@@ -1,0 +1,69 @@
+/* ============================================================
+   DESIGN TOKENS — Mission Control (3 strati: primitive→semantic→component)
+   Unica fonte di verità visiva. Niente hex nei componenti: solo var().
+   ============================================================ */
+
+/* ---- PRIMITIVE ---- */
+:root {
+  --ink-950: #07090f;
+  --ink-900: #0b0e16;
+  --ink-850: #10141f;
+  --ink-800: #151a28;
+  --ink-700: #1e2436;
+  --ink-600: #2a3247;
+  --mist-300: #b9c0d4;
+  --mist-200: #d7dce9;
+  --mist-100: #f2f4fa;
+  --blurple-500: #5865f2;
+  --blurple-400: #7983ff;
+  --blurple-700: #4752c4;
+  --mint-500: #57f287;
+  --mint-700: #1f9d55;
+  --amber-500: #fee75c;
+  --ember-500: #ed4245;
+  --sky-400: #5cc8ff;
+  --font-display: "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-body: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", monospace;
+}
+
+/* ---- SEMANTIC ---- */
+:root {
+  --bg-primary: var(--ink-950);
+  --bg-secondary: var(--ink-900);
+  --surface: var(--ink-850);
+  --surface-2: var(--ink-800);
+  --surface-3: var(--ink-700);
+  --border: var(--ink-600);
+  --text-primary: var(--mist-100);
+  --text-secondary: var(--mist-300);
+  --text-dim: #7d8699;
+  --accent: var(--blurple-500);
+  --accent-soft: var(--blurple-400);
+  --accent-deep: var(--blurple-700);
+  --ok: var(--mint-500);
+  --warn: var(--amber-500);
+  --bad: var(--ember-500);
+  --info: var(--sky-400);
+  --radius-s: 8px;
+  --radius-m: 14px;
+  --radius-l: 22px;
+  --shadow-pop: 0 12px 40px rgba(88, 101, 242, 0.28);
+  --shadow-card: 0 8px 28px rgba(0, 0, 0, 0.45);
+  --font-size-hero: clamp(2.6rem, 6vw, 4.6rem);
+  --font-size-h2: clamp(1.5rem, 3vw, 2.2rem);
+}
+
+/* ---- COMPONENT ---- */
+:root {
+  --btn-bg: var(--accent);
+  --btn-bg-hover: var(--accent-soft);
+  --btn-text: #fff;
+  --card-bg: var(--surface);
+  --card-border: var(--border);
+  --input-bg: var(--ink-900);
+  --input-border: var(--ink-600);
+  --nav-bg: rgba(11, 14, 22, 0.82);
+  --toggle-on: var(--ok);
+  --toggle-off: var(--ink-600);
+}

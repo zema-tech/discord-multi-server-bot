@@ -1,498 +1,61 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Multi-Server Bot — il pannello che comanda moderazione, ticket, livelli ed economia su tutti i tuoi server Discord.">
-  <meta name="theme-color" content="#0a0a0c">
-  <title>Multi-Server Bot — Comanda il tuo server</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg: #0a0a0c;
-      --bg2: #101014;
-      --card: #141419;
-      --border: #26262e;
-      --volt: #c5f82a;
-      --volt-h: #d6ff4d;
-      --volt-soft: rgba(197, 248, 42, 0.12);
-      --text: #f5f6f0;
-      --muted: #a7a89e;
-      --display: "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif;
-      --body: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-      --ease: cubic-bezier(0.22, 1, 0.36, 1);
-    }
-
-    *, *::before, *::after { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body {
-      margin: 0;
-      font-family: var(--body);
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.6;
-      -webkit-font-smoothing: antialiased;
-      overflow-x: hidden;
-    }
-
-    /* Grana cinematografica */
-    body::before {
-      content: "";
-      position: fixed;
-      inset: 0;
-      z-index: 60;
-      pointer-events: none;
-      opacity: 0.055;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
-    }
-
-    .skip-link {
-      position: absolute;
-      left: -9999px;
-      top: 0;
-      background: var(--volt);
-      color: #0c0e05;
-      padding: 10px 16px;
-      border-radius: 0 0 12px 0;
-      font-weight: 700;
-      font-size: 14px;
-      z-index: 100;
-    }
-    .skip-link:focus { left: 0; }
-
-    .wrap { max-width: 1200px; margin: 0 auto; padding: 0 clamp(1.5rem, 5vw, 4rem); }
-
-    /* ---------- Nav ---------- */
-    .nav {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      z-index: 50;
-      backdrop-filter: blur(14px) saturate(1.2);
-      -webkit-backdrop-filter: blur(14px) saturate(1.2);
-      background: rgba(10, 10, 12, 0.72);
-      border-bottom: 1px solid var(--border);
-    }
-    .nav-inner {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 0.85rem clamp(1.5rem, 5vw, 4rem);
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-    }
-    .brand { display: flex; align-items: center; gap: 0.6rem; font-family: var(--display); font-weight: 700; font-size: 1rem; color: var(--text); text-decoration: none; }
-    .brand-mark { width: 30px; height: 30px; border-radius: 9px; background: var(--volt); display: inline-flex; align-items: center; justify-content: center; flex: none; }
-    .nav-links { margin-left: auto; display: flex; align-items: center; gap: 1.4rem; }
-    .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.9rem; font-weight: 600; }
-    .nav-links a:hover { color: var(--text); }
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.55rem;
-      font: inherit;
-      font-weight: 800;
-      text-decoration: none;
-      cursor: pointer;
-      border-radius: 12px;
-      border: 1px solid transparent;
-      transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease), background 0.2s var(--ease);
-    }
-    .btn-volt { background: var(--volt); color: #0c0e05; padding: 0.7rem 1.5rem; font-size: 0.95rem; box-shadow: 0 6px 28px rgba(197, 248, 42, 0.28); }
-    .btn-volt:hover { background: var(--volt-h); transform: translateY(-2px); box-shadow: 0 14px 36px rgba(197, 248, 42, 0.4); }
-    .btn-ghost { background: transparent; color: var(--text); border-color: var(--border); padding: 0.7rem 1.5rem; font-size: 0.95rem; }
-    .btn-ghost:hover { border-color: var(--volt); color: var(--volt); }
-    .btn-sm { padding: 0.5rem 1rem; font-size: 0.85rem; }
-    .btn:focus-visible, a:focus-visible { outline: 2px solid var(--volt); outline-offset: 3px; border-radius: 8px; }
-
-    /* ---------- Hero ---------- */
-    .hero {
-      position: relative;
-      min-height: 100vh;
-      min-height: 100svh;
-      display: flex;
-      align-items: center;
-      padding: 7rem 0 4rem;
-      overflow: hidden;
-    }
-    .hero-glow {
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      background:
-        radial-gradient(800px 460px at 18% 8%, rgba(197, 248, 42, 0.13), transparent 65%),
-        radial-gradient(700px 500px at 90% 90%, rgba(197, 248, 42, 0.06), transparent 60%),
-        radial-gradient(500px 300px at 80% 10%, rgba(255, 255, 255, 0.05), transparent 60%);
-      will-change: transform;
-    }
-    .hero-grid-bg {
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      opacity: 0.5;
-      background-image: linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
-      background-size: 72px 72px;
-      mask-image: radial-gradient(ellipse 90% 80% at 50% 20%, black 30%, transparent 75%);
-      -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 20%, black 30%, transparent 75%);
-    }
-    .hero-inner { position: relative; display: grid; grid-template-columns: 1.15fr 0.85fr; gap: clamp(2rem, 5vw, 4rem); align-items: center; width: 100%; }
-
-    .kicker {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-size: 0.75rem;
-      font-weight: 800;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--volt);
-      background: var(--volt-soft);
-      border: 1px solid rgba(197, 248, 42, 0.35);
-      border-radius: 999px;
-      padding: 0.4rem 1rem;
-      margin-bottom: 1.4rem;
-    }
-    .kicker .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--volt); box-shadow: 0 0 10px rgba(197, 248, 42, 0.9); animation: blink 2s ease-in-out infinite; }
-    @keyframes blink { 50% { opacity: 0.4; } }
-
-    .hero h1 {
-      font-family: var(--display);
-      font-size: clamp(2.8rem, 6.5vw, 5.2rem);
-      line-height: 1.02;
-      letter-spacing: -0.03em;
-      margin: 0 0 1.2rem;
-      font-weight: 700;
-    }
-    .hero h1 .stroke {
-      color: transparent;
-      -webkit-text-stroke: 1.5px var(--volt);
-    }
-    .hero p.lead { font-size: clamp(1rem, 1.6vw, 1.2rem); color: var(--muted); max-width: 34rem; margin: 0 0 2rem; }
-    .hero-cta { display: flex; gap: 0.9rem; flex-wrap: wrap; }
-
-    /* Pannello finto del bot: l'elemento memorabile */
-    .deck {
-      position: relative;
-      background: linear-gradient(180deg, rgba(255,255,255,0.04), transparent 35%), var(--card);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 1.2rem;
-      box-shadow: 0 32px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(197, 248, 42, 0.07);
-      transform: rotate(2deg);
-      transition: transform 0.3s var(--ease);
-    }
-    .deck:hover { transform: rotate(0deg); }
-    .deck-bar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
-    .deck-bar i { width: 11px; height: 11px; border-radius: 50%; background: var(--border); }
-    .deck-bar i:first-child { background: var(--volt); }
-    .deck-row {
-      display: flex;
-      align-items: center;
-      gap: 0.7rem;
-      background: rgba(255, 255, 255, 0.025);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 0.65rem 0.85rem;
-      margin-bottom: 0.6rem;
-      font-size: 0.88rem;
-    }
-    .deck-row:last-child { margin-bottom: 0; }
-    .deck-cmd { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; color: var(--volt); font-weight: 700; flex: none; }
-    .deck-row span:last-child { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .deck-tag {
-      position: absolute;
-      top: -14px;
-      right: 18px;
-      background: var(--volt);
-      color: #0c0e05;
-      font-size: 0.72rem;
-      font-weight: 800;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      border-radius: 8px;
-      padding: 0.3rem 0.7rem;
-      transform: rotate(-3deg);
-    }
-
-    .scroll-hint {
-      position: absolute;
-      bottom: 1.6rem;
-      left: 50%;
-      transform: translateX(-50%);
-      color: var(--muted);
-      font-size: 0.75rem;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.4rem;
-    }
-    .scroll-hint::after { content: ""; width: 1px; height: 34px; background: linear-gradient(var(--volt), transparent); animation: drop 1.8s var(--ease) infinite; }
-    @keyframes drop { 0% { transform: scaleY(0); transform-origin: top; } 45% { transform: scaleY(1); transform-origin: top; } 55% { transform: scaleY(1); transform-origin: bottom; } 100% { transform: scaleY(0); transform-origin: bottom; } }
-
-    /* ---------- Reveal on scroll ---------- */
-    .rv { opacity: 0; transform: translateY(40px); transition: opacity 0.7s var(--ease), transform 0.7s var(--ease); }
-    .rv.in { opacity: 1; transform: none; }
-
-    /* ---------- Sezioni ---------- */
-    section { padding: clamp(4rem, 10vw, 8rem) 0; }
-    .sec-kicker { color: var(--volt); font-size: 0.78rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; margin: 0 0 0.8rem; }
-    .sec-title { font-family: var(--display); font-size: clamp(1.9rem, 4vw, 3rem); letter-spacing: -0.02em; line-height: 1.05; margin: 0 0 1rem; }
-    .sec-sub { color: var(--muted); max-width: 38rem; margin: 0 0 2.5rem; font-size: 1.02rem; }
-
-    .feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
-    .feat {
-      background: linear-gradient(180deg, rgba(255,255,255,0.03), transparent 40%), var(--card);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 1.6rem 1.5rem;
-      transition: transform 0.25s var(--ease), border-color 0.25s var(--ease), box-shadow 0.25s var(--ease);
-    }
-    .feat:hover { transform: translateY(-6px); border-color: rgba(197, 248, 42, 0.5); box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45); }
-    .feat-ico { font-size: 1.7rem; display: block; margin-bottom: 0.9rem; }
-    .feat h3 { font-family: var(--display); font-size: 1.15rem; margin: 0 0 0.4rem; letter-spacing: -0.01em; }
-    .feat p { margin: 0; color: var(--muted); font-size: 0.92rem; }
-    .feat .cmd { display: inline-block; margin-top: 0.8rem; font-family: ui-monospace, Consolas, monospace; font-size: 0.8rem; color: var(--volt); background: var(--volt-soft); border: 1px solid rgba(197, 248, 42, 0.3); border-radius: 8px; padding: 0.2rem 0.6rem; }
-
-    /* ---------- Stats ---------- */
-    .stats-band { background: var(--volt); color: #0c0e05; border-radius: 24px; padding: clamp(2rem, 5vw, 3.5rem); display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; transform: rotate(-0.5deg); }
-    .stat b { font-family: var(--display); font-size: clamp(2.2rem, 4.5vw, 3.4rem); letter-spacing: -0.03em; display: block; line-height: 1; font-variant-numeric: tabular-nums; }
-    .stat span { font-weight: 700; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.75; }
-
-    /* ---------- Come funziona ---------- */
-    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; counter-reset: step; }
-    .step { border: 1px solid var(--border); border-radius: 18px; padding: 1.6rem 1.5rem; background: var(--bg2); position: relative; }
-    .step::before { counter-increment: step; content: "0" counter(step); font-family: var(--display); font-size: 2.6rem; font-weight: 700; color: transparent; -webkit-text-stroke: 1px var(--volt); display: block; margin-bottom: 0.6rem; }
-    .step h3 { font-family: var(--display); margin: 0 0 0.4rem; font-size: 1.1rem; }
-    .step p { margin: 0; color: var(--muted); font-size: 0.92rem; }
-    .step code { color: var(--volt); font-size: 0.82rem; }
-
-    /* ---------- CTA ---------- */
-    .cta-box {
-      position: relative;
-      overflow: hidden;
-      border-radius: 24px;
-      border: 1px solid rgba(197, 248, 42, 0.35);
-      background: radial-gradient(600px 300px at 50% -50px, rgba(197, 248, 42, 0.18), transparent 70%), var(--card);
-      padding: clamp(2.5rem, 6vw, 4.5rem);
-      text-align: center;
-    }
-    .cta-box h2 { font-family: var(--display); font-size: clamp(2rem, 5vw, 3.4rem); letter-spacing: -0.02em; line-height: 1.05; margin: 0 0 1rem; }
-    .cta-box h2 em { font-style: normal; color: var(--volt); }
-    .cta-box p { color: var(--muted); margin: 0 0 2rem; }
-
-    footer { border-top: 1px solid var(--border); padding: 2rem 0 2.5rem; color: var(--muted); font-size: 0.85rem; }
-    footer .wrap { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
-    footer nav { margin-left: auto; display: flex; gap: 1.2rem; }
-    footer a { color: var(--muted); text-decoration: none; }
-    footer a:hover { color: var(--volt); }
-
-    @media (max-width: 900px) {
-      .hero-inner { grid-template-columns: 1fr; }
-      .deck { transform: none; max-width: 520px; }
-      .feat-grid, .steps { grid-template-columns: 1fr; }
-      .stats-band { grid-template-columns: repeat(2, 1fr); transform: none; }
-      .nav-links a:not(.btn) { display: none; }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      html { scroll-behavior: auto; }
-      *, *::before, *::after { animation: none !important; transition: none !important; }
-      .rv { opacity: 1; transform: none; }
-    }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mission Control — Bot Dashboard</title>
+<link rel="stylesheet" href="/css/tokens.css">
+<link rel="stylesheet" href="/css/site.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Plus+Jakarta+Sans:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 </head>
 <body>
-  <a class="skip-link" href="#contenuto">Salta al contenuto</a>
+<nav class="nav">
+  <a class="brand" href="/"><span class="brand-mark">🎛️</span>Mission&nbsp;Control</a>
+  <div class="nav-links">
+    <a href="/app.html" class="btn btn-primary btn-sm">Apri console</a>
+  </div>
+</nav>
 
-  <header class="nav">
-    <div class="nav-inner">
-      <a class="brand" href="#top" aria-label="Multi-Server Bot, torna in cima">
-        <span class="brand-mark" aria-hidden="true">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0c0e05" stroke-width="2.6" stroke-linecap="round"><path d="M4 7h9"/><path d="M17 7h3"/><circle cx="15" cy="7" r="2"/><path d="M4 17h3"/><path d="M11 17h9"/><circle cx="9" cy="17" r="2"/></svg>
-        </span>
-        <span>Multi-Server Bot</span>
-      </a>
-      <nav class="nav-links" aria-label="Sezioni">
-        <a href="#funzioni">Funzioni</a>
-        <a href="#numeri">Numeri</a>
-        <a href="#come-funziona">Come funziona</a>
-        <a class="btn btn-volt btn-sm" href="/login">Accedi con Discord</a>
-      </nav>
+<header class="hero">
+  <span class="eyebrow"><span class="pulse-dot"></span>Bot online · Pannello di comando</span>
+  <h1>Ogni server,<br><span class="grad">sotto controllo.</span></h1>
+  <p class="sub">Moduli, ticket, livelli, AI e moderazione — tutto il tuo bot Discord comandato da una console scura, veloce e senza pietà per il superfluo.</p>
+  <div class="hero-cta">
+    <a class="btn btn-primary" href="/login">Accedi con Discord</a>
+    <a class="btn btn-ghost" href="/app.html">Vai alla console →</a>
+  </div>
+  <div class="hero-stats">
+    <div><b data-count>15</b><span>moduli hot-toggle</span></div>
+    <div><b data-count>88</b><span>comandi slash</span></div>
+    <div><b>⌨️</b><span>palette comandi Ctrl+K</span></div>
+  </div>
+  <div class="console" aria-hidden="true">
+    <div class="console-bar"><i></i><i></i><i></i></div>
+    <div class="console-body">
+      <div><span class="dim">$</span> <span class="ac">mission-control</span> status</div>
+      <div><span class="ok">✔</span> commander <span class="dim">— gate · breaker · dispatch</span></div>
+      <div><span class="ok">✔</span> 15 moduli <span class="dim">— 0 isolati</span></div>
+      <div><span class="ok">✔</span> cervello IA <span class="dim">— skill · memorie · persone</span></div>
+      <div><span class="dim">$</span> <span class="ac">mission-control</span> watch <span class="dim">▊</span></div>
     </div>
-  </header>
+  </div>
+</header>
 
-  <main id="contenuto">
-    <!-- HERO -->
-    <section class="hero" id="top" aria-labelledby="titolo">
-      <div class="hero-glow" id="hero-glow" aria-hidden="true"></div>
-      <div class="hero-grid-bg" aria-hidden="true"></div>
-      <div class="wrap hero-inner">
-        <div>
-          <span class="kicker"><span class="dot"></span>Commander · moduli isolati</span>
-          <h1 id="titolo">Comanda il tuo server.<br><span class="stroke">Niente si rompe.</span></h1>
-          <p class="lead">Moderazione, ticket, livelli, economia e AI — ogni modulo vive isolato: se uno cade, il resto continua a funzionare. Gestisci tutto dal pannello o con <strong>/modulo</strong>.</p>
-          <div class="hero-cta">
-            <a class="btn btn-volt" href="/login">Accedi con Discord</a>
-            <a class="btn btn-ghost" href="#funzioni">Vedi le funzioni</a>
-          </div>
-        </div>
-        <div class="deck" aria-hidden="true">
-          <span class="deck-tag">live dal bot</span>
-          <div class="deck-bar"><i></i><i></i><i></i></div>
-          <div class="deck-row"><span class="deck-cmd">/modulo stato</span><span>15 moduli · tutti operativi</span></div>
-          <div class="deck-row"><span class="deck-cmd">/ban</span><span>caso #482 archiviato</span></div>
-          <div class="deck-row"><span class="deck-cmd">/daily</span><span>+250 monete · streak 6🔥</span></div>
-          <div class="deck-row"><span class="deck-cmd">/ticket panel</span><span>supporto aperto in #ticket-31</span></div>
-        </div>
-      </div>
-      <span class="scroll-hint" aria-hidden="true">scorri</span>
-    </section>
+<section class="section">
+  <h2>Cosa comandi da qui</h2>
+  <p class="lede">Niente iframe, niente reload infiniti: la console parla solo col Commander, e il Commander parla coi moduli.</p>
+  <div class="grid-3">
+    <div class="card"><div class="ico">🧩</div><h3>Moduli on/off</h3><p>Toggle istantanei per server con salute live: spento, protetto o attivo. Mai un crash per un modulo rotto.</p></div>
+    <div class="card"><div class="ico">🎫</div><h3>Ticket premium</h3><p>Pannelli per sezione, domande pre-apertura, priorità, rating, transcript HTML e blacklist — tutto configurabile.</p></div>
+    <div class="card"><div class="ico">🧠</div><h3>Cervello IA</h3><p>Skill, memorie e fatti delle persone per server. L'AI risponde col contesto giusto, sempre isolato per guild.</p></div>
+    <div class="card"><div class="ico">⭐</div><h3>Livelli ed economia</h3><p>XP veri, minuti vocali, premi ruolo, banca con interessi e classifiche in tempo reale.</p></div>
+    <div class="card"><div class="ico">🛡️</div><h3>Moderazione seria</h3><p>Warn con azioni automatiche, filtri clear, segnalazioni, audit log e retention GDPR.</p></div>
+    <div class="card"><div class="ico">⌨️</div><h3>Comandi custom</h3><p>Trigger <span class="mono">!nome</span> con variabili, risposte automatiche e permessi per comando.</p></div>
+  </div>
+</section>
 
-    <!-- FUNZIONI -->
-    <section id="funzioni" aria-labelledby="funzioni-t">
-      <div class="wrap">
-        <p class="sec-kicker rv">Funzioni</p>
-        <h2 class="sec-title rv" id="funzioni-t">Un bot. Quindici moduli.<br>Zero punti singoli di rottura.</h2>
-        <p class="sec-sub rv">Il Commander esegue ogni comando in isolamento con timeout e circuit-breaker: il modulo in difficoltà va in protezione, gli altri non se ne accorgono.</p>
-        <div class="feat-grid">
-          <article class="feat rv"><span class="feat-ico">🛡️</span><h3>Moderazione blindata</h3><p>Ban, kick, timeout, warn con escalation, lockdown anti-raid e storico casi per utente.</p><span class="cmd">/ban · /caso · /lockdown</span></article>
-          <article class="feat rv"><span class="feat-ico">🎫</span><h3>Ticket professionali</h3><p>Pannello con menu, claim, transcript, auto-chiusura degli inattivi e AI integrata.</p><span class="cmd">/ticket · /ticket-ai</span></article>
-          <article class="feat rv"><span class="feat-ico">💰</span><h3>Economia viva</h3><p>Monete, banca, lavoro, rapine, shop ruoli, lotteria e reputazione giornaliera.</p><span class="cmd">/daily · /shop · /rob</span></article>
-          <article class="feat rv"><span class="feat-ico">🤖</span><h3>AI del server</h3><p>Risposte, riassunti, immagini e un cervello con memorie e skill del tuo server.</p><span class="cmd">/chiedi · /brain</span></article>
-          <article class="feat rv"><span class="feat-ico">⭐</span><h3>Livelli e ricompense</h3><p>XP da messaggi e vocale, classifiche, ruoli premio automatici e sfide settimanali.</p><span class="cmd">/rank · /premi · /sfida</span></article>
-          <article class="feat rv"><span class="feat-ico">🧩</span><h3>Commander isolato</h3><p>Toggle per-modulo, reload senza restart e protezione automatica dai guasti.</p><span class="cmd">/modulo stato</span></article>
-        </div>
-      </div>
-    </section>
-
-    <!-- NUMERI -->
-    <section id="numeri" aria-labelledby="numeri-t" style="padding-top:0">
-      <div class="wrap">
-        <h2 id="numeri-t" class="sec-title rv" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Numeri</h2>
-        <div class="stats-band rv" role="list">
-          <div class="stat" role="listitem"><b><span data-count="86">0</span></b><span>slash command</span></div>
-          <div class="stat" role="listitem"><b><span data-count="15">0</span></b><span>moduli isolati</span></div>
-          <div class="stat" role="listitem"><b><span data-count="7">0</span></b><span>giorni di backup</span></div>
-          <div class="stat" role="listitem"><b><span data-count="2">0</span></b><span>lingue · it + en</span></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- COME FUNZIONA -->
-    <section id="come-funziona" aria-labelledby="come-t" style="padding-top:0">
-      <div class="wrap">
-        <p class="sec-kicker rv">Come funziona</p>
-        <h2 class="sec-title rv" id="come-t">Online in tre mosse.</h2>
-        <p class="sec-sub rv">Niente installazioni strane: inviti il bot, apri il pannello, accendi solo i moduli che ti servono.</p>
-        <div class="steps">
-          <article class="step rv"><h3>Accedi con Discord</h3><p>Login OAuth2 con scope minimi <code>identify + guilds</code>. Vedi solo i server che gestisci.</p></article>
-          <article class="step rv"><h3>Scegli il server</h3><p>Configura welcome, automod, ticket, livelli e permessi da un unico pannello per-guild.</p></article>
-          <article class="step rv"><h3>Accendi i moduli</h3><p>Ogni modulo si attiva da solo. Se qualcosa va storto: <code>/modulo stato</code> e reload.</p></article>
-        </div>
-      </div>
-    </section>
-
-    <!-- CTA -->
-    <section aria-labelledby="cta-t" style="padding-top:0">
-      <div class="wrap">
-        <div class="cta-box rv">
-          <h2 id="cta-t">Il tuo server, <em>sotto comando.</em></h2>
-          <p>Entra nel pannello e prendi il controllo in meno di un minuto.</p>
-          <a class="btn btn-volt" href="/login">Accedi con Discord</a>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <footer>
-    <div class="wrap">
-      <span>Multi-Server Bot · MIT</span>
-      <nav aria-label="Link">
-        <a href="/login">Accedi</a>
-        <a href="#funzioni">Funzioni</a>
-        <a href="#top">Torna su</a>
-      </nav>
-    </div>
-  </footer>
-
-  <script>
-    (function () {
-      "use strict";
-      var reduce = false;
-      try { reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
-      // Reveal on scroll: una sola volta, mai al ritorno.
-      try {
-        var els = document.querySelectorAll(".rv");
-        if (reduce || !("IntersectionObserver" in window)) {
-          for (var i = 0; i < els.length; i++) els[i].classList.add("in");
-        } else {
-          var io = new IntersectionObserver(function (entries) {
-            for (var j = 0; j < entries.length; j++) {
-              if (entries[j].isIntersecting) {
-                entries[j].target.classList.add("in");
-                io.unobserve(entries[j].target);
-              }
-            }
-          }, { threshold: 0.15 });
-          for (var k = 0; k < els.length; k++) {
-            var el = els[k];
-            var idx = el.parentElement ? Array.prototype.indexOf.call(el.parentElement.children, el) % 4 : 0;
-            el.style.transitionDelay = (idx * 0.08) + "s";
-            io.observe(el);
-          }
-        }
-      } catch (e) {}
-      // Parallax hero: solo transform, via rAF.
-      try {
-        var glow = document.getElementById("hero-glow");
-        if (glow && !reduce) {
-          var ticking = false;
-          window.addEventListener("scroll", function () {
-            if (!ticking) {
-              window.requestAnimationFrame(function () {
-                var y = window.scrollY || 0;
-                if (y < window.innerHeight * 1.2) glow.style.transform = "translateY(" + (y * 0.25) + "px)";
-                ticking = false;
-              });
-              ticking = true;
-            }
-          }, { passive: true });
-        }
-      } catch (e) {}
-      // Contatori: 0 -> target quando la banda entra in vista.
-      try {
-        var nums = document.querySelectorAll("[data-count]");
-        var run = function (el) {
-          var target = parseInt(el.getAttribute("data-count"), 10) || 0;
-          if (reduce) { el.textContent = String(target); return; }
-          var t0 = null, dur = 1100;
-          var step = function (t) {
-            if (!t0) t0 = t;
-            var p = Math.min(1, (t - t0) / dur);
-            var eased = 1 - Math.pow(1 - p, 3);
-            el.textContent = String(Math.round(target * eased));
-            if (p < 1) window.requestAnimationFrame(step);
-          };
-          window.requestAnimationFrame(step);
-        };
-        if ("IntersectionObserver" in window && !reduce) {
-          var nio = new IntersectionObserver(function (entries) {
-            for (var m = 0; m < entries.length; m++) {
-              if (entries[m].isIntersecting) { run(entries[m].target); nio.unobserve(entries[m].target); }
-            }
-          }, { threshold: 0.4 });
-          for (var n = 0; n < nums.length; n++) nio.observe(nums[n]);
-        } else {
-          for (var q = 0; q < nums.length; q++) run(nums[q]);
-        }
-      } catch (e) {}
-    })();
-  </script>
+<footer class="footer">Mission Control · parla solo col Commander · <a href="/healthz">healthz</a></footer>
 </body>
 </html>
