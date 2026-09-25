@@ -1,6 +1,6 @@
 /**
  * ai.js — facciata AI stabile del bot (firme invariate per tutti i consumer).
- * Delega al core multi-provider (utils/aiProviders): basta una chiave nel .env.
+ * Delega al core multi-provider (ai/aiProviders): basta una chiave nel .env.
  * Errori sempre in italiano, risposta troncata a MAX_LENGTH.
  */
 const { complete, activeProvider, TIMEOUT_MS } = require('./aiProviders');

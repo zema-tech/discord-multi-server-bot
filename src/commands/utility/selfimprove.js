@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
 const { runOnce, lastRun } = require('../../jobs/selfImprove');
-const { aiStatus } = require('../../utils/ai');
+const { aiStatus } = require('../../ai/ai');
 
 let theme = null;
 try {
@@ -102,7 +102,7 @@ module.exports = {
     if (sub === 'lezioni' || sub === 'principi') {
       let comp;
       try {
-        comp = require('../../brain/compendio');
+        comp = require('../../ai/brain/compendio');
       } catch {
         return interaction.reply({ embeds: [errorEmbed('Compendio non disponibile.', interaction)], flags: MessageFlags.Ephemeral }).catch(() => null);
       }

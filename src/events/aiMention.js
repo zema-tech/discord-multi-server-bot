@@ -1,5 +1,5 @@
 const { Events } = require('discord.js');
-const { askAI } = require('../utils/ai');
+const { askAI } = require('../ai/ai');
 
 // Cooldown anti-spam: guildId:userId -> timestamp (20s per utente).
 const cooldowns = new Map();
@@ -96,7 +96,7 @@ module.exports = {
         || 'Sei un assistente utile del server Discord, rispondi in italiano in modo conciso e cordiale.';
       // Cervello del server: mai rompere il flusso se fallisce.
       try {
-        const { buildContext } = require('../brain/kernel');
+        const { buildContext } = require('../ai/brain/kernel');
         const ctx = buildContext({ guildId: message.guild.id, query: domanda, userId: message.author.id, guild: message.guild });
         if (ctx.system) system = `${system}\n\n${ctx.system}`;
       } catch {}
@@ -104,7 +104,7 @@ module.exports = {
       // Auto-apprendimento: fatti importanti detti dall'utente (mai fatale).
       let learned = '';
       try {
-        const { learnFrom } = require('../brain/learn');
+        const { learnFrom } = require('../ai/brain/learn');
         const res = learnFrom(message.guild.id, message.author.id, domanda, message.author.username);
         if (res && res !== 'dup') learned = res;
       } catch {}

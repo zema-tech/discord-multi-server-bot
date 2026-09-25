@@ -1,11 +1,11 @@
 const {
   SlashCommandBuilder, EmbedBuilder, MessageFlags, PermissionFlagsBits, AttachmentBuilder,
 } = require('discord.js');
-const skills = require('../../brain/skills');
-const memory = require('../../brain/memory');
-const files = require('../../brain/files');
-const people = require('../../brain/people');
-const profile = require('../../brain/profile');
+const skills = require('../../ai/brain/skills');
+const memory = require('../../ai/brain/memory');
+const files = require('../../ai/brain/files');
+const people = require('../../ai/brain/people');
+const profile = require('../../ai/brain/profile');
 
 function needGuild(interaction) {
   if (!interaction.guild) {

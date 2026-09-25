@@ -8,7 +8,7 @@ const {
   ButtonStyle,
   ComponentType,
 } = require('discord.js');
-const { askAI } = require('../../utils/ai');
+const { askAI } = require('../../ai/ai');
 const { validateBlueprint, applyBlueprint, describeBlueprint } = require('../../utils/blueprints');
 
 // Tema premium condiviso, con fallback inline se il require fallisse.

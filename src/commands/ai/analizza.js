@@ -4,7 +4,7 @@ const {
   MessageFlags,
   PermissionFlagsBits,
 } = require('discord.js');
-const { askAI } = require('../../utils/ai');
+const { askAI } = require('../../ai/ai');
 const analytics = require('../../database/analytics');
 const levels = require('../../database/levels');
 const tickets = require('../../database/tickets');

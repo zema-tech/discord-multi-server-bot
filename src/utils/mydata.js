@@ -59,7 +59,7 @@ function exportData(guildId, userId) {
       .map((t) => ({ number: t.number, type: t.type, status: t.status, createdAt: t.createdAt }));
   } catch { out.stores.tickets = null; }
   try {
-    const people = require('../brain/people');
+    const people = require('../ai/brain/people');
     out.stores.brain = { facts: people.getFacts(guildId, userId) };
   } catch { out.stores.brain = null; }
   return out;
@@ -102,7 +102,7 @@ function forgetData(guildId, userId) {
     removed.push('rep');
   } catch {}
   try {
-    const people = require('../brain/people');
+    const people = require('../ai/brain/people');
     if (people.forgetAll(guildId, userId)) removed.push('cervello');
   } catch {}
   try {

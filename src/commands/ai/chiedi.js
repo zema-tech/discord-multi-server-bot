@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
-const { askAI } = require('../../utils/ai');
+const { askAI } = require('../../ai/ai');
 const { getConfig } = require('../../database/aiConfig');
 
 // theme.js con fallback inline: il file deve caricarsi anche se il require fallisce.
@@ -64,7 +64,7 @@ module.exports = {
     let brainSystem = '';
     let brainSources = '';
     try {
-      const { buildContext, sourcesLine } = require('../../brain/kernel');
+      const { buildContext, sourcesLine } = require('../../ai/brain/kernel');
       const ctx = buildContext({ guildId: interaction.guildId, query: domanda, userId: interaction.user?.id, guild: interaction.guild });
       brainSystem = ctx.system;
       brainSources = sourcesLine(ctx.sources);
@@ -81,7 +81,7 @@ module.exports = {
     // Auto-apprendimento: fatti importanti detti dall'utente (mai fatale).
     let learned = '';
     try {
-      const { learnFrom } = require('../../brain/learn');
+      const { learnFrom } = require('../../ai/brain/learn');
       const res = learnFrom(interaction.guildId, interaction.user?.id, domanda, interaction.user?.username);
       if (res && res !== 'dup') learned = res;
     } catch {}

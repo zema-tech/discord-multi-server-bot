@@ -10,7 +10,7 @@
  * Senza chiavi: Pollinations gratuito (nessuna configurazione).
  *
  * Errori lanciati hanno sempre `err.code` tra:
- *   empty|emptyResponse|auth|rate|timeout|network|http — mappati in italiano da utils/ai.js
+ *   empty|emptyResponse|auth|rate|timeout|network|http — mappati in italiano da ai/ai.js
  * (`empty` = prompt vuoto, `emptyResponse` = AI ha restituito risposta vuota).
  */
 

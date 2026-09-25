@@ -889,7 +889,7 @@ try {
 
   // aiProviders — detection pura, nessuna rete
   try {
-    const ap = require(path.join(ROOT, 'src', 'utils', 'aiProviders.js'));
+    const ap = require(path.join(ROOT, 'src', 'ai', 'aiProviders.js'));
     if (typeof ap.complete !== 'function' || typeof ap.detectProvider !== 'function') {
       fail('aiProviders: export complete/detectProvider mancanti');
     } else {
@@ -947,10 +947,10 @@ try {
     fs.mkdirSync(brainTmp, { recursive: true });
     process.env.BRAIN_DIR = brainTmp;
     try {
-      const bskills = require(path.join(ROOT, 'src', 'brain', 'skills.js'));
-      const bmem = require(path.join(ROOT, 'src', 'brain', 'memory.js'));
-      const bfiles = require(path.join(ROOT, 'src', 'brain', 'files.js'));
-      const kernel = require(path.join(ROOT, 'src', 'brain', 'kernel.js'));
+      const bskills = require(path.join(ROOT, 'src', 'ai', 'brain', 'skills.js'));
+      const bmem = require(path.join(ROOT, 'src', 'ai', 'brain', 'memory.js'));
+      const bfiles = require(path.join(ROOT, 'src', 'ai', 'brain', 'files.js'));
+      const kernel = require(path.join(ROOT, 'src', 'ai', 'brain', 'kernel.js'));
       const G = 'qatest-brain';
       if (bskills.listSkills(G).filter((s) => s.scope === 'global').length < 3) fail('brain: seed skill globali mancanti');
       bskills.saveSkill(G, { name: 'qa-regole', description: 'd', triggers: 'regole, warn', instructions: 'i' });
@@ -986,7 +986,7 @@ try {
     fs.mkdirSync(brainTmp2, { recursive: true });
     process.env.BRAIN_DIR = brainTmp2;
     try {
-      const comp = require(path.join(ROOT, 'src', 'brain', 'compendio.js'));
+      const comp = require(path.join(ROOT, 'src', 'ai', 'brain', 'compendio.js'));
       if (comp.getPrincipi() !== comp.getPrincipi()) fail('compendio: seed principi instabile');
       const id1 = comp.recordLesson({ verdict: 'applied', file: 'qatest.js', reason: 'qa lezione', detail: '' });
       if (!id1) fail('compendio: recordLesson non ritorna id');
@@ -1981,10 +1981,10 @@ try {
   const os = require('os');
   const qaBrain = fs.mkdtempSync(path.join(os.tmpdir(), 'brain-qa-'));
   process.env.BRAIN_DIR = qaBrain;
-  const people = require(path.join(ROOT, 'src', 'brain', 'people.js'));
-  const learn = require(path.join(ROOT, 'src', 'brain', 'learn.js'));
-  const profile = require(path.join(ROOT, 'src', 'brain', 'profile.js'));
-  const kernel = require(path.join(ROOT, 'src', 'brain', 'kernel.js'));
+  const people = require(path.join(ROOT, 'src', 'ai', 'brain', 'people.js'));
+  const learn = require(path.join(ROOT, 'src', 'ai', 'brain', 'learn.js'));
+  const profile = require(path.join(ROOT, 'src', 'ai', 'brain', 'profile.js'));
+  const kernel = require(path.join(ROOT, 'src', 'ai', 'brain', 'kernel.js'));
 
   // people: CRUD + isolamento guild + dedup + cap input
   if (people.saveFact(QGUILD, '111', 'odio il giallo', 'Qa') !== true) fail('cervello: saveFact dovrebbe ritornare true');

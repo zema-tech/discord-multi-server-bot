@@ -18,7 +18,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync, spawnSync } = require('child_process');
 const { load, save, dbFile } = require('../database/jsonDb');
-const { askAI } = require('../utils/ai');
+const { askAI } = require('../ai/ai');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const JOURNAL_FILE = dbFile('selfImprove');
@@ -195,7 +195,7 @@ async function buildProposal(candidates) {
   // Compendio: principi + lezioni delle run passate (l'agente impara dagli esiti).
   let compendio = '';
   try {
-    compendio = require('../brain/compendio').loadContext(3000);
+    compendio = require('../ai/brain/compendio').loadContext(3000);
   } catch {}
   const system =
     'Sei un senior Node.js reviewer del bot Discord di cui vedi il codice. ' +
@@ -281,7 +281,7 @@ async function runOnce(client, opts = {}) {
     } catch {}
     try {
       // Lezione dall'errore: non riproporre la stessa patch fallita.
-      require('../brain/compendio').recordLesson({
+      require('../ai/brain/compendio').recordLesson({
         verdict: 'reverted',
         file: proposal.file,
         reason: String(proposal.reason || ''),
@@ -301,7 +301,7 @@ async function runOnce(client, opts = {}) {
   });
   try {
     // Lezione dal successo: pattern da riusare in futuro.
-    require('../brain/compendio').recordLesson({
+    require('../ai/brain/compendio').recordLesson({
       verdict: 'applied',
       file: proposal.file,
       reason: String(proposal.reason || ''),

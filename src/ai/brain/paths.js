@@ -1,13 +1,14 @@
 /**
- * brain/paths.js — root del vault (default ./brain, override BRAIN_DIR).
- * Tutto il cervello vive qui: skills/, memory/<guild>/, files/<guild>/.
+ * ai/brain/paths.js — root del vault (default ./brain alla repo root, override BRAIN_DIR).
+ * Il CODICE vive in src/ai/, i DATI restano in ./brain (mai spostare dati utenti).
+ * Contenuti: skills/, memory/<guild>/, files/<guild>/, people/<guild>/, profile/<guild>/.
  * I contenuti utente sono dati: aggiungere `brain/` al .gitignore.
  */
 const fs = require('fs');
 const path = require('path');
 
 function root() {
-  return path.resolve(process.env.BRAIN_DIR || path.join(__dirname, '..', '..', 'brain'));
+  return path.resolve(process.env.BRAIN_DIR || path.join(__dirname, '..', '..', '..', 'brain'));
 }
 
 function ensureDir(dir) {

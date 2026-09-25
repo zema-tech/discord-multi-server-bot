@@ -1,7 +1,7 @@
 const { Events } = require('discord.js');
 const { getGuild } = require('../database/guildConfig');
 const { addWarn, getWarnings } = require('../database/warnings');
-const { askAI } = require('../utils/ai');
+const { askAI } = require('../ai/ai');
 
 // aiConfig potrebbe non esistere ancora: require-safe con default { automodAI: false }.
 let aiConfigMod = null;

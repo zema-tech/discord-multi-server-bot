@@ -7,7 +7,7 @@ const {
   PermissionFlagsBits,
   MessageFlags,
 } = require('discord.js');
-const { askAI } = require('../../utils/ai');
+const { askAI } = require('../../ai/ai');
 const { getTicket, getConfig } = require('../../database/tickets');
 
 let theme = null;
@@ -61,7 +61,7 @@ function isStaff(member, ticketConfig) {
 /** Contesto cervello (profilo/skill/memorie/file) sulla conversazione: mai fatale. */
 function brainExtra(guildId, text, guild = null) {
   try {
-    const { buildContext, sourcesLine } = require('../../brain/kernel');
+    const { buildContext, sourcesLine } = require('../../ai/brain/kernel');
     const ctx = buildContext({ guildId, query: text, guild });
     return { system: ctx.system, sources: sourcesLine(ctx.sources) };
   } catch {

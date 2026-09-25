@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { askAI } = require('../../utils/ai');
+const { askAI } = require('../../ai/ai');
 
 let theme = null;
 try {

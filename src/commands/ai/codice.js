@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
-const { askAI } = require('../../utils/ai');
+const { askAI } = require('../../ai/ai');
 const { buildTree, readFile, searchCode, codeSummary } = require('../../utils/codebase');
 
 // theme.js con fallback inline: il file deve caricarsi anche se il require fallisce.
