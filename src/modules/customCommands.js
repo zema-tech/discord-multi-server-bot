@@ -1,6 +1,7 @@
 'use strict';
+const { defineModule } = require('./defineModule');
 /** src/modules/customCommands.js — Controller feature Comandi personalizzati. */
-module.exports = {
+module.exports = defineModule({
   id: 'customCommands',
   title: 'Comandi custom',
   icon: 'terminal',
@@ -20,4 +21,5 @@ module.exports = {
     } catch { /* health mai bloccante */ }
     return {};
   },
-};
+  version: '1.0.0',
+});

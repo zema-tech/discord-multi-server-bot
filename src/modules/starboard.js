@@ -1,6 +1,7 @@
 'use strict';
+const { defineModule } = require('./defineModule');
 /** src/modules/starboard.js — Controller feature Starboard. */
-module.exports = {
+module.exports = defineModule({
   id: 'starboard',
   title: 'Starboard',
   icon: 'star',
@@ -11,4 +12,5 @@ module.exports = {
   events: ['starboard'],
   handlers: [],
   locked: false,
-};
+  version: '1.0.0',
+});

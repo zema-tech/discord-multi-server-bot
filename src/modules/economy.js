@@ -1,6 +1,7 @@
 'use strict';
+const { defineModule } = require('./defineModule');
 /** src/modules/economy.js — Controller feature Economia (monete, shop, giochi). */
-module.exports = {
+module.exports = defineModule({
   id: 'economy',
   title: 'Economia',
   icon: 'cart',
@@ -11,4 +12,5 @@ module.exports = {
   events: [],
   handlers: [],
   locked: false,
-};
+  version: '1.0.0',
+});

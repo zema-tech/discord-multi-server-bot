@@ -1,9 +1,10 @@
 'use strict';
+const { defineModule } = require('./defineModule');
 /**
  * src/modules/system.js — Controller feature Sistema (sempre attiva, locked).
  * Comandi essenziali che non si possono disattivare per guild.
  */
-module.exports = {
+module.exports = defineModule({
   id: 'system',
   title: 'Sistema',
   icon: 'server',
@@ -14,4 +15,5 @@ module.exports = {
   events: [],
   handlers: [],
   locked: true,
-};
+  version: '1.0.0',
+});

@@ -1,6 +1,7 @@
 'use strict';
+const { defineModule } = require('./defineModule');
 /** src/modules/tickets.js — Controller feature Ticket e assistenza. */
-module.exports = {
+module.exports = defineModule({
   id: 'tickets',
   title: 'Ticket',
   icon: 'ticket',
@@ -21,4 +22,5 @@ module.exports = {
     } catch { /* health mai bloccante */ }
     return {};
   },
-};
+  version: '1.0.0',
+});

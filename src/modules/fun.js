@@ -1,6 +1,7 @@
 'use strict';
+const { defineModule } = require('./defineModule');
 /** src/modules/fun.js — Controller feature Contenuti divertenti e social. */
-module.exports = {
+module.exports = defineModule({
   id: 'fun',
   title: 'Contenuti',
   icon: 'message',
@@ -11,4 +12,5 @@ module.exports = {
   events: ['sfidaTracker'],
   handlers: [],
   locked: false,
-};
+  version: '1.0.0',
+});

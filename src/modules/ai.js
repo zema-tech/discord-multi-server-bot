@@ -1,6 +1,7 @@
 'use strict';
+const { defineModule } = require('./defineModule');
 /** src/modules/ai.js — Controller feature AI (risposte, analisi, cervello). */
-module.exports = {
+module.exports = defineModule({
   id: 'ai',
   title: 'AI',
   icon: 'cpu',
@@ -11,4 +12,5 @@ module.exports = {
   events: ['aiMention', 'aiModeration'],
   handlers: [],
   locked: false,
-};
+  version: '1.0.0',
+});

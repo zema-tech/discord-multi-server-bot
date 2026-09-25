@@ -1,6 +1,7 @@
 'use strict';
+const { defineModule } = require('./defineModule');
 /** src/modules/music.js — Controller feature Musica vocale. */
-module.exports = {
+module.exports = defineModule({
   id: 'music',
   title: 'Musica',
   icon: 'mic',
@@ -11,4 +12,5 @@ module.exports = {
   events: [],
   handlers: [],
   locked: false,
-};
+  version: '1.0.0',
+});

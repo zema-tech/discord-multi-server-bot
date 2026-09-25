@@ -2363,6 +2363,9 @@ try {
   const registry = require(path.join(ROOT, 'src', 'modules', 'registry.js'));
   registry.reload();
   if (registry.list().length !== 15) fail(`lumi: registry dovrebbe avere 15 moduli, ha ${registry.list().length}`);
+  if (!registry.list().every((m) => /^\d+\.\d+\.\d+$/.test(m.version || ''))) {
+    fail('lumi: ogni modulo deve dichiarare version semver via defineModule');
+  }
   if (registry.featureOfCommand('mydata') !== 'utility') fail('lumi: /mydata non mappato a utility');
 
   // GDPR: export legge, forget pulisce (su guild QA).

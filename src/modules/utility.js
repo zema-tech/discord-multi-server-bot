@@ -1,6 +1,7 @@
 'use strict';
+const { defineModule } = require('./defineModule');
 /** src/modules/utility.js — Controller feature Utilità e configurazione generale. */
-module.exports = {
+module.exports = defineModule({
   id: 'utility',
   title: 'Utilità',
   icon: 'sliders',
@@ -11,4 +12,5 @@ module.exports = {
   events: ['guildMemberAdd', 'inviteTracker'],
   handlers: [],
   locked: false,
-};
+  version: '1.0.0',
+});

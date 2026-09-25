@@ -1,6 +1,7 @@
 'use strict';
+const { defineModule } = require('./defineModule');
 /** src/modules/reactionRoles.js — Controller feature Reaction roles. */
-module.exports = {
+module.exports = defineModule({
   id: 'reactionRoles',
   title: 'Reaction roles',
   icon: 'check',
@@ -11,4 +12,5 @@ module.exports = {
   events: [],
   handlers: ['reactionRoleHandler'],
   locked: false,
-};
+  version: '1.0.0',
+});

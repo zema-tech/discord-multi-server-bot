@@ -1,6 +1,7 @@
 'use strict';
+const { defineModule } = require('./defineModule');
 /** src/modules/tempvoice.js — Controller feature Stanze vocali e stanze private. */
-module.exports = {
+module.exports = defineModule({
   id: 'tempvoice',
   title: 'Vocali temporanee',
   icon: 'mic',
@@ -11,4 +12,5 @@ module.exports = {
   events: ['tempVoice'],
   handlers: [],
   locked: false,
-};
+  version: '1.0.0',
+});

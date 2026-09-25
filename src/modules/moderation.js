@@ -1,6 +1,7 @@
 'use strict';
+const { defineModule } = require('./defineModule');
 /** src/modules/moderation.js — Controller feature Moderazione (incl. automod). */
-module.exports = {
+module.exports = defineModule({
   id: 'moderation',
   title: 'Moderazione',
   icon: 'shield',
@@ -12,4 +13,5 @@ module.exports = {
   handlers: [],
   ambient: ['automod in messageCreate'],
   locked: false,
-};
+  version: '1.0.0',
+});

@@ -1,6 +1,7 @@
 'use strict';
+const { defineModule } = require('./defineModule');
 /** src/modules/levels.js — Controller feature Livelli XP (incl. ricompense). */
-module.exports = {
+module.exports = defineModule({
   id: 'levels',
   title: 'Livelli',
   icon: 'star',
@@ -12,4 +13,5 @@ module.exports = {
   handlers: [],
   ambient: ['XP testuale in messageCreate'],
   locked: false,
-};
+  version: '1.0.0',
+});

@@ -86,7 +86,7 @@ function get(id) {
 
 function list() {
   return loadAll().map((f) => ({
-    id: f.id, title: f.title, icon: f.icon, section: f.section,
+    id: f.id, version: f.version || '1.0.0', title: f.title, icon: f.icon, section: f.section,
     description: f.description, commands: f.commands.slice(), locked: f.locked,
   }));
 }
@@ -298,6 +298,7 @@ function health(guildId) {
     } catch { /* stats vuote */ }
     return {
       id: f.id,
+      version: f.version || '1.0.0',
       title: f.title,
       icon: f.icon,
       section: f.section,

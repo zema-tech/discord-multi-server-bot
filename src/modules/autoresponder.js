@@ -1,6 +1,7 @@
 'use strict';
+const { defineModule } = require('./defineModule');
 /** src/modules/autoresponder.js — Controller feature Risposte automatiche. */
-module.exports = {
+module.exports = defineModule({
   id: 'autoresponder',
   title: 'Risposte automatiche',
   icon: 'message',
@@ -20,4 +21,5 @@ module.exports = {
     } catch { /* health mai bloccante */ }
     return {};
   },
-};
+  version: '1.0.0',
+});

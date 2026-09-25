@@ -1,6 +1,7 @@
 'use strict';
+const { defineModule } = require('./defineModule');
 /** src/modules/autorole.js — Controller feature Ruoli automatici. */
-module.exports = {
+module.exports = defineModule({
   id: 'autorole',
   title: 'Autorole',
   icon: 'users',
@@ -11,4 +12,5 @@ module.exports = {
   events: ['autorole'],
   handlers: [],
   locked: false,
-};
+  version: '1.0.0',
+});
