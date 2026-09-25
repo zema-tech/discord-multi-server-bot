@@ -25,7 +25,7 @@ module.exports = {
         .addStringOption((o) =>
           o
             .setName('risposta')
-            .setDescription('Testo di risposta (variabili: {user} {username} {server} {count} {channel} {date})')
+            .setDescription('Testo di risposta (variabili: {user} {username} {server} {count} {channel} {date} {args})')
             .setRequired(true)
             .setMaxLength(MAX_RESPONSE)
         )
@@ -85,7 +85,7 @@ module.exports = {
         .setColor(0x5865f2)
         .setTitle(`🔹 Custom commands (${commands.length}/${MAX_COMMANDS})`.slice(0, 256))
         .setDescription(lines.join('\n').slice(0, 4000))
-        .setFooter({ text: 'Trigger: !nome a inizio messaggio • Variabili: {user} {username} {server} {count} {channel} {date}'.slice(0, 200) })
+        .setFooter({ text: 'Trigger: !nome a inizio messaggio • Variabili: {user} {username} {server} {count} {channel} {date} {args}'.slice(0, 200) })
         .setTimestamp();
       return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     } catch (e) {

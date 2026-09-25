@@ -145,7 +145,7 @@ function incrementUses(guildId, name) {
 
 // Sostituzione variabili PURA (nessun accesso a Discord/DB): usata sia dal
 // listener `!nome` sia dall'anteprima di /comando. Contesto tutto-stringhe/numeri.
-// Variabili: {user} {username} {server} {count} {channel} {date}
+// Variabili: {user} {username} {server} {count} {channel} {date} {args}
 function resolveVariables(template, context) {
   const ctx = context && typeof context === 'object' ? context : {};
   const replacements = {
@@ -155,6 +155,7 @@ function resolveVariables(template, context) {
     '{count}': ctx.count != null ? String(ctx.count) : '0',
     '{channel}': ctx.channelRef != null ? String(ctx.channelRef) : '',
     '{date}': ctx.dateStr != null ? String(ctx.dateStr) : '',
+    '{args}': ctx.args != null ? String(ctx.args) : '',
   };
   let out = String(template == null ? '' : template);
   for (const [key, val] of Object.entries(replacements)) {

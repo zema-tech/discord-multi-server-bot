@@ -2326,6 +2326,22 @@ try {
   delete db[MQ];
   save(f, db);
   if (load(f)[MQ] !== undefined) fail('moderazione: cleanup QA fallito');
+  // RED Bank-style: {args} nei custom commands + banca con interessi (daily).
+  const cc = require(path.join(DB_DIR, 'customCommands.js'));
+  if (cc.resolveVariables('ciao {args}', { args: 'Luca' }) !== 'ciao Luca') {
+    fail('custom: variabile {args} non risolta');
+  }
+  if (cc.resolveVariables('x{args}y', {}) !== 'xy') fail('custom: {args} assente dovrebbe essere vuoto');
+  const eco = require(path.join(DB_DIR, 'economy.js'));
+  eco.updateUser(MQ, 'u1', { balance: 0, bank: 10000 });
+  const eu = eco.getUser(MQ, 'u1');
+  const interest = Math.min(Math.floor((Number.isFinite(eu.bank) ? eu.bank : 0) * 0.02), 500);
+  if (interest !== 200) fail(`moderazione/economy: interessi attesi 200, ottenuti ${interest}`);
+  const { load: l2, save: s2, dbFile: d2 } = require(path.join(DB_DIR, 'jsonDb.js'));
+  const ef = d2('economy');
+  const edb = l2(ef);
+  delete edb[MQ];
+  s2(ef, edb);
   console.log('moderazione: warn actions, gate nuovi comandi ok');
 } catch (e) {
   fail(`moderazione (qatest): ${e.message.split('\n')[0]}`);

@@ -85,9 +85,12 @@ module.exports = {
     const bonus = Math.min((streak - 1) * 50, 500);
     const reward = DAILY_AMOUNT + bonus;
     const base = Number.isFinite(data.balance) ? data.balance : 0;
+    // RED Bank-style: interessi sui depositi — 2% del salvadanaio, max 500.
+    const banked = Number.isFinite(data.bank) ? Math.max(0, data.bank) : 0;
+    const interest = Math.min(Math.floor(banked * 0.02), 500);
     try {
       updateUser(interaction.guild.id, interaction.user.id, {
-        balance: base + reward,
+        balance: base + reward + interest,
         lastDaily: now,
         dailyStreak: streak,
       });
@@ -102,7 +105,7 @@ module.exports = {
       .setTitle(themeTruncate('🎁 Ricompensa giornaliera!', 256))
       .setDescription(
         themeTruncate(
-          `Hai ricevuto **${themeNum(reward)}** 🪙!\n${flames}\n🔥 Streak: **${themeNum(streak)}** ${streak === 1 ? 'giorno' : 'giorni'} (+${themeNum(bonus)} bonus)\n⏳ Prossimo bonus <t:${nextTs}:R> (<t:${nextTs}:T>)`,
+          `Hai ricevuto **${themeNum(reward)}** 🪙!${interest > 0 ? `\n🏦 Interessi banca (2%): **+${themeNum(interest)}** 🪙` : '\n🏦 Deposita con `/bank deposita` per guadagnare interessi!'}\n${flames}\n🔥 Streak: **${themeNum(streak)}** ${streak === 1 ? 'giorno' : 'giorni'} (+${themeNum(bonus)} bonus)\n⏳ Prossimo bonus <t:${nextTs}:R> (<t:${nextTs}:T>)`,
           4000
         )
       );

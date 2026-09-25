@@ -78,6 +78,8 @@ module.exports = {
       count: uses,
       channelRef: message.channelId ? `<#${message.channelId}>` : '',
       dateStr: new Date().toLocaleDateString('it-IT'),
+      // Testo dopo `!nome`: "!saluta Luca" -> args "Luca" (per {args}).
+      args: trimmed.slice(m[0].length).trim().slice(0, 500),
     });
 
     try {
