@@ -8,7 +8,7 @@ WORKDIR /app
 
 # Installa solo dipendenze di produzione (layer cachabile).
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm ci --omit=dev
 
 # Copia il codice (rispetta .dockerignore: niente .env, log, DB, node_modules).
 COPY . ./

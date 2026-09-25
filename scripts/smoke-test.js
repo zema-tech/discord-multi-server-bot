@@ -1728,6 +1728,7 @@ try {
 
 // --------------------------------------- (f) Dashboard lotto (server + FE) ==
 console.log('== [5/5] Dashboard lotto (server require-safe + contratto FE) ==');
+let dashBootPromise = Promise.resolve();
 try {
   // (f1) require-safe di src/dashboard/server.js SENZA express installato.
   // Se il file manca: WARNING (skip, lavori in corso).
@@ -1869,6 +1870,40 @@ try {
 } catch (e) {
   fail(`dashboard lotto: ${e.message.split('\n')[0]}`);
 }
+
+// Boot resiliente (Render): senza env la dashboard resta in ascolto in
+// degrado invece di uscire -> niente "port scan timeout".
+dashBootPromise = (async () => {
+  const { spawn } = require('child_process');
+  const port = 30000 + Math.floor(Math.random() * 1000);
+  const child = spawn(process.execPath, [path.join(ROOT, 'src', 'dashboard', 'index.js')], {
+    env: { ...process.env, PORT: String(port), DISCORD_TOKEN: '', SESSION_SECRET: '', CLIENT_SECRET: '', BASE_URL: '' },
+    stdio: 'ignore',
+  });
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  try {
+    let health = null;
+    for (let i = 0; i < 20 && !health; i += 1) {
+      await wait(300);
+      try {
+        const res = await fetch(`http://127.0.0.1:${port}/healthz`);
+        if (res.ok || res.status === 200) health = await res.json().catch(() => ({}));
+      } catch {}
+      if (child.exitCode !== null && child.exitCode !== undefined) break;
+    }
+    if (child.exitCode !== null && child.exitCode !== 0) {
+      fail('dashboard: esce senza env (su Render = port scan timeout)');
+    } else if (!health || health.degraded !== true) {
+      fail('dashboard: senza env atteso /healthz degraded:true');
+    } else {
+      console.log('dashboard: boot degradata ok (porta aperta, /healthz spiega le env)');
+    }
+  } catch (e) {
+    fail(`dashboard boot (qatest): ${e.message.split('\n')[0]}`);
+  } finally {
+    try { child.kill('SIGKILL'); } catch {}
+  }
+})();
 
 // ------------------------------------------------- (c6) COMMANDER (gate/breaker)
 // Verifica: modulo OFF -> comando bloccato; timeout/errore -> breaker senza
@@ -2615,4 +2650,4 @@ if (errors.length) {
 
 // Il REPORT aspetta i test async del Commander (c6): errori registrati dopo
 // il report non verrebbero stampati ma cambierebbero solo l'exit code.
-Promise.all([commanderPromise, ticketPromise, hostPromise]).then(report);
+Promise.all([commanderPromise, ticketPromise, hostPromise, dashBootPromise]).then(report);

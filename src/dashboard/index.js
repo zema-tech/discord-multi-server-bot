@@ -14,9 +14,13 @@
  */
 require('dotenv').config();
 
+// Render assegna $PORT: vale come DASHBOARD_PORT se questa manca.
+if (!process.env.DASHBOARD_PORT && process.env.PORT) {
+  process.env.DASHBOARD_PORT = process.env.PORT;
+}
 const PORT = Number(process.env.DASHBOARD_PORT) || 0;
 if (!PORT) {
-  console.error('❌ DASHBOARD_PORT mancante: la dashboard standalone richiede la porta.');
+  console.error('❌ Porta mancante: imposta DASHBOARD_PORT (o $PORT su Render).');
   console.error('   Esempio: DASHBOARD_PORT=3000 npm run dashboard');
   process.exit(1);
 }
@@ -35,8 +39,35 @@ if (!process.env.BASE_URL) {
   problems.push('BASE_URL mancante: es. http://localhost:3000 (redirect OAuth2).');
 }
 if (problems.length > 0) {
+  // Mai uscire: su hosting come Render la porta DEVE restare aperta
+  // (port scan timeout). Servi /healthz in degrado e spiega cosa manca.
   for (const p of problems) console.error(`❌ ${p}`);
-  process.exit(1);
+  console.error('[Dashboard] modalità degradata: solo /healthz, configura le env e riavvia.');
+  try {
+    const express = require('express');
+    const app = express();
+    app.disable('x-powered-by');
+    app.get('/healthz', (req, res) => res.json({
+      ok: false,
+      degraded: true,
+      mode: 'standalone',
+      missing: problems,
+      uptimeSec: Math.floor(process.uptime()),
+      time: new Date().toISOString(),
+    }));
+    app.get('/', (req, res) => res.status(503).type('html').send(
+      '<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Dashboard non configurata</title></head>' +
+      '<body style="font-family:sans-serif;max-width:640px;margin:4rem auto;padding:0 1rem">' +
+      '<h1>⚠️ Dashboard non configurata</h1><p>Mancano variabili d\u2019ambiente:</p><ul>' +
+      problems.map((p) => `<li>${p}</li>`).join('') +
+      '</ul><p>Configurale e riavvia il servizio.</p></body></html>'
+    ));
+    app.listen(PORT, () => console.log(`[Dashboard] degradata in ascolto su :${PORT} (configura le env!)`));
+  } catch (e) {
+    console.error('[Dashboard] avvio degradata fallito:', e && e.message ? e.message : e);
+    process.exit(1);
+  }
+  return;
 }
 
 const { startDashboard } = require('./server');
