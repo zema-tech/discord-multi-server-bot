@@ -1,6 +1,6 @@
 # Discord Multi-Server Bot
 
-![Node](https://img.shields.io/badge/node-18%2B-brightgreen)
+![Node](https://img.shields.io/badge/node-22%2B-brightgreen)
 ![discord.js](https://img.shields.io/badge/discord.js-v14-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Commands](https://img.shields.io/badge/slash%20commands-85%2B-orange)

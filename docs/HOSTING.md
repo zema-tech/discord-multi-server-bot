@@ -10,7 +10,7 @@ npm start       # bot (+ dashboard con npm run dashboard)
 
 Requisiti comuni:
 
-- **Node.js ≥ 18** (consigliato **Node 20**), `npm`
+- **Node.js ≥ 22.12** (consigliato **Node 24**; @discordjs/voice lo richiede), `npm`
 - File `.env` creato da `.env.example` con almeno `DISCORD_TOKEN` e `CLIENT_ID`
 - Deploy degli slash command: `npm run deploy` (dopo ogni aggiunta/modifica di comandi)
 - Start: `npm start` (= `node src/index.js`) · Test: `npm test`
@@ -57,8 +57,8 @@ Note Termux:
 ## 2. VPS (Debian/Ubuntu) — systemd oppure PM2
 
 ```bash
-# Node 20 LTS (nodesource) + clone
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+# Node 24 LTS (nodesource) + clone
+curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
 sudo apt install -y nodejs git
 git clone <repo> /opt/discord-bot && cd /opt/discord-bot
 npm ci --omit=dev
@@ -103,7 +103,7 @@ docker compose logs -f
 docker compose --profile dashboard up -d --build
 ```
 
-- `Dockerfile`: base `node:20-slim`, `npm ci --omit=dev`, utente non-root `node`,
+- `Dockerfile`: base `node:24-slim`, `npm ci --omit=dev`, utente non-root `node`,
   `NODE_ENV=production`, volumi `/app/data /app/logs /app/backups`.
 - `docker-compose.yml`: servizio `bot` (`restart: unless-stopped`, `env_file: .env`,
   volumi `./data ./logs ./backups`); servizio `bot-dashboard` (solo profilo
@@ -117,7 +117,7 @@ docker compose --profile dashboard up -d --build
   (il compose lo fa già di default): i JSON di `src/database/` **non** sono
   montati come volume perché convivono con i moduli `.js` (montare la cartella
   nasconderebbe il codice al container).
-- Musica: l'immagine `node:20-slim` **non** include `ffmpeg` (serve a
+- Musica: l'immagine `node:24-slim` **non** include `ffmpeg` (serve a
   `discord-player`/`@discordjs/voice`). Se usi i comandi musicali, aggiungi
   nel Dockerfile prima di `USER node`:
   `RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*`.
