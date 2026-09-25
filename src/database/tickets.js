@@ -23,6 +23,8 @@ const DEFAULT_CONFIG = {
   // PRO: pannelli pubblicati per sezione + domande pre-apertura per tipo.
   panels: [],
   questions: {},
+  // DISCORD-TICKETS style: tag = risposte rapide (nome -> testo).
+  tags: {},
 };
 
 function guildData(guildId) {
@@ -59,6 +61,7 @@ function getConfig(guildId) {
   if (config.autoCloseDays === undefined) config.autoCloseDays = 0;
   if (!Array.isArray(config.panels)) config.panels = [];
   if (!config.questions || typeof config.questions !== 'object' || Array.isArray(config.questions)) config.questions = {};
+  if (!config.tags || typeof config.tags !== 'object' || Array.isArray(config.tags)) config.tags = {};
   return config;
 }
 
@@ -125,11 +128,14 @@ const PRIORITIES = ['bassa', 'normale', 'alta', 'urgente'];
 const MAX_NOTES = 20;
 const MAX_NOTE_CHARS = 500;
 const MAX_SUBJECT_CHARS = 120;
-// PRO: domande pre-apertura (max 4 per tipo, 200 char l'una; risposte max 1000).
-const MAX_QUESTIONS = 4;
+// PRO: domande pre-apertura (max 5 per tipo, 200 char l'una; risposte max 1000).
+const MAX_QUESTIONS = 5;
 const MAX_QUESTION_CHARS = 200;
 const MAX_ANSWER_CHARS = 1000;
 const MAX_PANELS = 10;
+// DISCORD-TICKETS style: tag = risposte rapide staff (max 30 x 1000 char).
+const MAX_TAGS = 30;
+const MAX_TAG_CHARS = 1000;
 
 /** Backfill additivo: i ticket vecchi ottengono i campi nuovi con default. */
 function normalizeTicket(t) {
@@ -278,6 +284,75 @@ function transferTicket(guildId, channelId, newOwnerId) {
   return t;
 }
 
+// ---------- DISCORD-TICKETS style: tag = risposte rapide staff ----------
+
+function cleanTagName(name) {
+  const t = String(name || '').toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-_à-ÿ]/gi, '').slice(0, 32);
+  if (t.length < 2) throw new Error('Nome tag non valido (min 2 caratteri).');
+  return t;
+}
+
+/** Testo di un tag. null se assente. */
+function getTag(guildId, name) {
+  try {
+    const tags = guildData(guildId).config.tags;
+    if (!tags || typeof tags !== 'object') return null;
+    const v = tags[String(name || '').toLowerCase().trim()];
+    return typeof v === 'string' ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Elenco tag [{ name, text }]. */
+function listTags(guildId) {
+  try {
+    const tags = guildData(guildId).config.tags;
+    if (!tags || typeof tags !== 'object') return [];
+    return Object.entries(tags)
+      .filter(([, v]) => typeof v === 'string')
+      .map(([name, text]) => ({ name, text }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  } catch {
+    return [];
+  }
+}
+
+/** Crea/aggiorna un tag. Ritorna { name, text }. */
+function setTag(guildId, name, text) {
+  const n = cleanTagName(name);
+  const clean = String(text || '').trim().slice(0, MAX_TAG_CHARS);
+  if (!clean) throw new Error('Testo tag vuoto.');
+  const data = guildData(guildId);
+  if (!data.config.tags || typeof data.config.tags !== 'object') data.config.tags = {};
+  if (!data.config.tags[n] && Object.keys(data.config.tags).length >= MAX_TAGS) {
+    throw new Error(`Max ${MAX_TAGS} tag per server.`);
+  }
+  data.config.tags[n] = clean;
+  persist(guildId, data);
+  return { name: n, text: clean };
+}
+
+/** Elimina un tag. Ritorna true se esisteva. */
+function removeTag(guildId, name) {
+  const n = String(name || '').toLowerCase().trim();
+  const data = guildData(guildId);
+  if (!data.config.tags || typeof data.config.tags !== 'object' || data.config.tags[n] === undefined) return false;
+  delete data.config.tags[n];
+  persist(guildId, data);
+  return true;
+}
+
+// ---------- Archivio: ultimi ticket chiusi (transcript nei log) ----------
+
+/** Ultimi N ticket chiusi (i più recenti prima). Per ritrovarli nei log. */
+function recentClosed(guildId, limit = 10) {
+  const all = openTickets(guildId).filter((t) => t.status === 'closed');
+  return all
+    .sort((a, b) => (Number.isFinite(b.closedAt) ? b.closedAt : 0) - (Number.isFinite(a.closedAt) ? a.closedAt : 0))
+    .slice(0, Math.max(1, Math.min(25, Math.floor(limit) || 10)));
+}
+
 /** Statistiche per staffer: chiusure e rating medio dei ticket chiusi da lui. */
 function getStaffStats(guildId, limit = 5) {
   const tickets = openTickets(guildId).filter((t) => t.status === 'closed' && typeof t.closedBy === 'string' && t.closedBy);
@@ -307,7 +382,7 @@ function assertKnownType(type) {
   return t;
 }
 
-/** Domande per un tipo (max 4). [] se nessuna. */
+/** Domande per un tipo (max 5). [] se nessuna. */
 function getQuestions(guildId, type) {
   try {
     const t = assertKnownType(type);
@@ -445,6 +520,8 @@ module.exports = {
   MAX_QUESTION_CHARS,
   MAX_ANSWER_CHARS,
   MAX_PANELS,
+  MAX_TAGS,
+  MAX_TAG_CHARS,
   getConfig,
   setConfig,
   nextNumber,
@@ -468,5 +545,10 @@ module.exports = {
   getPanels,
   savePanel,
   removePanel,
+  getTag,
+  listTags,
+  setTag,
+  removeTag,
+  recentClosed,
   touchActivity, // PEAK
 };

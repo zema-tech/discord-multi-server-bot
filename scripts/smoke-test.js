@@ -2159,7 +2159,7 @@ try {
     tickets.setQuestions(TQ, 'nope', ['x']);
     fail('ticket: tipo invalido dovrebbe lanciare');
   } catch {}
-  if (tickets.setQuestions(TQ, 'bug', ['1', '2', '3', '4', '5']).length !== 4) fail('ticket: cap 4 domande');
+  if (tickets.setQuestions(TQ, 'bug', ['1', '2', '3', '4', '5', '6']).length !== 5) fail('ticket: cap 5 domande');
   tickets.setQuestions(TQ, 'bug', []);
   const panel = tickets.savePanel(TQ, { channelId: 'c1', messageId: 'm1', types: ['bug', 'nope'], title: 'Help' });
   if (panel.types.join() !== 'bug') fail('ticket: panel dovrebbe filtrare tipi sconosciuti');
@@ -2223,6 +2223,40 @@ try {
   delete fin2[TQ];
   save(f, fin2);
   if (load(f)[TQ] !== undefined) fail('ticket: cleanup QA v3 fallito');
+
+  // DISCORD-TICKETS style: tag, domande x5, archivio.
+  const tag = tickets.setTag(TQ, 'Orari', 'Siamo aperti 9-18');
+  if (!tag || tag.name !== 'orari' || tickets.getTag(TQ, 'ORARI') !== 'Siamo aperti 9-18') {
+    fail('ticket: tag set/get (case-insensitive)');
+  }
+  if (tickets.listTags(TQ).length !== 1) fail('ticket: tag list');
+  try {
+    tickets.setTag(TQ, 'x', 'y');
+    fail('ticket: nome tag corto dovrebbe lanciare');
+  } catch {}
+  if (tickets.removeTag(TQ, 'orari') !== true || tickets.getTag(TQ, 'orari') !== null) {
+    fail('ticket: tag remove');
+  }
+  if (tickets.setQuestions(TQ, 'bug', ['1', '2', '3', '4', '5']).length !== 5) {
+    fail('ticket: cap domande dovrebbe essere 5');
+  }
+  tickets.setQuestions(TQ, 'bug', []);
+  const fin3 = load(f);
+  fin3[TQ] = {
+    config: tickets.getConfig(TQ), counter: 2,
+    tickets: {
+      ca: { channelId: 'ca', ownerId: 'u', type: 'bug', number: 1, status: 'closed', createdAt: 1, closedAt: 100 },
+      cb: { channelId: 'cb', ownerId: 'u', type: 'bug', number: 2, status: 'closed', createdAt: 1, closedAt: 200 },
+      cc: { channelId: 'cc', ownerId: 'u', type: 'bug', number: 3, status: 'open', createdAt: 1 },
+    },
+  };
+  save(f, fin3);
+  const arch = tickets.recentClosed(TQ, 10).map((t) => t.number);
+  if (arch.join() !== '2,1') fail(`ticket: archivio ordine/recency (${arch})`);
+  const fin4 = load(f);
+  delete fin4[TQ];
+  save(f, fin4);
+  if (load(f)[TQ] !== undefined) fail('ticket: cleanup QA v4 fallito');
   console.log('ticket: backfill/priorita/oggetto/note/rating/stats ok');
 } catch (e) {
   fail(`ticket (qatest): ${e.message.split('\n')[0]}`);

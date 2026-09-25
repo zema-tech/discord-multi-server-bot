@@ -55,7 +55,7 @@ module.exports = {
           { name: '⚖️ Appeal', value: 'appeal' },
           { name: '🤝 Partnership', value: 'partnership' },
         )))
-    .addSubcommand((s) => s.setName('domande-imposta').setDescription('Imposta le domande pre-apertura (staff, max 4)')
+    .addSubcommand((s) => s.setName('domande-imposta').setDescription('Imposta le domande pre-apertura (staff, max 5)')
       .addStringOption((o) => o.setName('tipo').setDescription('Tipo di ticket').setRequired(true)
         .addChoices(
           { name: '🛠️ Supporto', value: 'supporto' },
@@ -66,7 +66,8 @@ module.exports = {
       .addStringOption((o) => o.setName('d1').setDescription('Domanda 1 (obbligatoria)').setRequired(true).setMaxLength(200))
       .addStringOption((o) => o.setName('d2').setDescription('Domanda 2').setRequired(false).setMaxLength(200))
       .addStringOption((o) => o.setName('d3').setDescription('Domanda 3').setRequired(false).setMaxLength(200))
-      .addStringOption((o) => o.setName('d4').setDescription('Domanda 4').setRequired(false).setMaxLength(200)))
+      .addStringOption((o) => o.setName('d4').setDescription('Domanda 4').setRequired(false).setMaxLength(200))
+      .addStringOption((o) => o.setName('d5').setDescription('Domanda 5').setRequired(false).setMaxLength(200)))
     .addSubcommand((s) => s.setName('domande-reset').setDescription('Rimuove le domande pre-apertura (staff)')
       .addStringOption((o) => o.setName('tipo').setDescription('Tipo di ticket').setRequired(true)
         .addChoices(
@@ -145,7 +146,24 @@ module.exports = {
     .addSubcommand((s) =>
       s.setName('autoelimina').setDescription('Elimina i ticket chiusi dopo N giorni, 0 = off (staff)')
         .addIntegerOption((o) => o.setName('giorni').setDescription('Giorni (0-90)').setRequired(true).setMinValue(0).setMaxValue(90))
-    ),
+    )
+    .addSubcommand((s) =>
+      s.setName('sposta').setDescription('Sposta il ticket in un’altra categoria (staff)')
+        .addChannelOption((o) => o.setName('categoria').setDescription('Categoria di destinazione').addChannelTypes(ChannelType.GuildCategory).setRequired(true))
+    )
+    .addSubcommand((s) =>
+      s.setName('tag').setDescription('Risposte rapide staff: usa, crea, lista o rimuovi')
+        .addStringOption((o) => o.setName('azione').setDescription('Cosa fare').setRequired(true)
+          .addChoices(
+            { name: 'Usa (invia nel ticket)', value: 'usa' },
+            { name: 'Crea/aggiorna (staff)', value: 'crea' },
+            { name: 'Lista', value: 'lista' },
+            { name: 'Rimuovi (staff)', value: 'rimuovi' },
+          ))
+        .addStringOption((o) => o.setName('nome').setDescription('Nome tag').setRequired(false).setMaxLength(32))
+        .addStringOption((o) => o.setName('testo').setDescription('Testo (solo per crea)').setRequired(false).setMaxLength(1000))
+    )
+    .addSubcommand((s) => s.setName('archivio').setDescription('Ultimi ticket chiusi: ritrovali nei log (staff)')),
   cooldown: 3,
   async execute(interaction) {
     if (!interaction.guild) {
@@ -216,7 +234,7 @@ module.exports = {
       }
       const { setQuestions } = require('../../database/tickets');
       const tipo = interaction.options.getString('tipo', true);
-      const list = ['d1', 'd2', 'd3', 'd4'].map((k) => interaction.options.getString(k) || '').filter((s) => s.trim());
+      const list = ['d1', 'd2', 'd3', 'd4', 'd5'].map((k) => interaction.options.getString(k) || '').filter((s) => s.trim());
       const saved = setQuestions(interaction.guild.id, tipo, list);
       return interaction.reply({ content: `✅ Domande per **${typeLabel(tipo)}** impostate (${saved.length}):\n${saved.map((q, i) => `**${i + 1}.** ${q}`).join('\n')}`, flags: MessageFlags.Ephemeral }).catch(() => null);
     }
@@ -505,6 +523,88 @@ module.exports = {
         content: giorni > 0 ? `🗑️ I ticket chiusi verranno eliminati dopo **${giorni} giorni** (i 📌 protetti resistono).` : '🗑️ Auto-eliminazione disattivata.',
         flags: MessageFlags.Ephemeral,
       }).catch(() => null);
+    }
+
+    if (sub === 'sposta') {
+      if (!staff) return interaction.reply({ embeds: [themeErr('Solo lo staff.')], flags: MessageFlags.Ephemeral });
+      const categoria = interaction.options.getChannel('categoria');
+      if (!categoria || categoria.type !== ChannelType.GuildCategory) {
+        return interaction.reply({ embeds: [themeErr('Categoria non valida.')], flags: MessageFlags.Ephemeral });
+      }
+      try {
+        await interaction.channel.setParent(categoria.id, { lockPermissions: false });
+        return interaction.reply({ embeds: [applyFooter(ok('📁 Ticket spostato', `Ticket #${ticket.number} spostato in **${categoria.name}**.`), interaction)] });
+      } catch {
+        return interaction.reply({ embeds: [themeErr('Spostamento fallito: verifica i miei permessi.')], flags: MessageFlags.Ephemeral });
+      }
+    }
+
+    if (sub === 'tag') {
+      const { getTag, listTags, setTag, removeTag } = require('../../database/tickets');
+      const azione = interaction.options.getString('azione', true);
+      if (azione === 'lista') {
+        const tags = listTags(interaction.guild.id);
+        if (!tags.length) {
+          return interaction.reply({ content: 'ℹ️ Nessun tag. Creane uno con `/ticket tag azione:Crea`.', flags: MessageFlags.Ephemeral }).catch(() => null);
+        }
+        const embed = new EmbedBuilder()
+          .setColor(COLORS.primary)
+          .setTitle(`🏷️ Tag risposte rapide (${tags.length})`)
+          .setDescription(truncate(tags.map((t) => `**${t.name}** — ${t.text.slice(0, 80)}`).join('\n'), 4000))
+          .setTimestamp();
+        applyFooter(embed, interaction);
+        return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral }).catch(() => null);
+      }
+      if (azione === 'usa') {
+        const nome = (interaction.options.getString('nome') || '').toLowerCase().trim();
+        const text = nome ? getTag(interaction.guild.id, nome) : null;
+        if (!text) {
+          return interaction.reply({ embeds: [themeErr('Tag non trovato. Vedi la lista con `/ticket tag azione:Lista`.')], flags: MessageFlags.Ephemeral });
+        }
+        const allowed = staff || ticket.ownerId === interaction.user.id;
+        if (!allowed) return interaction.reply({ embeds: [themeErr('Solo il proprietario o lo staff.')], flags: MessageFlags.Ephemeral });
+        try {
+          await interaction.channel.send(`🏷️ **${nome}**\n${text.slice(0, 1800)}`);
+          return interaction.reply({ content: `✅ Tag **${nome}** inviato.`, flags: MessageFlags.Ephemeral }).catch(() => null);
+        } catch {
+          return interaction.reply({ embeds: [themeErr('Non riesco a scrivere nel canale.')], flags: MessageFlags.Ephemeral });
+        }
+      }
+      if (!staff) return interaction.reply({ embeds: [themeErr('Solo lo staff.')], flags: MessageFlags.Ephemeral });
+      const nome = interaction.options.getString('nome');
+      if (!nome) return interaction.reply({ embeds: [themeErr('Specifica il nome del tag.')], flags: MessageFlags.Ephemeral });
+      if (azione === 'crea') {
+        const testo = interaction.options.getString('testo');
+        if (!testo) return interaction.reply({ embeds: [themeErr('Specifica il testo del tag.')], flags: MessageFlags.Ephemeral });
+        try {
+          const saved = setTag(interaction.guild.id, nome, testo);
+          return interaction.reply({ content: `✅ Tag **${saved.name}** salvato (${saved.text.length} caratteri).`, flags: MessageFlags.Ephemeral }).catch(() => null);
+        } catch (e) {
+          return interaction.reply({ embeds: [themeErr(e?.message || 'Tag non valido.')], flags: MessageFlags.Ephemeral });
+        }
+      }
+      const okRm = removeTag(interaction.guild.id, nome);
+      return interaction.reply({ content: okRm ? `✅ Tag **${nome.toLowerCase().trim()}** eliminato.` : '❌ Tag non trovato.', flags: MessageFlags.Ephemeral }).catch(() => null);
+    }
+
+    if (sub === 'archivio') {
+      if (!staff) return interaction.reply({ embeds: [themeErr('Solo lo staff.')], flags: MessageFlags.Ephemeral });
+      const { recentClosed } = require('../../database/tickets');
+      const closed = recentClosed(interaction.guild.id, 10);
+      if (!closed.length) {
+        return interaction.reply({ content: '🗃️ Nessun ticket chiuso in archivio.', flags: MessageFlags.Ephemeral }).catch(() => null);
+      }
+      const embed = new EmbedBuilder()
+        .setColor(COLORS.primary)
+        .setTitle(`🗃️ Archivio ticket chiusi (${closed.length})`)
+        .setDescription(truncate(closed.map((t) => {
+          const when = Number.isFinite(t.closedAt) ? `<t:${Math.floor(t.closedAt / 1000)}:d>` : '—';
+          const star = t.rating && t.rating.score ? ` • ⭐${t.rating.score}` : '';
+          return `**#${t.number}** ${typeLabel(t.type)} — <@${t.ownerId}> • ${when}${star}${t.closeReason ? `\n_${truncate(t.closeReason, 80)}_` : ''}`;
+        }).join('\n\n'), 4000))
+        .setFooter({ text: 'Transcript completi nel canale log' })
+        .setTimestamp();
+      return interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral }).catch(() => null);
     }
   },
 };

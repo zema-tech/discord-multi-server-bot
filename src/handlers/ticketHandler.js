@@ -134,7 +134,7 @@ function buildQuestionsModal(guildId, typeKey) {
   if (!questions.length) return null;
   const t = TICKET_TYPES[typeKey];
   const modal = new ModalBuilder().setCustomId(`ticket_open_modal:${typeKey}`).setTitle(`Ticket ${t.label}`.slice(0, 45));
-  questions.slice(0, 4).forEach((q, i) => {
+  questions.slice(0, 5).forEach((q, i) => {
     modal.addComponents(
       new ActionRowBuilder().addComponents(
         new TextInputBuilder()
@@ -463,7 +463,7 @@ async function handle(interaction) {
     }
     const questions = getQuestions(guild.id, typeKey);
     const answers = [];
-    questions.slice(0, 4).forEach((q, i) => {
+    questions.slice(0, 5).forEach((q, i) => {
       let a = '';
       try {
         a = interaction.fields.getTextInputValue(`q${i}`);
