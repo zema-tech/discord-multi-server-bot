@@ -2347,6 +2347,71 @@ try {
   fail(`moderazione (qatest): ${e.message.split('\n')[0]}`);
 }
 
+// ------------------------------------------------- (c12) ARCHITETTURA LUMI-STYLE
+console.log('== [12/5] Contratto moduli, GDPR, retention ==');
+try {
+  // defineModule: contratto valido passa, id malformato no, registry intatto.
+  const { defineModule } = require(path.join(ROOT, 'src', 'modules', 'defineModule.js'));
+  const norm = defineModule({ id: 'test', commands: ['a', 'a'] });
+  if (norm.commands.join() !== 'a' || norm.version !== '1.0.0') fail('lumi: normalizzazione contratto');
+  for (const bad of [{}, { id: 'NO spazi!' }, { id: 'ok', version: 'x' }]) {
+    try {
+      defineModule(bad, 'qa');
+      fail(`lumi: contratto accetta ${JSON.stringify(bad)}`);
+    } catch {}
+  }
+  const registry = require(path.join(ROOT, 'src', 'modules', 'registry.js'));
+  registry.reload();
+  if (registry.list().length !== 15) fail(`lumi: registry dovrebbe avere 15 moduli, ha ${registry.list().length}`);
+  if (registry.featureOfCommand('mydata') !== 'utility') fail('lumi: /mydata non mappato a utility');
+
+  // GDPR: export legge, forget pulisce (su guild QA).
+  const GQ = 'qatest_gdpr';
+  const UQ = 'u_gdpr';
+  const levels = require(path.join(DB_DIR, 'levels.js'));
+  const eco = require(path.join(DB_DIR, 'economy.js'));
+  const warnings = require(path.join(DB_DIR, 'warnings.js'));
+  levels.addXp(GQ, UQ, 150);
+  eco.updateUser(GQ, UQ, { balance: 10, bank: 5 });
+  warnings.addWarn(GQ, UQ, { modId: 'm', reason: 'qa' });
+  const { load, save, dbFile } = require(path.join(DB_DIR, 'jsonDb.js'));
+  const mydata = require(path.join(ROOT, 'src', 'utils', 'mydata.js'));
+  const snap = mydata.exportData(GQ, UQ);
+  if (!snap.stores.levels || snap.stores.levels.level !== 1) fail('lumi: export livelli');
+  if (!snap.stores.economy || snap.stores.economy.bank !== 5) fail('lumi: export economy');
+  if (!snap.stores.warnings || snap.stores.warnings.length !== 1) fail('lumi: export warn');
+  const res = mydata.forgetData(GQ, UQ);
+  if (!res.removed.includes('livelli') || !res.removed.includes('economy') || !res.removed.includes('warn')) {
+    fail(`lumi: forget incompleto (${res.removed})`);
+  }
+  const snap2 = mydata.exportData(GQ, UQ);
+  if (snap2.stores.levels.level !== 0 || snap2.stores.economy.balance !== 0 || snap2.stores.warnings.length !== 0) {
+    fail('lumi: dati sopravvissuti al forget');
+  }
+  for (const name of ['levels', 'economy', 'warnings']) {
+    const f = dbFile(name);
+    const db = load(f);
+    if (db[GQ] !== undefined) { delete db[GQ]; save(f, db); }
+    if (load(f)[GQ] !== undefined) fail(`lumi: cleanup QA fallito (${name})`);
+  }
+
+  // Retention: casi vecchi via, recenti salvi; audit vecchie via.
+  const cases = require(path.join(DB_DIR, 'cases.js'));
+  const cf = dbFile('cases');
+  const cdb = load(cf);
+  const old = Date.now() - 200 * 24 * 60 * 60 * 1000;
+  cdb[GQ] = { counter: 2, items: { 1: { id: '1', type: 'warn', userId: 'u', modId: 'm', reason: 'vecchio', at: old }, 2: { id: '2', type: 'warn', userId: 'u', modId: 'm', reason: 'nuovo', at: Date.now() } } };
+  save(cf, cdb);
+  if (cases.pruneCases(180, Date.now()) !== 1) fail('lumi: pruneCases dovrebbe rimuovere 1');
+  if (cases.getCase(GQ, '2') === null || cases.getCase(GQ, '1') !== null) fail('lumi: pruneCases ha tenuto il caso sbagliato');
+  const cdb2 = load(cf);
+  delete cdb2[GQ];
+  save(cf, cdb2);
+  console.log('lumi: contratto, GDPR, retention ok');
+} catch (e) {
+  fail(`lumi (qatest): ${e.message.split('\n')[0]}`);
+}
+
 // ------------------------------------------------------------------ REPORT
 function report() {
 console.log('\n================ SMOKE TEST ================');

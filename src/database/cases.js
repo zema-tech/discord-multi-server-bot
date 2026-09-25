@@ -106,4 +106,38 @@ function removeCase(guildId, id) {
   return true;
 }
 
-module.exports = { CASE_TYPES, logCase, getCase, getUserCases, addNote, removeCase, searchCases };
+// LUMI style retention: elimina i casi più vecchi di maxAgeDays (default 180).
+// Ritorna il numero di casi eliminati. Mai lanciare.
+function pruneCases(maxAgeDays = 180, now = Date.now()) {
+  let removed = 0;
+  try {
+    const days = Number.isFinite(Number(maxAgeDays)) ? Math.max(1, Number(maxAgeDays)) : 180;
+    const cutoff = now - days * 24 * 60 * 60 * 1000;
+    const { load, save, dbFile } = require('./jsonDb');
+    const file = dbFile('cases');
+    let db = null;
+    try {
+      db = load(file);
+    } catch {
+      return 0;
+    }
+    if (!db || typeof db !== 'object') return 0;
+    let touched = false;
+    for (const gid of Object.keys(db)) {
+      const g = db[gid];
+      if (!g || typeof g !== 'object' || !g.items || typeof g.items !== 'object') continue;
+      for (const [id, item] of Object.entries(g.items)) {
+        const at = item && Number.isFinite(item.at) ? item.at : null;
+        if (at !== null && at < cutoff) {
+          delete g.items[id];
+          removed += 1;
+          touched = true;
+        }
+      }
+    }
+    if (touched) save(file, db);
+  } catch {}
+  return removed;
+}
+
+module.exports = { CASE_TYPES, logCase, getCase, getUserCases, addNote, removeCase, searchCases, pruneCases };

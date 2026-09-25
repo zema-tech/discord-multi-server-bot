@@ -165,4 +165,52 @@ function readRecent(gid, n) {
   }
 }
 
-module.exports = { logChange, readRecent, hashIp, LOG_FILE };
+module.exports = { logChange, readRecent, hashIp, pruneAudit, LOG_FILE };
+
+/**
+ * LUMI style retention: riscrive il log tenendo solo le righe recenti
+ * (default 90 giorni). Le righe non parsabili vengono conservate per
+ * sicurezza. Ritorna { kept, dropped }. Mai lanciare.
+ */
+function pruneAudit(retentionDays = 90, now = Date.now()) {
+  const res = { kept: 0, dropped: 0 };
+  try {
+    const days = Number.isFinite(Number(retentionDays)) ? Math.max(1, Number(retentionDays)) : 90;
+    const cutoff = now - days * 24 * 60 * 60 * 1000;
+    let text;
+    try {
+      text = fs.readFileSync(logFile(), 'utf8');
+    } catch {
+      return res; // niente file: niente da fare
+    }
+    const lines = String(text).split('\n');
+    const kept = [];
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      let e = null;
+      try {
+        e = JSON.parse(line);
+      } catch {
+        kept.push(line); // non parsabile: conserva
+        res.kept += 1;
+        continue;
+      }
+      const ts = e && typeof e.ts === 'string' ? Date.parse(e.ts) : NaN;
+      if (Number.isFinite(ts) && ts < cutoff) {
+        res.dropped += 1;
+        continue;
+      }
+      kept.push(line);
+      res.kept += 1;
+    }
+    if (res.dropped > 0) {
+      try {
+        fs.writeFileSync(logFile(), kept.length ? kept.join('\n') + '\n' : '', 'utf8');
+      } catch {
+        res.kept = 0;
+        res.dropped = 0;
+      }
+    }
+  } catch {}
+  return res;
+}

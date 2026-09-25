@@ -21,30 +21,43 @@ function loadAll() {
   const out = [];
   let dir = [];
   try {
-    dir = fs.readdirSync(__dirname).filter((f) => f.endsWith('.js') && f !== 'registry.js').sort();
+    dir = fs.readdirSync(__dirname).filter((f) => f.endsWith('.js') && f !== 'registry.js' && f !== 'defineModule.js' && f !== 'commander.js').sort();
   } catch {
     return out;
   }
+  let validate = null;
+  try {
+    validate = require('./defineModule').defineModule;
+  } catch { validate = null; }
   for (const f of dir) {
+    let mod = null;
     try {
       delete require.cache[require.resolve(path.join(__dirname, f))];
-      const mod = require(path.join(__dirname, f));
-      if (!mod || typeof mod.id !== 'string' || !mod.id) continue;
-      out.push({
-        id: mod.id,
-        title: typeof mod.title === 'string' ? mod.title : mod.id,
-        icon: typeof mod.icon === 'string' ? mod.icon : 'grid',
-        section: typeof mod.section === 'string' ? mod.section : 'Altro',
-        description: typeof mod.description === 'string' ? mod.description : '',
-        commands: Array.isArray(mod.commands) ? mod.commands.filter((c) => typeof c === 'string') : [],
-        db: Array.isArray(mod.db) ? mod.db.filter((d) => typeof d === 'string') : [],
-        events: Array.isArray(mod.events) ? mod.events.filter((e) => typeof e === 'string') : [],
-        handlers: Array.isArray(mod.handlers) ? mod.handlers.filter((h) => typeof h === 'string') : [],
-        locked: mod.locked === true,
-        statsExtra: typeof mod.statsExtra === 'function' ? mod.statsExtra : null,
-      });
+      mod = require(path.join(__dirname, f));
     } catch (e) {
       try { console.error(`[modules] feature non caricata ${f}: ${e.message}`); } catch {}
+      continue;
+    }
+    if (!mod || typeof mod.id !== 'string' || !mod.id) continue;
+    try {
+      // Contratto DefineModule: normalizza e valida (id, comandi, versione).
+      const norm = typeof validate === 'function' ? validate(mod, f) : mod;
+      out.push({
+        id: norm.id,
+        version: norm.version || '1.0.0',
+        title: typeof norm.title === 'string' ? norm.title : norm.id,
+        icon: typeof norm.icon === 'string' ? norm.icon : 'grid',
+        section: typeof norm.section === 'string' ? norm.section : 'Altro',
+        description: typeof norm.description === 'string' ? norm.description : '',
+        commands: Array.isArray(norm.commands) ? norm.commands.filter((c) => typeof c === 'string') : [],
+        db: Array.isArray(norm.db) ? norm.db.filter((d) => typeof d === 'string') : [],
+        events: Array.isArray(norm.events) ? norm.events.filter((e) => typeof e === 'string') : [],
+        handlers: Array.isArray(norm.handlers) ? norm.handlers.filter((h) => typeof h === 'string') : [],
+        locked: norm.locked === true,
+        statsExtra: typeof norm.statsExtra === 'function' ? norm.statsExtra : null,
+      });
+    } catch (e) {
+      try { console.error(`[modules] contratto violato ${f}: ${e.message}`); } catch {}
     }
   }
   cache = out;

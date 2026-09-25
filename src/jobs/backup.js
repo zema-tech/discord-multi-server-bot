@@ -175,6 +175,20 @@ function runBackupNow(opts = {}) {
       console.error('[backup] prune:', e.message);
     }
 
+    // LUMI style retention sweep (dopo il backup: mai perdere dati prima di salvarli).
+    try {
+      const { pruneCases } = require('../database/cases');
+      result.casesPruned = pruneCases(180, now);
+    } catch (e) {
+      console.error('[backup] retention cases:', e.message);
+    }
+    try {
+      const { pruneAudit } = require('../dashboard/audit');
+      result.auditPruned = pruneAudit(90, now);
+    } catch (e) {
+      console.error('[backup] retention audit:', e.message);
+    }
+
     console.log(`[backup] ${name}: ${result.files.length} file${result.ok ? '' : ' — FALLITO'}.`);
     writeJournal(backupRoot, { at: result.at, dir: result.dir, files: result.files, ok: result.ok });
     return result;
