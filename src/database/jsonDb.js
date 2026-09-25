@@ -31,4 +31,36 @@ function dbFile(name) {
   return path.join(__dirname, `${name}.json`);
 }
 
-module.exports = { load, save, dbFile };
+/** Chiavi `__*` sono metadati, mai guild/utenti: gli iteratori devono skipparle. */
+function isMetaKey(k) {
+  return typeof k === 'string' && k.startsWith('__');
+}
+
+/**
+ * Migrazioni schema stile Lumi (db:migrate minimale per JSON).
+ * Carica, applica i passi mancanti via schema.js in ordine, timbra `__v`
+ * e salva SOLO se qualcosa è cambiato. Ritorna il db. Mai lanciare.
+ */
+function ensureMigrated(file, name) {
+  let db = null;
+  try {
+    db = load(file);
+  } catch {
+    return db;
+  }
+  if (!db || typeof db !== 'object' || Array.isArray(db)) return db;
+  try {
+    const schema = require('./schema');
+    if (schema && typeof schema.migrateToCurrent === 'function') {
+      const changed = schema.migrateToCurrent(name, db);
+      if (changed) {
+        try {
+          save(file, db);
+        } catch {}
+      }
+    }
+  } catch {}
+  return db;
+}
+
+module.exports = { load, save, dbFile, ensureMigrated, isMetaKey };

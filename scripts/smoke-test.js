@@ -2412,6 +2412,43 @@ try {
   fail(`lumi (qatest): ${e.message.split('\n')[0]}`);
 }
 
+// ------------------------------------------------- (c13) SCHEMA JSON VERSIONATO
+console.log('== [13/5] Migrazioni schema (stile Lumi db:migrate) ==');
+try {
+  const { load, save, dbFile, isMetaKey } = require(path.join(DB_DIR, 'jsonDb.js'));
+  const schema = require(path.join(DB_DIR, 'schema.js'));
+  if (schema.CURRENT.tickets !== 2 || schema.CURRENT.levels !== 1) fail('schema: versioni attese');
+  if (!isMetaKey('__v') || isMetaKey('qatest_x')) fail('schema: isMetaKey');
+  // migrateToCurrent puro su oggetto: v0 -> v2 con merge default.
+  const fixture = { g1: { config: { maxPerUser: 9 }, counter: 0, tickets: {} } };
+  const changed = schema.migrateToCurrent('tickets', fixture);
+  if (changed !== true || fixture.__v !== 2) fail('schema: migrateToCurrent');
+  if (fixture.g1.config.maxPerUser !== 9) fail('schema: migrazione deve preservare valori esistenti');
+  for (const k of ['autoCloseDays', 'panels', 'questions', 'tags', 'blacklist', 'autoDeleteDays']) {
+    if (fixture.g1.config[k] === undefined) fail(`schema: default mancante (${k})`);
+  }
+  if (schema.migrateToCurrent('tickets', fixture) !== false) fail('schema: seconda run deve essere no-op');
+  if (schema.migrateToCurrent('sconosciuto', {}) !== false) fail('schema: file ignoto no-op');
+  // End-to-end su file QA: fixture vecchia -> getConfig migra + timbra.
+  const SQ = 'qatest_sch';
+  const f = dbFile('tickets');
+  const db = load(f);
+  db[SQ] = { config: { maxPerUser: 3 }, counter: 0, tickets: {} };
+  save(f, db);
+  const tickets = require(path.join(DB_DIR, 'tickets.js'));
+  const cfg = tickets.getConfig(SQ);
+  if (cfg.questions === undefined || cfg.tags === undefined || load(f).__v !== 2) {
+    fail('schema: migrazione end-to-end (tickets)');
+  }
+  const fin = load(f);
+  delete fin[SQ];
+  save(f, fin);
+  if (load(f)[SQ] !== undefined) fail('schema: cleanup QA fallito');
+  console.log('schema: versioni, merge default, idempotenza ok');
+} catch (e) {
+  fail(`schema (qatest): ${e.message.split('\n')[0]}`);
+}
+
 // ------------------------------------------------------------------ REPORT
 function report() {
 console.log('\n================ SMOKE TEST ================');

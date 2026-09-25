@@ -1,4 +1,13 @@
-const { load, save, dbFile } = require('./jsonDb');
+const { load, save, dbFile, ensureMigrated } = require('./jsonDb');
+
+/** Load con migrazioni schema (una tantum per versione). */
+function loadDb() {
+  try {
+    return ensureMigrated(FILE, 'levels');
+  } catch {
+    return load(FILE);
+  }
+}
 
 const FILE = dbFile('levels');
 
@@ -24,7 +33,7 @@ function sanitize(entry = {}) {
 }
 
 function getLevel(guildId, userId) {
-  const db = load(FILE);
+  const db = loadDb();
   if (!db[guildId]?.[userId]) return { xp: 0, level: 0, messageCount: 0, voiceMinutes: 0 };
   return sanitize(db[guildId][userId]);
 }
@@ -36,7 +45,7 @@ function addXp(guildId, userId, amount, opts = {}) {
   if (!Number.isFinite(amount) || amount <= 0) return { ...getLevel(guildId, userId), leveledUp: false };
   const messages = opts.messages === undefined ? 1 : Math.max(0, Math.floor(opts.messages) || 0);
   const voiceMin = opts.voiceMinutes === undefined ? 0 : Math.max(0, Math.floor(opts.voiceMinutes) || 0);
-  const db = load(FILE);
+  const db = loadDb();
   if (!db[guildId]) db[guildId] = {};
   if (!db[guildId][userId]) db[guildId][userId] = { xp: 0, level: 0, messageCount: 0, voiceMinutes: 0 };
   const entry = sanitize(db[guildId][userId]);
@@ -58,7 +67,7 @@ function addXp(guildId, userId, amount, opts = {}) {
 }
 
 function getLeaderboard(guildId, limit = 10) {
-  const db = load(FILE);
+  const db = loadDb();
   if (!db[guildId]) return [];
   const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 10;
   return Object.entries(db[guildId])
@@ -72,7 +81,7 @@ function getLeaderboard(guildId, limit = 10) {
 
 /** Posizione (1-based) di un utente in classifica. null se mai classificato. */
 function getRankPosition(guildId, userId) {
-  const db = load(FILE);
+  const db = loadDb();
   if (!db[guildId]?.[userId]) return null;
   const me = totalXp(sanitize(db[guildId][userId]));
   let pos = 1;

@@ -21,9 +21,9 @@ function setAutoClose(guildId, days) {
 
 function readDbGuildIds() {
   try {
-    const { load, dbFile } = require('../database/jsonDb');
+    const { load, dbFile, isMetaKey } = require('../database/jsonDb');
     const db = load(dbFile('tickets'));
-    return Object.keys(db);
+    return Object.keys(db).filter((k) => !isMetaKey(k));
   } catch {
     return [];
   }

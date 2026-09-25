@@ -1,6 +1,15 @@
-const { load, save, dbFile } = require('./jsonDb');
+const { load, save, dbFile, ensureMigrated } = require('./jsonDb');
 
 const FILE = dbFile('tickets');
+
+/** Load con migrazioni schema (una tantum per versione, poi solo check `__v`). */
+function loadDb() {
+  try {
+    return ensureMigrated(FILE, 'tickets');
+  } catch {
+    return load(FILE);
+  }
+}
 
 const TICKET_TYPES = {
   supporto: { label: 'Supporto', emoji: '🛠️', descrizione: 'Assistenza generale e domande' },
@@ -32,7 +41,7 @@ function guildData(guildId) {
     // Niente record fantasma 'undefined'/'null': default in memoria, senza save.
     return { config: { ...DEFAULT_CONFIG, supportRoleIds: [] }, counter: 0, tickets: {} };
   }
-  const db = load(FILE);
+  const db = loadDb();
   if (!db[guildId] || typeof db[guildId] !== 'object' || Array.isArray(db[guildId])) {
     db[guildId] = { config: { ...DEFAULT_CONFIG, supportRoleIds: [] }, counter: 0, tickets: {} };
     save(FILE, db);
@@ -513,6 +522,7 @@ function removeTicket(guildId, channelId) {
 
 module.exports = {
   TICKET_TYPES,
+  DEFAULT_CONFIG,
   PRIORITIES,
   MAX_NOTES,
   MAX_SUBJECT_CHARS,
