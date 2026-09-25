@@ -1,11 +1,31 @@
 # Hosting — discord-multi-server-bot
 
-Guida in italiano per avviare il bot ovunque. Requisiti comuni:
+Guida in italiano per avviare il bot ovunque. Via rapida per tutti:
+
+```bash
+npm run setup   # rileva l'host, verifica il token live, scrive .env
+npm run deploy  # registra gli slash command
+npm start       # bot (+ dashboard con npm run dashboard)
+```
+
+Requisiti comuni:
 
 - **Node.js ≥ 18** (consigliato **Node 20**), `npm`
 - File `.env` creato da `.env.example` con almeno `DISCORD_TOKEN` e `CLIENT_ID`
 - Deploy degli slash command: `npm run deploy` (dopo ogni aggiunta/modifica di comandi)
 - Start: `npm start` (= `node src/index.js`) · Test: `npm test`
+
+## Matrice host (rilevata in automatico da `src/host/`)
+
+| Host | Disco | Storage consigliato | Dashboard | Note |
+|------|-------|---------------------|-----------|------|
+| Render | effimero | sqlite su Disk (`/app/data`) | ✅ via `$PORT` | Blueprint `render.yaml` |
+| Railway | effimero | sqlite su Volume | ✅ via `$PORT` | Come Render |
+| Pterodactyl | persistente | sqlite | ✅ porta pannello | Egg NodeJS generico |
+| Docker | effimero* | sqlite su volume | ✅ `$PORT`/`3000` | `docker-compose.yml` (*persistente con volume) |
+| VPS / locale | persistente | sqlite (Node 22+) o json | ✅ | PM2 consigliato |
+| Termux | persistente | json | ✅ | Sviluppo, non produzione |
+| Replit | persistente | json | ✅ | Sempre-on a pagamento |
 
 > **Persistenza dati:** di default il bot usa JSON in `src/database/*.json`
 > (`DB_BACKEND=json`). Per hosting con filesystem effimero (Railway/Render/Docker)

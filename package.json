@@ -9,6 +9,7 @@
     "deploy": "node deploy-commands.js",
     "dev": "node --watch src/index.js",
     "test": "node scripts/smoke-test.js",
+    "setup": "node scripts/setup.js",
     "verify": "node_modules/.bin/tsc -p packages/commander/tsconfig.json && node scripts/smoke-test.js",
     "build:commander": "node_modules/.bin/tsc -p packages/commander/tsconfig.json"
   },

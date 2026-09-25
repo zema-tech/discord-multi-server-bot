@@ -1878,6 +1878,7 @@ try {
 console.log('== [6/5] Commander (gate, breaker, no-crash) ==');
 let commanderPromise = Promise.resolve();
 let ticketPromise = Promise.resolve();
+let hostPromise = Promise.resolve();
 try {
   const registry = require(path.join(ROOT, 'src', 'modules', 'registry.js'));
   const commander = require(path.join(ROOT, 'src', 'modules', 'commander.js'));
@@ -2497,6 +2498,58 @@ try {
   fail(`musica (qatest): ${e.message.split('\n')[0]}`);
 }
 
+// ------------------------------------------------- (c15) HOST OVUNQUE
+console.log('== [15/5] Host universale (detect, setup, storage) ==');
+try {
+  const host = require(path.join(ROOT, 'src', 'host', 'index.js'));
+  const cases = [
+    [{ RENDER: 'true' }, 'render'],
+    [{ RAILWAY_ENVIRONMENT: 'prod' }, 'railway'],
+    [{ P_SERVER_UUID: 'x' }, 'pterodactyl'],
+    [{ REPL_ID: 'x' }, 'replit'],
+    [{ PREFIX: '/data/data/com.termux/files/usr' }, 'termux'],
+    [{}, 'vps'],
+  ];
+  for (const [env, want] of cases) {
+    if (host.detectHost(env).id !== want) fail(`host: detect ${JSON.stringify(env)} atteso ${want}`);
+  }
+  const rSqlite = host.recommendStorage({ id: 'vps', name: 'VPS', persistent: true }, { nodeVersion: 'v22.0.0' });
+  if (rSqlite.backend !== 'sqlite') fail('host: vps+node22 dovrebbe raccomandare sqlite');
+  const rJson = host.recommendStorage({ id: 'vps', name: 'VPS', persistent: true }, { nodeVersion: 'v18.0.0' });
+  if (rJson.backend !== 'json') fail('host: node18 dovrebbe restare su json');
+  const rEph = host.recommendStorage({ id: 'render', name: 'Render', persistent: false, needsDisk: true }, { nodeVersion: 'v22.0.0' });
+  if (!rEph.warning) fail('host: disco effimero deve avvisare');
+  if (!host.tokenLooksValid('MTIzNDU2Nzg5MDEyMzQ1Njc4.Abcde.XyZ1234567890abcdef')) fail('host: token valido rifiutato');
+  if (host.tokenLooksValid('nope')) fail('host: token invalido accettato');
+  // checkTokenLive (rete mockata) in promise dedicata: top-level sync.
+  hostPromise = (async () => {
+    try {
+      const live401 = await host.checkTokenLive('MTIzNDU2Nzg5MDEyMzQ1Njc4.Abcde.XyZ1234567890abcdef', async () => ({ status: 401, ok: false }));
+      if (live401.ok !== false) fail('host: 401 dovrebbe fallire');
+      const liveOk = await host.checkTokenLive('MTIzNDU2Nzg5MDEyMzQ1Njc4.Abcde.XyZ1234567890abcdef', async () => ({ status: 200, ok: true, json: async () => ({ username: 'Bot', discriminator: '0' }) }));
+      if (!liveOk.ok || liveOk.tag !== 'Bot#0') fail('host: 200 dovrebbe passare');
+    } catch (e) {
+      fail(`host live (qatest): ${e.message.split('\n')[0]}`);
+    }
+  })();
+  // setup: merge .env senza perdere chiavi (in tmp).
+  const setup = require(path.join(ROOT, 'scripts', 'setup.js'));
+  const tmpEnv = path.join(require('os').tmpdir(), `env-qa-${Date.now()}.env`);
+  fs.writeFileSync(tmpEnv, '# commento\nVECCHIA=1\nDISCORD_TOKEN=vecchio\n');
+  const w = setup.writeEnvFile(tmpEnv, { DISCORD_TOKEN: 'nuovo', NUOVA: '2' });
+  const back = setup.readEnvFile(tmpEnv).values;
+  if (back.VECCHIA !== '1' || back.DISCORD_TOKEN !== 'nuovo' || back.NUOVA !== '2') {
+    fail('host: merge .env rotto');
+  }
+  if (!w.backup) fail('host: backup .env.bak mancante');
+  fs.rmSync(tmpEnv, { force: true });
+  fs.rmSync(`${tmpEnv}.bak`, { force: true });
+  if (setup.mask('segretissimo123').includes('tissimo')) fail('host: mask perde il segreto');
+  console.log('host: detect, storage, token, setup ok');
+} catch (e) {
+  fail(`host (qatest): ${e.message.split('\n')[0]}`);
+}
+
 // ------------------------------------------------------------------ REPORT
 function report() {
 console.log('\n================ SMOKE TEST ================');
@@ -2518,4 +2571,4 @@ if (errors.length) {
 
 // Il REPORT aspetta i test async del Commander (c6): errori registrati dopo
 // il report non verrebbero stampati ma cambierebbero solo l'exit code.
-Promise.all([commanderPromise, ticketPromise]).then(report);
+Promise.all([commanderPromise, ticketPromise, hostPromise]).then(report);
