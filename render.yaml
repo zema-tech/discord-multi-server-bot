@@ -1,0 +1,36 @@
+# discord-multi-server-bot — deploy one-click su Render.
+#
+# IMPORTANTE (dischi effimeri): il piano free di Render CANCELLA il filesystem
+# a ogni deploy/restart. Il `disk` sotto richiede un piano a pagamento: senza
+# disco, JSON/SQLite si azzerano a ogni riavvio. Per la community free l'opzione
+# è accettare i reset oppure un Postgres esterno (futura migrazione, vedi ADR-002).
+services:
+  - type: web
+    name: discord-multi-server-bot
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    autoDeploy: true
+    disk:
+      name: bot-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: CLIENT_ID
+        sync: false
+      - key: CLIENT_SECRET
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: BASE_URL
+        sync: false
+      - key: DB_BACKEND
+        value: sqlite
+      - key: DB_SQLITE_PATH
+        value: /app/data/bot.db
+      - key: AI_PROVIDER
+        value: auto

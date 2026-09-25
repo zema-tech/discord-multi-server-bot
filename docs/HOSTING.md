@@ -104,7 +104,12 @@ docker compose --profile dashboard up -d --build
 
 ## 4. Railway / Render
 
-Procedura valida per entrambi (filesystem effimero: serve disco persistente):
+**Via rapida (Render):** il repo include `render.yaml` (Docker + healthcheck
+`/healthz` + disco da 1GB): *New → Blueprint*, poi compila le env segrete
+(`DISCORD_TOKEN`, `CLIENT_ID`, `CLIENT_SECRET`, `BASE_URL`). Il blueprint
+punta già SQLite su disco (`DB_SQLITE_PATH=/app/data/bot.db`).
+
+Procedura manuale (valida per entrambi, filesystem effimero: serve disco persistente):
 
 1. Crea il servizio dal repo (Build: `npm ci`, Start: `node src/index.js`).
 2. Imposta le **Environment Variables** dal pannello (copia le chiavi di
@@ -112,7 +117,8 @@ Procedura valida per entrambi (filesystem effimero: serve disco persistente):
    `DB_SQLITE_PATH=./data/bot.db`, ed eventualmente `DASHBOARD_*`
    (su Render apri anche la porta con `DASHBOARD_PORT`).
 3. Monta un **disco persistente** sul percorso `data/` (es. Railway Volume →
-   mount `/app/data`; Render Disk → mount `/opt/render/project/src/data`):
+   mount `/app/data`; Render Disk su runtime Docker → mount `/app/data`,
+   su runtime Node nativo → `/opt/render/project/src/data`):
    lì vivono `bot.db`, `logs/` e `backups/`. Senza disco, a ogni deploy
    riparti da zero (economia, livelli, ticket… persi).
 4. Esegui `npm run deploy` una volta (da locale con le stesse env, oppure
