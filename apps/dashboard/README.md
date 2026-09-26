@@ -2,6 +2,8 @@
 
 Nuova dashboard (Next.js 16 App Router + Auth.js v5 + Tailwind v4 + shadcn).
 Sostituisce `src/dashboard` (Express) al completamento della Fase 3 — vedi `/PLAN.md`.
+Direzione visiva: **Neon** (dark Discord `#1e1f22`, glow blurple `#5865f2`,
+token a tre livelli in `app/globals.css`, mai hex nei componenti).
 
 ## Prerequisiti
 
@@ -31,13 +33,15 @@ bun run check-types
 ```
 apps/dashboard/
 ├── app/
-│   ├── page.tsx                          # landing
+│   ├── page.tsx                          # landing neon (hero + CTA + stats)
 │   ├── servers/page.tsx                  # server con MANAGE_GUILD + bot dentro
-│   ├── dashboard/[guildId]/page.tsx      # overview: stats + Recharts
-│   ├── dashboard/[guildId]/[feature]/    # form auto-generato + preview live
+│   ├── dashboard/[guildId]/page.tsx      # overview: anteprima guild, stats, grafico, annunci
+│   ├── dashboard/[guildId]/[feature]/    # toggle on/off + form auto-generato + preview live
 │   └── api/guilds/[id]/settings/         # route handler (specchio API Express)
+│   └── api/guilds/[id]/announce/         # POST annunci (scope canale, anti @everyone)
+│   └── api/auth/[...nextauth]/           # login Discord (Auth.js)
 ├── config/dashboard.config.ts            # features/options — aggiungi qui le feature
-├── components/                           # dynamic-form, embed-preview, activity-chart
+├── components/                           # dynamic-form, embed-preview, activity-chart, announce-card, feature-toggle
 └── lib/                                  # auth (Auth.js+Discord), guilds guard, discord-rest
 packages/
 ├── db/        # query condivise (fase 1: file-adapter su STORE_DIR)

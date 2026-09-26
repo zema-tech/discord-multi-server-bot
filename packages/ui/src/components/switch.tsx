@@ -1,36 +1,24 @@
-"use client";
-
 import * as React from "react";
-import { cn } from "../lib/cn.js";
+import { cn } from "../lib/cn";
 
-/** shadcn-style Switch minimal (button + aria-checked, nessun Radix richiesto). */
-export function Switch({
-  checked,
-  onCheckedChange,
-  label,
-}: {
-  checked: boolean;
-  onCheckedChange: (v: boolean) => void;
+export interface SwitchProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "type"> {
   label?: string;
-}) {
+}
+
+/** Toggle switch accessibile (checkbox nativa stilizzata, token di componente). */
+export function Switch({ label, className, ...rest }: SwitchProps) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label ?? "Attiva"}
-      onClick={() => onCheckedChange(!checked)}
-      className={cn(
-        "relative h-7 w-12 flex-none rounded-full border transition-colors",
-        checked ? "bg-[var(--accent)] border-[var(--accent)]" : "bg-white/10 border-white/15",
-      )}
-    >
+    <label className={cn("inline-flex cursor-pointer items-center gap-2", className)}>
+      <input type="checkbox" className="peer sr-only" {...rest} />
       <span
-        className={cn(
-          "absolute top-0.5 h-5 w-5 rounded-full transition-all",
-          checked ? "left-[26px] bg-[#0c0e05]" : "left-0.5 bg-white/70",
-        )}
+        aria-hidden
+        className="relative h-6 w-11 rounded-full bg-white/15 transition-colors
+          peer-checked:bg-[var(--switch-on)] peer-focus-visible:outline peer-focus-visible:outline-2
+          peer-focus-visible:outline-[var(--accent)] peer-disabled:opacity-50
+          after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full
+          after:bg-white after:transition-transform peer-checked:after:translate-x-5"
       />
-    </button>
+      {label && <span className="text-sm font-medium">{label}</span>}
+    </label>
   );
 }

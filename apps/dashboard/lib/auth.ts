@@ -1,4 +1,4 @@
-import NextAuth from "next-auth";
+import NextAuth, { type Session } from "next-auth";
 import Discord from "next-auth/providers/discord";
 
 /**
@@ -6,7 +6,7 @@ import Discord from "next-auth/providers/discord";
  * mano in src/dashboard/auth.js). L'access_token resta in sessione per le
  * chiamate REST (guilds utente) — specchio del cookie `pb_session` attuale.
  */
-export const { handlers, auth, signIn, signOut } = NextAuth({
+const { handlers, auth: baseAuth, signIn, signOut } = NextAuth({
   providers: [
     Discord({
       clientId: process.env.DISCORD_CLIENT_ID!,
@@ -25,3 +25,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
 });
+
+// Annotazione esplicita: i tipi inferiti di next-auth/beta non sono
+// "portabili" (TS2742) nei workspace con strict. Usiamo solo auth().
+export const auth: () => Promise<(Session & { accessToken?: string }) | null> =
+  baseAuth as () => Promise<(Session & { accessToken?: string }) | null>;
+
+export { handlers, signIn, signOut };

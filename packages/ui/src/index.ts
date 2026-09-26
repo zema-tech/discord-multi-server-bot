@@ -1,4 +1,4 @@
-export { Button } from "./components/button.js";
-export { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/card.js";
-export { Switch } from "./components/switch.js";
-export { cn } from "./lib/cn.js";
+export { Button } from "./components/button";
+export { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/card";
+export { Switch } from "./components/switch";
+export { cn } from "./lib/cn";

@@ -1,18 +1,47 @@
 @import "tailwindcss";
 
-/* Design tokens: dark default (Astra-style), volt accent, Inter + Sora. */
-:root {
-  --accent: #c5f82a;
-  --card: #141419;
-  --text: #f5f6f0;
-  --muted: #a7a89e;
-  --font-body: "Inter", system-ui, sans-serif;
-  --font-display: "Sora", "Inter", system-ui, sans-serif;
-}
+/* ============================================================
+   Design tokens — dashboard bot, direzione Neon (opzione 2).
+   Tre livelli (design-system): primitive → semantic → component.
+   Mai hex nei componenti: solo var().
+   ============================================================ */
 
-.dark, :root {
-  --background: #0a0a0c;
-  --foreground: var(--text);
+/* --- Primitive (raw, palette Discord) --- */
+:root {
+  --blurple: #5865f2;
+  --green: #57f287;
+  --yellow: #fee75c;
+  --red: #ed4245;
+  --cyan: #5cc8ff;
+  --ink-950: #1e1f22;
+  --ink-900: #2b2d31;
+  --ink-800: #313338;
+  --paper: #f2f3f5;
+  --grey-400: #b5bac1;
+  --grey-500: #7d8699;
+
+  /* --- Semantic (scopo) --- */
+  --background: var(--ink-950);
+  --foreground: var(--paper);
+  --accent: var(--blurple);
+  --accent-soft: rgba(88, 101, 242, 0.14);
+  --success: var(--green);
+  --warn: var(--yellow);
+  --danger: var(--red);
+  --muted: var(--grey-400);
+  --faint: var(--grey-500);
+  --card: var(--ink-900);
+  --card-border: rgba(255, 255, 255, 0.1);
+
+  /* --- Component --- */
+  --button-bg: var(--blurple);
+  --button-glow: rgba(88, 101, 242, 0.55);
+  --switch-on: var(--green);
+  --input-bg: rgba(255, 255, 255, 0.05);
+  --input-border: rgba(255, 255, 255, 0.14);
+
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 @theme inline {
@@ -33,6 +62,27 @@ body {
 
 .font-display { font-family: var(--font-display); }
 
+/* Griglia tecnica neon (hero + overview) */
+.grid-bg {
+  background-image:
+    linear-gradient(var(--accent-soft) 1px, transparent 1px),
+    linear-gradient(90deg, var(--accent-soft) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(1100px 520px at 50% 40%, #000 30%, transparent 75%);
+}
+
+/* Testo outline stile neon */
+.text-stroke {
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--foreground);
+}
+.text-neon {
+  color: var(--accent);
+  text-shadow:
+    0 0 12px rgba(88, 101, 242, 0.9),
+    0 0 60px rgba(88, 101, 242, 0.55);
+}
+
 /* Grana cinematografica globale */
 .grain::before {
   content: "";
@@ -41,5 +91,5 @@ body {
   z-index: 60;
   pointer-events: none;
   opacity: 0.05;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='1'/%3E%3C/filter%3E%3C/svg%3E");
 }

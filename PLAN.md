@@ -1,7 +1,9 @@
 # PLAN — Nuova dashboard Next.js (sostituisce Express+EJS)
 
-> Stato: Fase 0 completata (analisi), Fase 1 scaffold in corso. La vecchia dashboard
-> (`src/dashboard/`, Express + vanilla JS) resta attiva finché la Fase 3 non la dichiara deprecata.
+> Stato: Fase 1 completata (scaffold + @repo/ui + toggle moduli + annunci +
+> overview con anteprima guild; `tsc --noEmit` e `next build` verdi).
+> La vecchia dashboard (`src/dashboard/`, Express + vanilla JS) resta attiva
+> finché la Fase 3 non la dichiara deprecata.
 
 ## 0. Analisi del repo attuale (zema-tech/discord-multi-server-bot)
 

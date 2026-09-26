@@ -4,7 +4,7 @@ import { features } from "@/config/dashboard.config";
 import { requireGuildAccess } from "@/lib/guilds";
 import { getGuildChannels, getGuildRoles } from "@/lib/discord-rest";
 import { DynamicForm } from "@/components/dynamic-form";
-import { Card } from "@repo/ui";
+import { FeatureToggle } from "@/components/feature-toggle";
 
 /** Pagina per-feature: form auto-generato + preview live (route dinamica). */
 export default async function FeaturePage({
@@ -32,12 +32,10 @@ export default async function FeaturePage({
           <h1 className="font-display text-3xl font-bold tracking-tight">{feature.name}</h1>
           <p className="text-[var(--muted)]">{feature.description}</p>
         </div>
-        <span className={`ml-auto rounded-full border px-3 py-1 text-xs font-bold uppercase ${enabled ? "border-emerald-400/40 text-emerald-300" : "border-white/15 text-[var(--muted)]"}`}>
-          {enabled ? "Attivo" : "Spento"}
-        </span>
+        <FeatureToggle guildId={guildId} featureId={feature.id} initial={enabled} />
       </div>
       {!enabled && (
-        <Card className="mt-4"><p className="text-sm text-[var(--muted)]">Modulo spento: riattivalo con <code>/modulo on {featureId}</code> o dal toggle Controller.</p></Card>
+        <p className="mt-4 text-sm text-[var(--muted)]">Modulo spento: riattivalo dal toggle qui sopra. I salvataggi restano in bozza finché è spento.</p>
       )}
       <div className="mt-6">
         <DynamicForm feature={feature} initial={{ ...initial, _gid: guildId }} channels={channels} roles={roles} />

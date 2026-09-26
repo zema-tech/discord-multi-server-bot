@@ -1,29 +1,32 @@
 import * as React from "react";
-import { cn } from "../lib/cn.js";
+import { cn } from "../lib/cn";
 
-/** shadcn-style Card con glassmorphism + gradient-border quando `active`. */
-export function Card({ className, active, ...props }: React.HTMLAttributes<HTMLDivElement> & { active?: boolean }) {
+/** Card scura con bordo neon sottile quando `active`. */
+export function Card({ active, className, ...rest }: React.HTMLAttributes<HTMLDivElement> & { active?: boolean }) {
   return (
     <div
       className={cn(
-        "rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6 shadow-xl transition-all",
-        active && "border-transparent [background:linear-gradient(var(--card),var(--card))_padding-box,linear-gradient(135deg,var(--accent),transparent_60%)_border-box]",
+        "rounded-2xl border border-white/10 bg-[var(--card)] p-5",
+        active && "border-[var(--accent)]/40 shadow-[0_0_40px_-12px_var(--accent)]",
         className,
       )}
-      {...props}
+      {...rest}
     />
   );
 }
 
-export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("mb-4", className)} {...props} />;
+export function CardHeader({ className, ...rest }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("mb-2 text-xs font-bold uppercase tracking-widest text-[var(--muted)]", className)} {...rest} />;
 }
-export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
-  return <h3 className={cn("font-display text-lg font-semibold tracking-tight", className)} {...props} />;
+
+export function CardTitle({ className, ...rest }: React.HTMLAttributes<HTMLHeadingElement>) {
+  return <h3 className={cn("text-xs font-bold uppercase tracking-widest text-[var(--muted)]", className)} {...rest} />;
 }
-export function CardDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn("text-sm text-[var(--muted)]", className)} {...props} />;
+
+export function CardDescription({ className, ...rest }: React.HTMLAttributes<HTMLParagraphElement>) {
+  return <p className={cn("mt-1 text-sm text-[var(--muted)]", className)} {...rest} />;
 }
-export function CardContent({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn(className)} {...props} />;
+
+export function CardContent({ className, ...rest }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn(className)} {...rest} />;
 }

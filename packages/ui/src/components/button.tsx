@@ -1,25 +1,39 @@
 import * as React from "react";
-import { cn } from "../lib/cn.js";
+import { cn } from "../lib/cn";
 
-/** shadcn-style Button (API compatibile; in prod generato via `shadcn add button`). */
+type Variant = "primary" | "secondary" | "ghost" | "danger";
+type Size = "sm" | "md";
+
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "default" | "secondary" | "ghost" | "destructive";
-  size?: "sm" | "md";
+  variant?: Variant;
+  size?: Size;
 }
 
-export function Button({ variant = "default", size = "md", className, ...props }: ButtonProps) {
+const VARIANTS: Record<Variant, string> = {
+  primary: "bg-[var(--button-bg)] text-white shadow-[0_0_24px_var(--button-glow)] hover:brightness-110",
+  secondary: "border border-white/15 bg-white/5 text-[var(--foreground)] hover:bg-white/10",
+  ghost: "text-[var(--muted)] hover:bg-white/5 hover:text-white",
+  danger: "bg-[var(--danger)] text-white hover:brightness-110",
+};
+
+const SIZES: Record<Size, string> = {
+  sm: "px-3 py-1.5 text-xs",
+  md: "px-5 py-2.5 text-sm",
+};
+
+/** Bottone con token di componente (mai hex hardcoded). */
+export function Button({ variant = "primary", size = "md", className, type, ...rest }: ButtonProps) {
   return (
     <button
+      type={type ?? "button"}
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] disabled:opacity-50",
-        size === "sm" ? "px-3 py-1.5 text-sm" : "px-5 py-2.5 text-sm",
-        variant === "default" && "bg-[var(--accent)] text-[#0c0e05] hover:brightness-110 hover:-translate-y-px shadow-lg",
-        variant === "secondary" && "bg-white/5 text-[var(--text)] border border-white/10 hover:border-[var(--accent)]",
-        variant === "ghost" && "text-[var(--muted)] hover:text-[var(--text)]",
-        variant === "destructive" && "bg-red-500/15 text-red-300 border border-red-500/30 hover:bg-red-500/25",
+        "inline-flex items-center justify-center gap-2 rounded-xl font-bold transition-all",
+        "disabled:cursor-not-allowed disabled:opacity-50",
+        VARIANTS[variant],
+        SIZES[size],
         className,
       )}
-      {...props}
+      {...rest}
     />
   );
 }

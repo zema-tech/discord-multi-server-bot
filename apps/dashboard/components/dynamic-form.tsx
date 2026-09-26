@@ -18,7 +18,7 @@ export function DynamicForm({
 }: {
   feature: Feature;
   initial: Record<string, unknown>;
-  channels: Array<{ id: string; name: string }>;
+  channels: Array<{ id: string; name: string; type: number }>;
   roles: Array<{ id: string; name: string }>;
 }) {
   const [values, setValues] = useState<Record<string, unknown>>(initial);
@@ -32,10 +32,12 @@ export function DynamicForm({
   async function onSave() {
     setSaving(true);
     try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { _gid, ...patch } = values as Record<string, unknown> & { _gid?: string };
       const res = await fetch(`/api/guilds/${(values as { _gid?: string })._gid ?? ""}/settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ feature: feature.id, patch: values }),
+        body: JSON.stringify({ feature: feature.id, patch }),
       });
       setSaved(res.ok);
     } finally {
@@ -71,7 +73,7 @@ function Field({ opt, value, onChange, channels, roles }: {
   opt: Option;
   value: unknown;
   onChange: (v: unknown) => void;
-  channels: Array<{ id: string; name: string }>;
+  channels: Array<{ id: string; name: string; type: number }>;
   roles: Array<{ id: string; name: string }>;
 }) {
   const inputCls = "w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]";
@@ -80,7 +82,7 @@ function Field({ opt, value, onChange, channels, roles }: {
       <span className="mb-1.5 block text-sm font-semibold">{opt.label}</span>
       {opt.description && <span className="mb-1.5 block text-xs text-[var(--muted)]">{opt.description}</span>}
       {opt.type === "boolean" ? (
-        <Switch checked={Boolean(value ?? opt.default)} onCheckedChange={onChange} label={opt.label} />
+        <Switch checked={Boolean(value ?? opt.default)} onChange={(e) => onChange(e.target.checked)} label={opt.label} />
       ) : opt.type === "number" ? (
         <input type="number" className={inputCls} value={Number(value ?? opt.default ?? 0)} onChange={(e) => onChange(Number(e.target.value))} />
       ) : opt.type === "text" || opt.type === "message_embed_builder" ? (
