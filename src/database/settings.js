@@ -11,7 +11,7 @@ const { load, save, dbFile } = require('./jsonDb');
 
 const FILE = dbFile('settings');
 
-const PROVIDERS = ['auto', 'openai', 'anthropic', 'gemini', 'groq', 'openrouter', 'pollinations'];
+const PROVIDERS = ['auto', 'openai', 'anthropic', 'gemini', 'groq', 'openrouter', 'mistral', 'deepseek', 'xai', 'together', 'cerebras', 'ollama', 'pollinations'];
 const LOG_LEVELS = ['debug', 'info', 'warn', 'error'];
 
 function isInt(v, min, max) {
@@ -20,8 +20,9 @@ function isInt(v, min, max) {
 }
 
 const WHITELIST = {
-  AI_PROVIDER: { secret: false, hint: 'auto|openai|anthropic|gemini|groq|openrouter|pollinations', validate: (v) => (PROVIDERS.includes(String(v).trim().toLowerCase()) ? String(v).trim().toLowerCase() : null) },
+  AI_PROVIDER: { secret: false, hint: 'auto|openai|anthropic|gemini|groq|openrouter|mistral|deepseek|xai|together|cerebras|ollama|pollinations', validate: (v) => (PROVIDERS.includes(String(v).trim().toLowerCase()) ? String(v).trim().toLowerCase() : null) },
   AI_MODEL: { secret: false, hint: 'modello custom (vuoto = default provider)', validate: (v) => String(v || '').trim().slice(0, 100) },
+  AI_FALLBACKS: { secret: false, hint: 'es. groq,openrouter (vuoto = nessun failover)', validate: (v) => String(v || '').split(',').map((s) => s.trim().toLowerCase()).filter((s) => PROVIDERS.includes(s) && s !== 'auto').filter((s, i, a) => a.indexOf(s) === i).join(',').slice(0, 200) },
   AI_API_URL: { secret: false, hint: 'endpoint OpenAI-compatibile', validate: (v) => String(v || '').trim().slice(0, 300) },
   AI_DAILY_LIMIT: { secret: false, hint: '0-100000 (0 = illimitato)', validate: (v) => { const n = isInt(v, 0, 100000); return n === null ? null : String(n); } },
   LOG_LEVEL: { secret: false, hint: 'debug|info|warn|error', validate: (v) => (LOG_LEVELS.includes(String(v).trim().toLowerCase()) ? String(v).trim().toLowerCase() : null) },
@@ -30,6 +31,12 @@ const WHITELIST = {
   GEMINI_API_KEY: { secret: true, hint: '...', validate: (v) => (String(v || '').trim() ? String(v).trim().slice(0, 300) : null) },
   GROQ_API_KEY: { secret: true, hint: 'gsk_...', validate: (v) => (String(v || '').trim() ? String(v).trim().slice(0, 300) : null) },
   OPENROUTER_API_KEY: { secret: true, hint: 'sk-or-...', validate: (v) => (String(v || '').trim() ? String(v).trim().slice(0, 300) : null) },
+  MISTRAL_API_KEY: { secret: true, hint: '...', validate: (v) => (String(v || '').trim() ? String(v).trim().slice(0, 300) : null) },
+  DEEPSEEK_API_KEY: { secret: true, hint: 'sk-...', validate: (v) => (String(v || '').trim() ? String(v).trim().slice(0, 300) : null) },
+  XAI_API_KEY: { secret: true, hint: 'xai-...', validate: (v) => (String(v || '').trim() ? String(v).trim().slice(0, 300) : null) },
+  TOGETHER_API_KEY: { secret: true, hint: '...', validate: (v) => (String(v || '').trim() ? String(v).trim().slice(0, 300) : null) },
+  CEREBRAS_API_KEY: { secret: true, hint: 'csk-...', validate: (v) => (String(v || '').trim() ? String(v).trim().slice(0, 300) : null) },
+  OLLAMA_HOST: { secret: false, hint: 'http://host:11434 (vuoto = localhost)', validate: (v) => String(v || '').trim().slice(0, 300) },
   AI_API_KEY: { secret: true, hint: 'chiave endpoint custom', validate: (v) => (String(v || '').trim() ? String(v).trim().slice(0, 300) : null) },
 };
 

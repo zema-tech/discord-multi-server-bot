@@ -17,9 +17,12 @@
  *   DISCORD_TOKEN         '' (REQUIRED — unico errore bloccante se mancante)
  *   CLIENT_ID             '' (serve al deploy comandi; warning se manca)
  *   GUILD_ID              '' (opzionale: deploy comandi su un solo server)
- *   AI_PROVIDER           'auto'
- *   OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY,
- *   GROQ_API_KEY, OPENROUTER_API_KEY, AI_API_KEY   '' (basta UNA chiave)
+  *   AI_PROVIDER           'auto'
+  *   OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, GROQ_API_KEY,
+  *   OPENROUTER_API_KEY, MISTRAL_API_KEY, DEEPSEEK_API_KEY, XAI_API_KEY,
+  *   TOGETHER_API_KEY, CEREBRAS_API_KEY, AI_API_KEY   '' (basta UNA chiave)
+  *   AI_FALLBACKS          '' (es. "groq,openrouter": failover in ordine)
+  *   OLLAMA_HOST           '' (default http://localhost:11434 per AI_PROVIDER=ollama)
  *   AI_MODEL              '' (modello custom; default sensato per provider)
  *   AI_API_URL            'https://text.pollinations.ai' (gratis, senza chiave)
  *   DB_BACKEND            'json' ('json' | 'sqlite'; valori ignoti → 'json')
@@ -81,6 +84,13 @@ function getEnv(overrides) {
     GEMINI_API_KEY: str(source, 'GEMINI_API_KEY', ''),
     GROQ_API_KEY: str(source, 'GROQ_API_KEY', ''),
     OPENROUTER_API_KEY: str(source, 'OPENROUTER_API_KEY', ''),
+    MISTRAL_API_KEY: str(source, 'MISTRAL_API_KEY', ''),
+    DEEPSEEK_API_KEY: str(source, 'DEEPSEEK_API_KEY', ''),
+    XAI_API_KEY: str(source, 'XAI_API_KEY', ''),
+    TOGETHER_API_KEY: str(source, 'TOGETHER_API_KEY', ''),
+    CEREBRAS_API_KEY: str(source, 'CEREBRAS_API_KEY', ''),
+    OLLAMA_HOST: str(source, 'OLLAMA_HOST', '').trim(),
+    AI_FALLBACKS: str(source, 'AI_FALLBACKS', '').trim(),
     AI_MODEL: str(source, 'AI_MODEL', '').trim(),
     AI_API_URL: str(source, 'AI_API_URL', DEFAULT_AI_API_URL).trim() || DEFAULT_AI_API_URL,
     AI_API_KEY: str(source, 'AI_API_KEY', ''),

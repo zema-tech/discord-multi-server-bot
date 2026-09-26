@@ -3,7 +3,7 @@
  * Delega al core multi-provider (ai/aiProviders): basta una chiave nel .env.
  * Errori sempre in italiano, risposta troncata a MAX_LENGTH.
  */
-const { complete, activeProvider, TIMEOUT_MS } = require('./aiProviders');
+const { complete, activeProvider, listProviders, TIMEOUT_MS } = require('./aiProviders');
 const aiUsage = require('../database/aiUsage');
 
 const MAX_LENGTH = 1800;
@@ -109,9 +109,14 @@ async function askAIChat(messages, systemPrompt = '') {
   }
 }
 
-/** Stato provider per /ai-config mostra: { name, label, model, free, configured } */
+/** Stato provider per /ai-config mostra: { name, label, model, free, configured, fallbacks } */
 function aiStatus() {
   return activeProvider();
 }
 
-module.exports = { askAI, askAIChat, aiStatus, TIMEOUT_MS, MAX_LENGTH };
+/** Catalogo connessioni stile Composio (per dashboard e diagnostica). */
+function aiProviders() {
+  return listProviders();
+}
+
+module.exports = { askAI, askAIChat, aiStatus, aiProviders, TIMEOUT_MS, MAX_LENGTH };

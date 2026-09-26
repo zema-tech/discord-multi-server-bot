@@ -1,13 +1,19 @@
 /**
- * aiProviders.js — core AI multi-provider.
+ * aiProviders.js — core AI multi-provider (stile Composio: catalogo adapter + failover).
  *
  * Basta inserire UNA chiave nel .env e il bot usa quel provider:
- *   OPENAI_API_KEY / ANTHROPIC_API_KEY / GEMINI_API_KEY /
- *   GROQ_API_KEY / OPENROUTER_API_KEY
- * Opzionali: AI_PROVIDER=auto|openai|anthropic|gemini|groq|openrouter|pollinations
+ *   OPENAI_API_KEY / ANTHROPIC_API_KEY / GEMINI_API_KEY / GROQ_API_KEY /
+ *   OPENROUTER_API_KEY / MISTRAL_API_KEY / DEEPSEEK_API_KEY / XAI_API_KEY /
+ *   TOGETHER_API_KEY / CEREBRAS_API_KEY
+ * Opzionali: AI_PROVIDER=auto|<nome>|custom (vedi PROVIDER_DEFS + 'custom')
  *            AI_MODEL=<modello> (default sensato per provider)
  *            AI_API_URL=<endpoint OpenAI-compatibile custom> (+ AI_API_KEY)
- * Senza chiavi: Pollinations gratuito (nessuna configurazione).
+ *            AI_FALLBACKS="groq,openrouter" (failover in ordine: se il primo
+ *              provider fallisce per rate/timeout/rete/HTTP/auth, prova i
+ *              successivi; se falliscono tutti, l'errore è del primario)
+ *            OLLAMA_HOST=http://mini-pc:11434 (default http://localhost:11434)
+ * Senza chiavi: Pollinations gratuito (nessuna configurazione) o Ollama se
+ * selezionato esplicitamente (AI_PROVIDER=ollama, nessun cloud).
  *
  * Errori lanciati hanno sempre `err.code` tra:
  *   empty|emptyResponse|auth|rate|timeout|network|http — mappati in italiano da ai/ai.js
@@ -53,10 +59,34 @@ const PROVIDER_DEFS = {
     url: 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
     defaultModel: 'gemini-2.0-flash',
   },
+  mistral: {
+    label: 'Mistral', kind: 'openai', keyEnv: 'MISTRAL_API_KEY',
+    url: 'https://api.mistral.ai/v1/chat/completions', defaultModel: 'mistral-small-latest',
+  },
+  deepseek: {
+    label: 'DeepSeek', kind: 'openai', keyEnv: 'DEEPSEEK_API_KEY',
+    url: 'https://api.deepseek.com/chat/completions', defaultModel: 'deepseek-chat',
+  },
+  xai: {
+    label: 'xAI Grok', kind: 'openai', keyEnv: 'XAI_API_KEY',
+    url: 'https://api.x.ai/v1/chat/completions', defaultModel: 'grok-3-mini',
+  },
+  together: {
+    label: 'Together', kind: 'openai', keyEnv: 'TOGETHER_API_KEY',
+    url: 'https://api.together.xyz/v1/chat/completions', defaultModel: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
+  },
+  cerebras: {
+    label: 'Cerebras', kind: 'openai', keyEnv: 'CEREBRAS_API_KEY',
+    url: 'https://api.cerebras.ai/v1/chat/completions', defaultModel: 'llama3.1-8b',
+  },
+  ollama: {
+    label: 'Ollama (locale)', kind: 'openai', keyEnv: null,
+    url: 'http://localhost:11434/v1/chat/completions', defaultModel: 'llama3.1',
+  },
   pollinations: { label: 'Pollinations (gratis)', kind: 'pollinations', keyEnv: null, url: 'https://text.pollinations.ai', defaultModel: '' },
 };
 
-const AUTO_ORDER = ['openai', 'anthropic', 'gemini', 'groq', 'openrouter'];
+const AUTO_ORDER = ['openai', 'anthropic', 'gemini', 'groq', 'openrouter', 'mistral', 'deepseek', 'xai', 'together', 'cerebras'];
 
 function errWith(code, message) {
   const e = new Error(message);
@@ -89,7 +119,7 @@ function detectProvider(env = process.env) {
     if (PROVIDER_DEFS[wanted]) {
       const def = PROVIDER_DEFS[wanted];
       return {
-        name: wanted, label: def.label, kind: def.kind, url: def.url,
+        name: wanted, label: def.label, kind: def.kind, url: ollamaUrl(def, env),
         model: model || def.defaultModel, key: def.keyEnv ? String(env[def.keyEnv] || '') : '',
       };
     }
@@ -124,14 +154,86 @@ function detectProvider(env = process.env) {
   return { name: 'pollinations', label: p.label, kind: p.kind, url: (env.AI_API_URL || p.url).replace(/\/+$/, ''), model, key: '' };
 }
 
-/** Stato leggibile per /ai-config mostra: { name, label, model, free, configured } */
+/** Stato leggibile per /ai-config mostra: { name, label, model, free, configured, fallbacks } */
 function activeProvider(env = process.env) {
   try {
     const p = detectProvider(env);
-    return { name: p.name, label: p.label, model: p.model || 'default', free: p.name === 'pollinations', configured: true };
+    return { name: p.name, label: p.label, model: p.model || 'default', free: p.name === 'pollinations', configured: true, fallbacks: fallbackNames(env, p.name) };
   } catch {
-    return { name: 'none', label: 'non configurato', model: '-', free: false, configured: false };
+    return { name: 'none', label: 'non configurato', model: '-', free: false, configured: false, fallbacks: [] };
   }
+}
+
+/** URL effettivo: Ollama onora OLLAMA_HOST, gli altri usano l'URL del catalogo. */
+function ollamaUrl(def, env) {
+  if (def.keyEnv !== null || !/ollama/i.test(def.label)) return def.url;
+  const host = String(env.OLLAMA_HOST || '').trim().replace(/\/+$/, '');
+  if (!host) return def.url;
+  return `${host}/v1/chat/completions`;
+}
+
+/**
+ * Catena di failover da AI_FALLBACKS ("groq, openrouter"): nomi validi,
+ * dedup, escluso il primario. Usata da resolveChain.
+ */
+function fallbackNames(env = process.env, primary) {
+  const raw = String(env.AI_FALLBACKS || '').split(',');
+  const out = [];
+  for (const n of raw) {
+    const name = n.toLowerCase().trim();
+    if (!name || name === primary || out.includes(name)) continue;
+    if (!PROVIDER_DEFS[name]) continue;
+    out.push(name);
+  }
+  return out;
+}
+
+/**
+ * Catena completa [{...connection}] primario + fallback configurati.
+ * Un fallback senza chiave richiesta viene saltato (motivo in skipped).
+ * @returns {{ chain: Array, skipped: Array<{name, reason}> }}
+ */
+function resolveChain(env = process.env) {
+  env = withOverrides(env);
+  const primary = detectProvider(env);
+  const model = String(env.AI_MODEL || '').trim();
+  const chain = [primary];
+  const skipped = [];
+  for (const name of fallbackNames(env, primary.name)) {
+    const def = PROVIDER_DEFS[name];
+    const key = def.keyEnv ? String(env[def.keyEnv] || '').trim() : '';
+    if (def.keyEnv && !key) {
+      skipped.push({ name, reason: `chiave ${def.keyEnv} mancante` });
+      continue;
+    }
+    chain.push({
+      name, label: def.label, kind: def.kind, url: ollamaUrl(def, env),
+      model: model || def.defaultModel, key,
+    });
+  }
+  return { chain, skipped };
+}
+
+/**
+ * Catalogo connessioni stile Composio (per /ai-config mostra e dashboard):
+ * [{ name, label, model, free, configured, keyEnv, selected }].
+ */
+function listProviders(env = process.env) {
+  env = withOverrides(env);
+  let selected = null;
+  try {
+    selected = detectProvider(env).name;
+  } catch {}
+  return Object.entries(PROVIDER_DEFS).map(([name, def]) => {
+    const key = def.keyEnv ? String(env[def.keyEnv] || '').trim() : '';
+    const configured = name === 'pollinations' || name === 'ollama' || !!key;
+    return {
+      name, label: def.label, keyEnv: def.keyEnv,
+      model: String(env.AI_MODEL || '').trim() || def.defaultModel || 'default',
+      free: name === 'pollinations' || name === 'ollama',
+      configured, selected: selected === name,
+    };
+  });
 }
 
 async function fetchWithTimeout(url, options) {
@@ -177,7 +279,8 @@ async function completeOpenAI(provider, system, messages, maxTokens) {
     max_tokens: maxTokens,
     temperature: 0.7,
   };
-  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${provider.key}` };
+  const headers = { 'Content-Type': 'application/json' };
+  if (provider.key) headers.Authorization = `Bearer ${provider.key}`;
   if (provider.name === 'openrouter') {
     headers['HTTP-Referer'] = 'https://github.com/zema-tech/discord-multi-server-bot';
     headers['X-Title'] = 'discord-multi-server-bot';
@@ -269,15 +372,32 @@ function extractLooseText(raw) {
 }
 
 /**
- * Completamento unificato. MAI loggare prompt/risposte.
- * @param {{messages:Array<{role:string,content:string}>, system?:string, maxTokens?:number, env?:object}} opts
+ * Completamento unificato con failover: prova il primario poi i fallback
+ * (AI_FALLBACKS) in ordine. Se falliscono tutti, l'errore è del primario
+ * (niente problemi mascherati). MAI loggare prompt/risposte.
+ * @param {{messages:Array<{role:string,content:string}>, system?:string, maxTokens?:number, env?:object, info?:object}} opts
+ * `info` (opzionale) viene riempito con `{ provider }` che ha risposto.
  */
-async function complete({ messages, system = '', maxTokens = 800, env = process.env }) {
+async function complete({ messages, system = '', maxTokens = 800, env = process.env, info = null }) {
   env = withOverrides(env);
   const { system: sys, messages: msgs } = normalizeMessages(messages, system);
   if (!msgs.length) throw errWith('empty', 'Prompt vuoto.');
-  const provider = detectProvider(env);
+  const { chain } = resolveChain(env);
+  let primaryError = null;
+  for (const provider of chain) {
+    try {
+      const text = await attemptProvider(provider, sys, msgs, maxTokens);
+      if (info && typeof info === 'object') info.provider = provider.name;
+      return text;
+    } catch (err) {
+      if (!primaryError) primaryError = err;
+    }
+  }
+  throw primaryError || errWith('http', 'AI non disponibile, riprova più tardi.');
+}
 
+/** Singolo provider con 1 retry su timeout/rete. Mappatura errori invariata. */
+async function attemptProvider(provider, sys, msgs, maxTokens) {
   let lastError = null;
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     try {
@@ -306,5 +426,6 @@ async function complete({ messages, system = '', maxTokens = 800, env = process.
 
 module.exports = {
   complete, detectProvider, activeProvider, extractLooseText,
+  resolveChain, listProviders, fallbackNames,
   PROVIDER_DEFS, TIMEOUT_MS,
 };
