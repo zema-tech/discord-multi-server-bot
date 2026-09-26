@@ -34,3 +34,29 @@ services:
         value: /app/data/bot.db
       - key: AI_PROVIDER
         value: auto
+
+  # Dashboard Next.js (TypeScript): pannello moderno al posto di quello Express.
+  # Alternativa al web service sopra (che include la dashboard Express in
+  # background): se usi questo, nel bot puoi lasciare solo il worker.
+  # Richiede le stesse env Discord + OAuth dell'app (vedi apps/dashboard/.env.example).
+  - type: web
+    name: discord-bot-dashboard
+    runtime: docker
+    dockerfilePath: ./apps/dashboard/Dockerfile
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: NEXTAUTH_SECRET
+        generateValue: true
+      - key: NEXTAUTH_URL
+        sync: false
+      - key: BOT_TOKEN
+        sync: false
+      - key: NEXT_PUBLIC_BOT_INVITE_URL
+        sync: false

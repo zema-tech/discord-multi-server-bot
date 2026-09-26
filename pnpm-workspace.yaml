@@ -1,0 +1,6 @@
+# pnpm workspace (alternativa a Bun per apps/dashboard e packages/*).
+# npm NON supporta il protocollo "workspace:*" usato dai workspace:
+# per la dashboard Next usa Bun (vedi apps/dashboard/README.md) oppure pnpm.
+packages:
+  - "apps/*"
+  - "packages/*"

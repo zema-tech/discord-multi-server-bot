@@ -10,7 +10,11 @@ npm start       # bot (+ dashboard con npm run dashboard)
 
 Requisiti comuni:
 
-- **Node.js ≥ 22.12** (consigliato **Node 24**; @discordjs/voice lo richiede), `npm`
+- **Node.js ≥ 22.12** (consigliato **Node 24**; @discordjs/voice lo richiede)
+- **Toolchain**: il bot puro va con `npm`. Per la dashboard Next.js
+  (`apps/dashboard`, workspace `workspace:*`) serve **Bun** (primario,
+  vedi `apps/dashboard/README.md`) oppure **pnpm** (`pnpm-workspace.yaml`
+  incluso): `npm` NON supporta il protocollo `workspace:*` e fallisce l'install.
 - File `.env` creato da `.env.example` con almeno `DISCORD_TOKEN` e `CLIENT_ID`
 - Deploy degli slash command: `npm run deploy` (dopo ogni aggiunta/modifica di comandi)
 - Start: `npm start` (= `node src/index.js`) · Test: `npm test`
@@ -19,11 +23,12 @@ Requisiti comuni:
 
 | Host | Disco | Storage consigliato | Dashboard | Note |
 |------|-------|---------------------|-----------|------|
-| Render | effimero | sqlite su Disk (`/app/data`) | ✅ via `$PORT` | Blueprint `render.yaml` |
-| Railway | effimero | sqlite su Volume | ✅ via `$PORT` | Come Render |
+| Render | effimero | sqlite su Disk (`/app/data`) | ✅ via `$PORT` | Blueprint `render.yaml` (bot + dashboard Next opzionale) |
+| Railway | effimero | sqlite su Volume | ✅ via `$PORT` | `railway.toml` (Dockerfile root; dashboard Next = servizio separato) |
+| Fly.io | effimero | sqlite su Volume (`/app/data`) | ✅ porta 3000 | `fly.toml` (healthcheck `/healthz`: imposta le env dashboard) |
 | Pterodactyl | persistente | sqlite | ✅ porta pannello | Egg NodeJS generico |
-| Docker | effimero* | sqlite su volume | ✅ `$PORT`/`3000` | `docker-compose.yml` (*persistente con volume) |
-| VPS / locale | persistente | sqlite (Node 22+) o json | ✅ | PM2 consigliato |
+| Docker | effimero* | sqlite su volume | ✅ `$PORT`/`3000` | `docker-compose.yml` (*persistente con volume); dashboard Next: `docker build -f apps/dashboard/Dockerfile` |
+| VPS / locale | persistente | sqlite (Node 22+) o json | ✅ | PM2 consigliato; dashboard Next con Bun/PM2 |
 | Termux | persistente | json | ✅ | Sviluppo, non produzione |
 | Replit | persistente | json | ✅ | Sempre-on a pagamento |
 
@@ -145,6 +150,15 @@ Procedura manuale (valida per entrambi, filesystem effimero: serve disco persist
    come *one-off job*): registra gli slash command su Discord.
 5. Render free: lo spin-down per inattività **spegne il bot** (il bot deve stare
    sempre online) — serve istanza sempre attiva o un piano a pagamento.
+
+**Dashboard Next.js (TypeScript):** `render.yaml` include anche il servizio
+`discord-bot-dashboard` (`apps/dashboard/Dockerfile`, healthcheck `/`):
+compila le env di `apps/dashboard/.env.example` (`DISCORD_CLIENT_ID/SECRET`,
+`NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `BOT_TOKEN`). Su Railway crea un servizio
+separato con Dockerfile `apps/dashboard/Dockerfile`; su Fly copia `fly.toml`
+cambiando Dockerfile e porta. Build locale: `docker build -f
+apps/dashboard/Dockerfile -t bot-dashboard .` (richiede Bun o pnpm per i
+workspace, vedi Requisiti).
 
 ## 5. Pterodactyl — nota egg
 
