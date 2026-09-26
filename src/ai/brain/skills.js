@@ -208,8 +208,7 @@ function wordHit(hay, w) {
 }
 
 /** Skill abilitate ordinate per pertinenza alla query (match trigger). Max `limit`. */
-function matchSkills(guildId, query, limit = 2) {
-  const q = new Set(words(query));
+function matchSkills(guildId, query, limit = 2) {  const q = new Set(words(query));
   if (!q.size) return [];
   const scored = [];
   for (const s of listSkills(guildId)) {
@@ -225,7 +224,49 @@ function matchSkills(guildId, query, limit = 2) {
   return scored.sort((a, b) => b.score - a.score).slice(0, limit).map((e) => e.skill);
 }
 
+/** Root repo (src/ai/brain -> ../../../). Le skill curate vivono in skills/*.md. */
+function repoRoot() {
+  return path.resolve(__dirname, '..', '..', '..');
+}
+
+function repoSkillsDir() {
+  return path.join(repoRoot(), 'skills');
+}
+
+/** Skill della libreria repo (skills/*.md, committed su GitHub). Solo lettura. */
+function listRepoSkills() {
+  const dir = repoSkillsDir();
+  let files = [];
+  try {
+    if (!fs.existsSync(dir)) return [];
+    files = fs.readdirSync(dir).filter((f) => f.endsWith('.md')).sort();
+  } catch {
+    return [];
+  }
+  const out = [];
+  for (const f of files) {
+    if (/^readme\.md$/i.test(f)) continue;
+    const skill = readSkillFile(path.join(dir, f));
+    // Nome skill già minuscolo e valido: scarta README ed estranei.
+    if (!skill || !skill.name || !/^[a-z0-9-]{2,32}$/.test(skill.name)) continue;
+    out.push(skill);
+  }
+  return out;
+}
+
+/** Importa una skill della libreria nel server (scope guild). Ritorna il nome. */
+function importRepoSkill(guildId, name) {
+  const n = validateName(name);
+  const found = listRepoSkills().find((s) => s.name === n);
+  if (!found) {
+    const avail = listRepoSkills().map((s) => s.name).join(', ') || 'nessuna';
+    throw new Error(`Skill "${n}" non in libreria. Disponibili: ${avail}.`);
+  }
+  return saveSkill(guildId, { ...found, enabled: true });
+}
+
 module.exports = {
   listSkills, saveSkill, setEnabled, removeSkill, matchSkills,
   parseSkill, serializeSkill, validateName, DEFAULT_SKILLS, MAX_PER_GUILD,
+  listRepoSkills, importRepoSkill, repoSkillsDir,
 };

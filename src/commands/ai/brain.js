@@ -67,6 +67,8 @@ module.exports = {
       .addBooleanOption((o) => o.setName('stato').setDescription('ON/OFF').setRequired(true)))
     .addSubcommand((s) => s.setName('skill-rimuovi').setDescription('Elimina una skill del server (staff)')
       .addStringOption((o) => o.setName('nome').setDescription('Nome skill').setRequired(true).setMaxLength(32)))
+    .addSubcommand((s) => s.setName('skill-importa').setDescription('Importa una skill dalla libreria skills/ (staff)')
+      .addStringOption((o) => o.setName('nome').setDescription('Nome skill in libreria').setRequired(true).setMaxLength(32)))
     .addSubcommand((s) => s.setName('memoria-salva').setDescription('Salva una nota nel cervello (staff)')
       .addStringOption((o) => o.setName('titolo').setDescription('Titolo nota').setRequired(true).setMaxLength(60))
       .addStringOption((o) => o.setName('testo').setDescription('Contenuto, usa [[Link]] e #tag').setRequired(true).setMaxLength(2000))
@@ -78,6 +80,9 @@ module.exports = {
       .addStringOption((o) => o.setName('titolo').setDescription('Titolo nota').setRequired(true).setMaxLength(60)))
     .addSubcommand((s) => s.setName('memoria-dimentica').setDescription('Elimina una nota (staff)')
       .addStringOption((o) => o.setName('titolo').setDescription('Titolo nota').setRequired(true).setMaxLength(60)))
+    .addSubcommand((s) => s.setName('memoria-modello').setDescription('Crea una nota da un modello in memory/modelli/ (staff)')
+      .addStringOption((o) => o.setName('modello').setDescription('Nome modello').setRequired(true).setMaxLength(32))
+      .addStringOption((o) => o.setName('titolo').setDescription('Titolo nota (default dal modello)').setRequired(false).setMaxLength(60)))
     .addSubcommand((s) => s.setName('file-aggiungi').setDescription('Carica un file di riferimento .txt/.md (staff)')
       .addStringOption((o) => o.setName('nome').setDescription('Nome con cui salvarlo').setRequired(true).setMaxLength(60))
       .addAttachmentOption((o) => o.setName('allegato').setDescription('File .txt o .md (max 100KB)').setRequired(true)))
@@ -101,8 +106,8 @@ module.exports = {
     const gid = interaction.guild.id;
     const sub = interaction.options.getSubcommand();
     const staffOnly = (s) => [
-      'skill-crea', 'skill-toggle', 'skill-rimuovi',
-      'memoria-salva', 'memoria-mostra', 'memoria-dimentica',
+      'skill-crea', 'skill-toggle', 'skill-rimuovi', 'skill-importa',
+      'memoria-salva', 'memoria-mostra', 'memoria-dimentica', 'memoria-modello',
       'file-aggiungi', 'file-leggi', 'file-rimuovi',
       'profilo-imposta', 'profilo-reset',
     ].includes(s);
@@ -224,6 +229,14 @@ module.exports = {
         const ok = skills.removeSkill(gid, interaction.options.getString('nome', true));
         return interaction.reply({ content: ok ? '✅ Skill eliminata.' : '❌ Skill non trovata (quelle globali non si eliminano).', flags: MessageFlags.Ephemeral }).catch(() => null);
       }
+      if (sub === 'skill-importa') {
+        try {
+          const n = skills.importRepoSkill(gid, interaction.options.getString('nome', true));
+          return interaction.reply({ content: `✅ Skill **${n}** importata dalla libreria.`, flags: MessageFlags.Ephemeral }).catch(() => null);
+        } catch (e) {
+          return err(interaction, e.message);
+        }
+      }
 
       // ---- memorie ----
       if (sub === 'memoria-salva') {
@@ -269,6 +282,18 @@ module.exports = {
       if (sub === 'memoria-dimentica') {
         const ok = memory.deleteNote(gid, interaction.options.getString('titolo', true));
         return interaction.reply({ content: ok ? '✅ Nota dimenticata.' : '❌ Nota non trovata.', flags: MessageFlags.Ephemeral }).catch(() => null);
+      }
+      if (sub === 'memoria-modello') {
+        try {
+          const t = memory.createFromTemplate(
+            gid,
+            interaction.options.getString('modello', true),
+            interaction.options.getString('titolo', false)
+          );
+          return interaction.reply({ content: `✅ Nota **${t}** creata dal modello. Completa i __CAMPI__ con \`/brain memoria-salva\`.`, flags: MessageFlags.Ephemeral }).catch(() => null);
+        } catch (e) {
+          return err(interaction, e.message);
+        }
       }
 
       // ---- file ----

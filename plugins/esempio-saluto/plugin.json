@@ -1,0 +1,8 @@
+{
+  "id": "esempio-saluto",
+  "version": "1.0.0",
+  "title": "Esempio Saluto",
+  "description": "Plugin di esempio: un comando /saluto che saluta con stile.",
+  "author": "zema-tech",
+  "commands": ["saluto"]
+}

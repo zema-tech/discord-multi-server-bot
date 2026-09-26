@@ -202,8 +202,60 @@ function searchNotes(guildId, query, limit = 3) {
   return scored.sort((a, b) => b.score - a.score).slice(0, limit);
 }
 
+/** Root repo (src/ai/brain -> ../../../). I modelli vivono in memory/modelli/*.md. */
+function repoRoot() {
+  return path.resolve(__dirname, '..', '..', '..');
+}
+
+function repoTemplatesDir() {
+  return path.join(repoRoot(), 'memory', 'modelli');
+}
+
+const TEMPLATE_RE = /^[a-z0-9-]{2,32}$/;
+
+/** Modelli della libreria repo (memory/modelli/*.md, committed). Solo lettura. */
+function listRepoTemplates() {
+  const dir = repoTemplatesDir();
+  let files = [];
+  try {
+    if (!fs.existsSync(dir)) return [];
+    files = fs.readdirSync(dir).filter((f) => f.endsWith('.md')).sort();
+  } catch {
+    return [];
+  }
+  const out = [];
+  for (const f of files) {
+    const name = path.basename(f, '.md');
+    if (!TEMPLATE_RE.test(name.toLowerCase())) continue; // scarta README ed estranei
+    const note = readNoteFile(path.join(dir, f), name);
+    if (note) out.push({ name: name.toLowerCase(), title: note.title || name, tags: note.tags || [] });
+  }
+  return out;
+}
+
+/** Crea una nota nel server da un modello. `title` opzionale (default dal modello). */
+function createFromTemplate(guildId, template, title) {
+  const n = String(template || '').toLowerCase().trim();
+  if (!TEMPLATE_RE.test(n)) throw new Error('Modello non valido.');
+  const file = path.join(repoTemplatesDir(), `${n}.md`);
+  let raw;
+  try {
+    raw = fs.readFileSync(file, 'utf8');
+  } catch {
+    raw = null;
+  }
+  if (!raw) {
+    const avail = listRepoTemplates().map((t) => t.name).join(', ') || 'nessuno';
+    throw new Error(`Modello "${n}" non trovato. Disponibili: ${avail}.`);
+  }
+  const tpl = parseNote(raw);
+  const t = title && String(title).trim() ? String(title).trim() : (tpl.title || n);
+  return saveNote(guildId, t, tpl.body || '', tpl.tags || []);
+}
+
 module.exports = {
   listNotes, saveNote, getNote, deleteNote, searchNotes,
   parseNote, serializeNote, extractLinks, extractTags, validateTitle,
   MAX_NOTES, MAX_NOTE_CHARS,
+  listRepoTemplates, createFromTemplate, repoTemplatesDir,
 };

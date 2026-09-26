@@ -78,6 +78,25 @@ function loadCommands(dir, category = 'altri') {
 loadCommands(path.join(__dirname, 'commands'));
 console.log(`📦 Caricati ${client.commands.size} comandi.`);
 
+// Plugin droppabili da plugins/<nome>/ (vedi plugins/README.md): i nomi
+// built-in vincono sempre; un plugin rotto non ferma il bot.
+try {
+  const { loadPluginCommands } = require('./modules/pluginLoader');
+  const { commands: pluginCommands, warnings } = loadPluginCommands();
+  for (const w of warnings) console.warn(`[ATTENZIONE] ${w}`);
+  for (const p of pluginCommands) {
+    if (client.commands.has(p.name)) {
+      console.warn(`[ATTENZIONE] Plugin "${p.pluginId}": comando /${p.name} duplicato di un built-in, saltato.`);
+      continue;
+    }
+    p.mod.category = `plugin:${p.pluginId}`;
+    client.commands.set(p.name, p.mod);
+  }
+  if (pluginCommands.length) console.log(`🔌 Plugin: ${pluginCommands.length} comandi extra.`);
+} catch (e) {
+  console.error(`[ERRORE] Caricamento plugin fallito: ${e.message} (i comandi built-in restano attivi)`);
+}
+
 // Carica eventi (un file con export non valido non deve spegnere il bot)
 // Commander Fase 1: ogni listener è wrappato con guardEvent — un modulo
 // rotto viene isolato e loggato, gli altri listener restano attivi.

@@ -20,6 +20,25 @@ for (const folder of commandFolders) {
   }
 }
 
+// Plugin droppabili da plugins/<nome>/ (vedi plugins/README.md): inclusi nel
+// deploy, i nomi built-in vincono sempre.
+try {
+  const { loadPluginCommands } = require('./src/modules/pluginLoader');
+  const { commands: pluginCommands, warnings } = loadPluginCommands();
+  for (const w of warnings) console.warn(`[ATTENZIONE] ${w}`);
+  const seen = new Set(commands.map((c) => c.name));
+  for (const p of pluginCommands) {
+    if (seen.has(p.name)) {
+      console.warn(`[ATTENZIONE] Plugin "${p.pluginId}": comando /${p.name} duplicato di un built-in, saltato.`);
+      continue;
+    }
+    seen.add(p.name);
+    commands.push(p.mod.data.toJSON());
+  }
+} catch (e) {
+  console.error(`[ERRORE] Deploy plugin fallito: ${e.message} (deploy built-in invariato)`);
+}
+
 const rest = new REST().setToken(process.env.DISCORD_TOKEN);
 
 (async () => {
