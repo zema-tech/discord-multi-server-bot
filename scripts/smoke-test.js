@@ -2706,19 +2706,24 @@ hostPromise = hostPromise.then(() => (async () => {
       const s = app.listen(port, () => resolve(s));
       s.on('error', reject);
     });
-    const call = async (body, token) => {
+    const call = async (body, token, session) => {
       const res = await fetch(`http://127.0.0.1:${port}/mcp`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(session ? { 'Mcp-Session-Id': session } : {}) },
         body: JSON.stringify(body),
       });
-      return { status: res.status, json: await res.json().catch(() => ({})) };
+      return { status: res.status, json: await res.json().catch(() => ({})), session: res.headers.get('mcp-session-id') };
     };
     try {
       const noAuth = await call({ jsonrpc: '2.0', id: 1, method: 'tools/list' });
       if (noAuth.status !== 401) fail('mcp: senza token atteso 401');
       const init = await call({ jsonrpc: '2.0', id: 1, method: 'initialize' }, rec2.token);
       if (init.status !== 200 || !init.json.result || !init.json.result.capabilities) fail('mcp: initialize');
+      if (!init.session) fail('mcp: initialize dovrebbe dare Mcp-Session-Id');
+      const badSession = await call({ jsonrpc: '2.0', id: 1, method: 'ping' }, rec2.token, 'nope');
+      if (badSession.status !== 404) fail('mcp: sessione ignota dovrebbe dare 404');
+      const ping = await call({ jsonrpc: '2.0', id: 1, method: 'ping' }, rec2.token, init.session);
+      if (ping.status !== 200) fail('mcp: ping in sessione');
       const list = await call({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, rec2.token);
       const names = (list.json.result?.tools || []).map((t) => t.name);
       for (const t of ['modules_list', 'module_status', 'module_toggle', 'guild_snapshot', 'brain_search', 'ticket_stats']) {

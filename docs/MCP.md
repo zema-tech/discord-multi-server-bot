@@ -31,7 +31,13 @@ claude mcp add --transport http discord-bot https://TUO-HOST/mcp \
 `Authorization: Bearer dbt_...`.
 
 **Altri client MCP**: endpoint `POST /mcp`, protocollo `2025-06-18`,
-metodi `initialize`, `tools/list`, `tools/call`.
+metodi `initialize` (risponde con header `Mcp-Session-Id`, da rimandare),
+`tools/list`, `tools/call`. `GET /mcp` apre uno stream SSE (serve sessione),
+`DELETE /mcp` la chiude.
+
+Struttura codice: `src/mcp/` — `protocol.js` (JSON-RPC), `auth.js`
+(Bearer + sessioni), `tools/` (un file per area + `index.js` registro:
+nuovo tool = nuovo file + una riga), `server.js` (mount Express).
 
 ## 3. Cosa può fare Claude
 
