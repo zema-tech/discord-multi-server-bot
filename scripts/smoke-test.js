@@ -2631,6 +2631,50 @@ try {
   fail(`config (qatest): ${e.message.split('\n')[0]}`);
 }
 
+// ------------------------------------------------- (c17) WOW PACK
+console.log('== [17/5] Wow pack (compleanni, afk, stats, youtube) ==');
+try {
+  const { load, save, dbFile } = require(path.join(DB_DIR, 'jsonDb.js'));
+  const WQ = 'qatest_wow';
+  const clean = (n) => {
+    const f = dbFile(n);
+    const db = load(f);
+    if (db[WQ] !== undefined) { delete db[WQ]; save(f, db); }
+  };
+  const bd = require(path.join(DB_DIR, 'birthdays.js'));
+  if (bd.parseDay('25/12') !== '12-25' || bd.parseDay('32/13') !== null) fail('wow: parse compleanno');
+  bd.setBirthday(WQ, 'u1', '25/12');
+  if (bd.birthdaysOn(WQ, new Date(2026, 11, 25)).length !== 1) fail('wow: compleanno oggi');
+  if (bd.removeBirthday(WQ, 'u1') !== true) fail('wow: rimuovi compleanno');
+  const afk = require(path.join(DB_DIR, 'afk.js'));
+  afk.setAfk(WQ, 'u1', 'pausa');
+  if (!afk.getAfk(WQ, 'u1') || afk.clearAfk(WQ, 'u1') !== true || afk.getAfk(WQ, 'u1')) fail('wow: afk set/clear');
+  const yt = require(path.join(DB_DIR, 'youtube.js'));
+  if (!yt.parseChannelId('UCxxxxxxxxxxxxxxxxxxxxxx') || yt.parseChannelId('nope')) fail('wow: parse youtube');
+  yt.addFeed(WQ, 'UCxxxxxxxxxxxxxxxxxxxxxx', 'c1');
+  if (yt.getFeeds(WQ).length !== 1) fail('wow: addFeed');
+  try {
+    yt.addFeed(WQ, 'nope', 'c1');
+    fail('wow: feed invalido dovrebbe lanciare');
+  } catch {}
+  if (!yt.removeFeed(WQ, 'UCxxxxxxxxxxxxxxxxxxxxxx')) fail('wow: removeFeed');
+  const sc = require(path.join(DB_DIR, 'statChannels.js'));
+  sc.set(WQ, { membersId: 'm', onlineId: 'o', botsId: 'b' });
+  if (sc.get(WQ).membersId !== 'm' || !sc.clear(WQ)) fail('wow: statChannels');
+  const yj = require(path.join(ROOT, 'src', 'jobs', 'youtubeJob.js'));
+  const salmon = '<feed><entry><yt:videoId>v1</yt:videoId><title>T</title><link rel="alternate" href="https://youtu.be/v1"/></entry></feed>';
+  const parsed = yj.parseFeed(salmon);
+  if (parsed.length !== 1 || parsed[0].id !== 'v1') fail('wow: parseFeed RSS');
+  const registry = require(path.join(ROOT, 'src', 'modules', 'registry.js'));
+  for (const [cmd, mod] of [['compleanno', 'fun'], ['afk', 'fun'], ['stats-canali', 'utility'], ['youtube', 'utility']]) {
+    if (registry.featureOfCommand(cmd) !== mod) fail(`wow: /${cmd} non mappato a ${mod}`);
+  }
+  for (const n of ['birthdays', 'afk', 'youtube', 'statChannels']) clean(n);
+  console.log('wow: compleanni, afk, stats, youtube ok');
+} catch (e) {
+  fail(`wow (qatest): ${e.message.split('\n')[0]}`);
+}
+
 // ------------------------------------------------------------------ REPORT
 function report() {
 console.log('\n================ SMOKE TEST ================');

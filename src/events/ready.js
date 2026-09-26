@@ -42,6 +42,27 @@ module.exports = {
       console.error('modDigest:', e.message);
     }
 
+    // COMPLEANNI: auguri giornalieri (unref dentro il job).
+    try {
+      require('../jobs/birthdayJob').startBirthdayJob(client);
+    } catch (e) {
+      console.error('birthdayJob:', e.message);
+    }
+
+    // STATS-CANALI: nomi vocali live ogni 10 minuti (unref dentro il job).
+    try {
+      require('../jobs/statChannelsJob').startStatChannelsJob(client);
+    } catch (e) {
+      console.error('statChannels:', e.message);
+    }
+
+    // YOUTUBE: notifiche nuovi video via RSS ogni 15 minuti (unref dentro).
+    try {
+      require('../jobs/youtubeJob').startYoutubeJob(client);
+    } catch (e) {
+      console.error('youtubeJob:', e.message);
+    }
+
     // BACKUP: copia notturna del database ore 03:00 (interval con unref dentro il job).
     try {
       require('../jobs/backup').startBackup(client);

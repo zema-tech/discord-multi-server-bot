@@ -7,7 +7,7 @@ module.exports = defineModule({
   icon: 'message',
   section: 'Contenuti',
   description: 'Giochi, social, confessioni anonime e sfide settimanali.',
-  commands: ['8ball', 'affinita', 'coinflip', 'dice', 'joke', 'meme', 'oroscopo', 'preferiresti', 'rps', 'trivia', 'animale', 'confessa', 'sfida', 'meteo', 'qr'],
+  commands: ['8ball', 'affinita', 'coinflip', 'dice', 'joke', 'meme', 'oroscopo', 'preferiresti', 'rps', 'trivia', 'animale', 'confessa', 'sfida', 'meteo', 'qr', 'compleanno', 'afk'],
   db: ['sfide', 'confessioni'],
   events: ['sfidaTracker'],
   handlers: [],
