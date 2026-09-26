@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 let T;
 try {
-  T = require('../../utils/theme');
+  T = require('../../../src/utils/theme');
 } catch {
   T = {
     COLORS: { blue: 0x3498db },

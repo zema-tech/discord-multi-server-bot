@@ -3,7 +3,7 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 // theme.js condiviso (blu fun, footer). Fallback inline se il require fallisse.
 let T = null;
 try {
-  T = require('../../utils/theme');
+  T = require('../../../src/utils/theme');
 } catch {
   T = null;
 }

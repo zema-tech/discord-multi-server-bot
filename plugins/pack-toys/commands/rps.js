@@ -3,7 +3,7 @@ const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js'
 // Tema premium condiviso, con fallback inline se il require fallisse.
 let T = null;
 try {
-  T = require('../../utils/theme');
+  T = require('../../../src/utils/theme');
 } catch {
   T = null;
 }

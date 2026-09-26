@@ -24,8 +24,9 @@ for (const folder of commandFolders) {
 // deploy, i nomi built-in vincono sempre.
 try {
   const { loadPluginCommands } = require('./src/modules/pluginLoader');
-  const { commands: pluginCommands, warnings } = loadPluginCommands();
+  const { commands: pluginCommands, warnings, disabled } = loadPluginCommands();
   for (const w of warnings) console.warn(`[ATTENZIONE] ${w}`);
+  if (disabled && disabled.length) console.log(`Plugin disattivati (non deployati): ${disabled.join(', ')}.`);
   const seen = new Set(commands.map((c) => c.name));
   for (const p of pluginCommands) {
     if (seen.has(p.name)) {

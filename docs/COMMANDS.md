@@ -2,7 +2,7 @@
 
 > Generato automaticamente con `node scripts/gen-docs.js` il 2026-09-26 — non modificare a mano.
 >
-> Totale: **96 comandi** in **8 categorie**.
+> Totale: **88 comandi** in **8 categorie**.
 > La categoria corrisponde alla sottocartella in src/commands/.
 > Cooldown in secondi per utente (default 3 s se non specificato nel modulo).
 > I parametri marcati con asterisco (*) sono obbligatori.
@@ -11,12 +11,12 @@
 
 - [ai](#ai) (8)
 - [economy](#economy) (11)
-- [fun](#fun) (15)
+- [fun](#fun) (12)
 - [levels](#levels) (3)
 - [moderation](#moderation) (15)
 - [music](#music) (1)
 - [tickets](#tickets) (2)
-- [utility](#utility) (41)
+- [utility](#utility) (36)
 
 ## ai
 
@@ -53,15 +53,13 @@ Comandi: 11
 
 ## fun
 
-Comandi: 15
+Comandi: 12
 
 | Comando | Descrizione | Cooldown | Sottocomandi / Opzioni |
 |---|---|---|---|
 | `/8ball` | Chiedi qualcosa alla palla magica 8 | 3 s | `domanda: stringa*` |
 | `/affinita` | Calcola l'affinità (ironica) tra due utenti | 3 s | `utente1: utente*`, `utente2: utente` |
 | `/afk` | Avvisa che sei via (o torna) | 3 s | `motivo: stringa` |
-| `/animale` | Foto casuale di un gatto o di un cane! 🐾 | 5 s | `tipo: stringa*` |
-| `/coinflip` | Lancia una moneta (testa o croce) | 2 s | — |
 | `/compleanno` | Compleanni del server 🎂 | 3 s | **imposta** — Salva il tuo compleanno (GG/MM) (`data: stringa*`)<br>**rimuovi** — Dimentica il tuo compleanno (nessun parametro)<br>**lista** — Prossimi compleanni (nessun parametro)<br>**canale** — Canale annunci (staff) (`canale: canale`) |
 | `/confessa` | Confessioni anonime del server | 5 s | **imposta** — Imposta il canale dove pubblicare le confessioni anonime (staff) (`canale: canale*`)<br>**invia** — Invia una confessione anonima (max 500 caratteri) (`testo: stringa*`) |
 | `/dice` | Lancia uno o più dadi | 3 s | `facce: intero`, `quantita: intero` |
@@ -69,7 +67,6 @@ Comandi: 15
 | `/meme` | Genera un meme casuale | 3 s | — |
 | `/oroscopo` | Scopri il tuo oroscopo di oggi: amore, lavoro e fortuna! | 3 s | `segno: stringa*` |
 | `/preferiresti` | Un dilemma impossibile: vota A o B e scopri cosa pensa il server! | 10 s | — |
-| `/rps` | Carta, forbici, sasso contro il bot | 3 s | `scelta: stringa*` |
 | `/sfida` | Mostra la sfida settimanale del server | 5 s | — |
 | `/trivia` | Quiz a scelta multipla: indovina la risposta entro 20 secondi! | 10 s | — |
 
@@ -124,7 +121,7 @@ Comandi: 2
 
 ## utility
 
-Comandi: 41
+Comandi: 36
 
 | Comando | Descrizione | Cooldown | Sottocomandi / Opzioni |
 |---|---|---|---|
@@ -143,20 +140,17 @@ Comandi: 41
 | `/inviti` | Statistiche inviti del server | 3 s | **info** — Chi ha invitato un utente e i suoi conteggi (`utente: utente`)<br>**classifica** — Top invitanti del server (nessun parametro) |
 | `/lingua` | Imposta la lingua del bot per questo server | 3 s | **mostra** — Mostra la lingua attuale del server (nessun parametro)<br>**imposta** — Imposta la lingua del server (`lingua: stringa*`) |
 | `/mcp` | Connessioni MCP esterne del bot (stile Hermes) | 5 s | **stato** — Server MCP connessi / falliti / tool registrati (nessun parametro)<br>**lista** — Tool disponibili in questo server (mcp_<server>_<tool>) (nessun parametro)<br>**cerca** — Cerca un tool tra i server connessi (stile Composio) (`query: stringa*`)<br>**chiama** — Chiama un tool MCP esterno (`nome: stringa*`, `argomenti: stringa`)<br>**ricarica** — Rileggi mcp/servers.json senza riavviare (nessun parametro) |
-| `/meteo` | Mostra il meteo di una città (Open-Meteo, gratis) | 10 s | `citta: stringa*`, `giorni: intero` |
 | `/modulo` | Commander: stato, on/off e reload dei moduli (un guasto non spegne il resto) | 3 s | **stato** — Mostra salute di tutti i moduli (nessun parametro)<br>**on** — Riattiva un modulo in questo server (`nome: stringa*`)<br>**off** — Disattiva un modulo in questo server (`nome: stringa*`)<br>**reload** — Ricarica un modulo senza restartare il bot (`nome: stringa*`) |
 | `/mydata` | I tuoi dati nel bot: esporta o cancella (GDPR, solo questo server) | 10 s | **esporta** — Scarica tutto ciò che il bot sa di te qui (nessun parametro)<br>**dimentica** — Cancella i tuoi dati da questo server (nessun parametro) |
 | `/permessi` | Permessi personalizzati: limita i comandi a ruoli specifici (stile PeakBot) | 3 s | **imposta** — Consenti un comando solo a certi ruoli (max 5) (`comando: stringa*`, `ruolo: ruolo*`, `ruolo2: ruolo`, `ruolo3: ruolo`, `ruolo4: ruolo`, `ruolo5: ruolo`)<br>**rimuovi** — Togli un ruolo da un comando, o resetta il comando (senza ruolo) (`comando: stringa*`, `ruolo: ruolo`)<br>**mostra** — Mostra i permessi personalizzati (di un comando o di tutti) (`comando: stringa`)<br>**reset** — Azzera TUTTI i permessi personalizzati (con conferma) (nessun parametro) |
 | `/ping` | Mostra la latenza del bot | 3 s | — |
 | `/poll` | Crea un sondaggio con reazioni | 5 s | `domanda: stringa*`, `opzioni: stringa`, `durata: stringa` |
 | `/profilo` | Mostra il profilo completo di un utente | 3 s | `utente: utente` |
-| `/qr` | Genera un QR code dal testo (gratis, max 500 caratteri) | 3 s | `testo: stringa*`, `colore: stringa` |
 | `/reactionroles` | Crea un pannello reaction roles con menu di selezione | 3 s | **crea** — Imposta canale, titolo e descrizione del pannello (`canale: canale*`, `titolo: stringa*`, `descrizione: stringa*`)<br>**aggiungi** — Aggiungi un ruolo al pannello (`ruolo: ruolo*`, `etichetta: stringa*`, `emoji: stringa*`)<br>**rimuovi** — Rimuovi un ruolo dal pannello (`ruolo: ruolo*`)<br>**pubblica** — Pubblica il pannello nel canale scelto (nessun parametro)<br>**elimina** — Elimina il pannello e la configurazione (nessun parametro) |
 | `/remind` | Imposta un promemoria (es. 10m, 2h, 1d) | 5 s | `tempo: stringa*`, `testo: stringa*`, `canale: canale` |
 | `/selfimprove` | Auto-miglioramento notturno del bot (stato, prova, esecuzione) | 60 s | **stato** — Stato: attivo? ultima run? provider AI? (nessun parametro)<br>**prova** — Prova ora in dry-run (propone senza applicare) (nessun parametro)<br>**esegui** — Esegui ora il ciclo completo (applica se i test passano) (nessun parametro)<br>**lezioni** — Lezioni apprese dal compendio (come migliora) (nessun parametro)<br>**principi** — Principi di revisione del compendio (nessun parametro) |
 | `/serverinfo` | Mostra informazioni sul server | 5 s | — |
 | `/setup` | Configura il bot per questo server | 3 s | **welcome** — Canale + messaggio di benvenuto (`canale: canale`, `messaggio: stringa`)<br>**goodbye** — Canale di addio (`canale: canale`)<br>**logs** — Canale log moderazione (`canale: canale`)<br>**suggest** — Canale suggerimenti (`canale: canale`)<br>**automod** — Attiva/disattiva automoderazione (`attiva: booleano*`)<br>**mostra** — Mostra la configurazione attuale (nessun parametro) |
-| `/snipe` | Mostra l’ultimo messaggio cancellato del canale | 3 s | `canale: canale` |
 | `/stanza` | Crea e gestisci le tue stanze private | 3 s | **crea** — Crea una stanza privata (max 3 per utente) (`nome: stringa`, `tipo: stringa`)<br>**aggiungi** — Aggiungi un utente alla stanza (`utente: utente*`)<br>**rimuovi** — Rimuovi un utente dalla stanza (`utente: utente*`)<br>**elimina** — Elimina questa stanza (nessun parametro) |
 | `/starboard` | Configura la bacheca dei messaggi più apprezzati | 3 s | **imposta** — Imposta canale, soglia ed emoji della starboard (`canale: canale*`, `soglia: intero`, `emoji: stringa`)<br>**disattiva** — Disattiva la starboard (nessun parametro)<br>**mostra** — Mostra la configurazione attuale (nessun parametro) |
 | `/stats-canali` | Canali vocali con statistiche live del server | 5 s | **attiva** — Crea i 3 canali statistica (staff) (nessun parametro)<br>**disattiva** — Elimina i canali statistica (staff) (nessun parametro) |
@@ -164,8 +158,6 @@ Comandi: 41
 | `/template` | Applica un template di struttura al server (stile PeakBot) | 10 s | **lista** — Mostra i template disponibili (nessun parametro)<br>**anteprima** — Mostra la struttura di un template senza crearla (`nome: stringa*`)<br>**applica** — Crea ruoli e canali del template (non cancella nulla) (`nome: stringa*`) |
 | `/tempvoice` | Configura le vocali temporanee del server | 3 s | **imposta** — Imposta lobby e categoria delle vocali temporanee (`lobby: canale*`, `categoria: canale*`)<br>**disattiva** — Disattiva le vocali temporanee (nessun parametro)<br>**mostra** — Mostra la configurazione attuale (nessun parametro) |
 | `/token` | Token API personali per collegare Claude al bot (solo owner) | 5 s | **crea** — Crea un token (mostrato una sola volta) (`nome: stringa`)<br>**lista** — Token attivi di questo server (nessun parametro)<br>**revoca** — Revoca un token (`id: stringa*`) |
-| `/traduci` | Traduci un testo (MyMemory, gratis, max 500 caratteri) | 5 s | `testo: stringa*`, `da: stringa`, `a: stringa` |
-| `/userinfo` | Mostra informazioni su un utente | 3 s | `utente: utente` |
 | `/voice` | Gestisci la tua vocale temporanea | 3 s | **nome** — Rinomina la tua vocale (`nome: stringa*`)<br>**limite** — Imposta il limite di utenti (0 = nessun limite) (`numero: intero*`)<br>**blocca** — Blocca la vocale (nessun nuovo ingresso) (nessun parametro)<br>**sblocca** — Sblocca la vocale (nessun parametro)<br>**kick** — Disconnetti un utente dalla vocale (`utente: utente*`) |
 | `/wizard` | Setup guidato del bot, passo passo (canali, ticket, automod…) | 5 s | — |
 | `/youtube` | Notifiche nuovi video YouTube (gratis, via RSS) | 5 s | **aggiungi** — Avvisa i nuovi video di un canale (staff) (`canale: stringa*`, `annunci: canale*`)<br>**rimuovi** — Stop notifiche (staff) (`canale: stringa*`)<br>**lista** — Canali monitorati (nessun parametro) |

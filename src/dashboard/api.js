@@ -85,6 +85,108 @@ function safeRequire(relPath) {
   }
 }
 
+async function resolveChannel(guild, id) {
+  if (id === null) return null;
+  if (!isSnowflake(id)) return { invalid: true };
+  try {
+    const cache = guild && guild.channels && guild.channels.cache ? guild.channels.cache : null;
+    let ch = cache ? cache.get(id) : null;
+    if (!ch && guild && guild.channels && typeof guild.channels.fetch === 'function') {
+      ch = await guild.channels.fetch(id).catch(() => null);
+    }
+    if (!ch) return { missing: true };
+    return { channel: ch };
+  } catch {
+    // Cache parziale / guild incompleta: mai 500, tratta come non trovato.
+    return { missing: true };
+  }
+}
+
+function resolveRoles(guild, ids) {
+  try {
+    if (!Array.isArray(ids)) return { invalid: true };
+    const cache = guild && guild.roles && guild.roles.cache ? guild.roles.cache : null;
+    const out = [];
+    for (const id of ids) {
+      if (!isSnowflake(id)) return { invalid: id };
+      const role = cache ? cache.get(id) : null;
+      if (!role) return { missing: id };
+      if (role.managed) return { managed: id };
+      if (!out.includes(id)) out.push(id);
+    }
+    return { roles: out };
+  } catch {
+    return { missing: true };
+  }
+}
+
+// Range allineati ai clamp dei DB (mai più larghi di loro):
+// tickets sanitizza maxPerUser 1..20 e autoCloseDays 0..365,
+// starboard threshold 1..100, autorole delaySeconds 0..3600.
+const NUMBER_RANGES = {
+  maxMentions: [1, 20], maxPerUser: [1, 20], autoCloseDays: [0, 365],
+  maxCapsPercent: [10, 100], threshold: [1, 100], delaySeconds: [0, 3600],
+};
+// aiConfig tronca systemPrompt a MAX_SYSTEM_PROMPT=2000: stesso tetto qui.
+const TEXT_LIMITS = {
+  welcomeMessage: 500, goodbyeMessage: 500, systemPrompt: 2000, badWords: 1000,
+};
+
+function patchError(message) {
+  const e = new Error(message);
+  e.status = 400;
+  return e;
+}
+
+/**
+ * Valida + normalizza il body PUT /modules/:mod in patch Commander.
+ * Errori con .status=400 e messaggio italiano (il chiamante mappa su HTTP).
+ * "" canale = null (unset); number null/"" = chiave omessa (non toccare).
+ */
+async function buildModulePatch(mod, body, gl) {
+  const spec = Object.prototype.hasOwnProperty.call(MODULE_FIELDS, mod) ? MODULE_FIELDS[mod] : undefined;
+  if (!spec) throw patchError(`Modulo sconosciuto: ${mod}.`);
+  const src = body && typeof body === 'object' ? body : {};
+  const keys = Object.keys(src);
+  if (keys.length === 0) throw patchError('Body vuoto: niente da salvare.');
+  const skip = new Set();
+  for (const k of keys) {
+    if (!Object.prototype.hasOwnProperty.call(spec, k)) throw patchError(`Chiave non valida per ${mod}: ${k}.`);
+    if (spec[k] === 'number' && (src[k] === null || src[k] === '')) { skip.add(k); continue; }
+    if (spec[k] === 'channel' && src[k] === '') continue;
+    if (!checkType(spec[k], src[k])) throw patchError(`Tipo non valido per ${k}: atteso ${spec[k]}.`);
+  }
+  const patch = {};
+  for (const k of keys) {
+    if (skip.has(k)) continue;
+    let v = src[k];
+    if (spec[k] === 'channel' && v === '') v = null;
+    if (spec[k] === 'number') {
+      v = Math.floor(v);
+      const range = NUMBER_RANGES[k];
+      if (range && (v < range[0] || v > range[1])) throw patchError(`${k} deve stare tra ${range[0]} e ${range[1]}.`);
+    } else if (spec[k] === 'text' && typeof v === 'string') {
+      v = v.slice(0, TEXT_LIMITS[k] || 1000);
+    } else if (spec[k] === 'channel' && v !== null) {
+      if (!isSnowflake(v)) throw patchError(`Canale non valido per ${k}.`);
+      const r = await resolveChannel(gl, v);
+      if (r.invalid || r.missing) throw patchError(`Canale non trovato in questo server per ${k}.`);
+    } else if (spec[k] === 'roles') {
+      const r = resolveRoles(gl, v);
+      if (r.invalid) throw patchError('ID ruolo non valido.');
+      if (r.missing) throw patchError('Un ruolo selezionato non esiste più: ricarica la pagina.');
+      if (r.managed) throw patchError('I ruoli dei bot non possono essere autorole.');
+      v = r.roles;
+    } else if (spec[k] === 'lang') {
+      if (v !== 'it' && v !== 'en') throw patchError('Lingua non valida (it/en).');
+    } else if (spec[k] === 'emoji' && typeof v === 'string') {
+      v = v.slice(0, 50).trim() || '⭐';
+    }
+    patch[k] = v;
+  }
+  return patch;
+}
+
 function hasManageGuild(entry) {
   try {
     if (!entry || typeof entry !== 'object') return false;
@@ -403,41 +505,6 @@ function createApiRouter(client) {
     } catch (e) {
       logDashboardError('loadAccess', e);
       return res.status(500).json({ errore: 'Errore interno, riprova.' });
-    }
-  }
-
-  async function resolveChannel(guild, id) {
-    if (id === null) return null;
-    if (!isSnowflake(id)) return { invalid: true };
-    try {
-      const cache = guild && guild.channels && guild.channels.cache ? guild.channels.cache : null;
-      let ch = cache ? cache.get(id) : null;
-      if (!ch && guild && guild.channels && typeof guild.channels.fetch === 'function') {
-        ch = await guild.channels.fetch(id).catch(() => null);
-      }
-      if (!ch) return { missing: true };
-      return { channel: ch };
-    } catch {
-      // Cache parziale / guild incompleta: mai 500, tratta come non trovato.
-      return { missing: true };
-    }
-  }
-
-  function resolveRoles(guild, ids) {
-    try {
-      if (!Array.isArray(ids)) return { invalid: true };
-      const cache = guild && guild.roles && guild.roles.cache ? guild.roles.cache : null;
-      const out = [];
-      for (const id of ids) {
-        if (!isSnowflake(id)) return { invalid: id };
-        const role = cache ? cache.get(id) : null;
-        if (!role) return { missing: id };
-        if (role.managed) return { managed: id };
-        if (!out.includes(id)) out.push(id);
-      }
-      return { roles: out };
-    } catch {
-      return { missing: true };
     }
   }
 
@@ -1028,56 +1095,16 @@ function createApiRouter(client) {
         return res.status(400).json({ errore: `Modulo sconosciuto: ${mod}.` });
       }
       const body = req.body && typeof req.body === 'object' ? req.body : {};
-      const keys = Object.keys(body);
-      if (keys.length === 0) return res.status(400).json({ errore: 'Body vuoto: niente da salvare.' });
-      for (const k of keys) {
-        if (!Object.prototype.hasOwnProperty.call(spec, k)) return res.status(400).json({ errore: `Chiave non valida per ${mod}: ${k}.` });
-        if (!checkType(spec[k], body[k])) {
-          return res.status(400).json({ errore: `Tipo non valido per ${k}: atteso ${spec[k]}.` });
-        }
-      }
-      // Range allineati ai clamp dei DB (mai più larghi di loro):
-      // tickets sanitizza maxPerUser 1..20 e autoCloseDays 0..365,
-      // starboard threshold 1..100, autorole delaySeconds 0..3600.
-      const NUMBER_RANGES = {
-        maxMentions: [1, 20], maxPerUser: [1, 20], autoCloseDays: [0, 365],
-        maxCapsPercent: [10, 100], threshold: [1, 100], delaySeconds: [0, 3600],
-      };
-      // aiConfig tronca systemPrompt a MAX_SYSTEM_PROMPT=2000: stesso tetto qui.
-      const TEXT_LIMITS = {
-        welcomeMessage: 500, goodbyeMessage: 500, systemPrompt: 2000, badWords: 1000,
-      };
-      const patch = {};
-      for (const k of keys) {
-        let v = body[k];
-        if (spec[k] === 'number') {
-          v = Math.floor(v);
-          const range = NUMBER_RANGES[k];
-          if (range && (v < range[0] || v > range[1])) {
-            return res.status(400).json({ errore: `${k} deve stare tra ${range[0]} e ${range[1]}.` });
-          }
-        } else if (spec[k] === 'text' && typeof v === 'string') {
-          v = v.slice(0, TEXT_LIMITS[k] || 1000);
-        } else if (spec[k] === 'channel' && v !== null) {
-          if (!isSnowflake(v)) {
-            return res.status(400).json({ errore: `Canale non valido per ${k}.` });
-          }
-          const r = await resolveChannel(gl, v);
-          if (r.invalid || r.missing) {
-            return res.status(400).json({ errore: `Canale non trovato in questo server per ${k}.` });
-          }
-        } else if (spec[k] === 'roles') {
-          const r = resolveRoles(gl, v);
-          if (r.invalid) return res.status(400).json({ errore: 'ID ruolo non valido.' });
-          if (r.missing) return res.status(400).json({ errore: 'Un ruolo selezionato non esiste più: ricarica la pagina.' });
-          if (r.managed) return res.status(400).json({ errore: 'I ruoli dei bot non possono essere autorole.' });
-          v = r.roles;
-        } else if (spec[k] === 'lang') {
-          if (v !== 'it' && v !== 'en') return res.status(400).json({ errore: 'Lingua non valida (it/en).' });
-        } else if (spec[k] === 'emoji' && typeof v === 'string') {
-          v = v.slice(0, 50).trim() || '⭐';
-        }
-        patch[k] = v;
+      // Validazione + normalizzazione (testabile: vedi buildModulePatch).
+      // Il frontend invia tutta la card: i select canale non scelti arrivano
+      // come "" (= "nessuno", unset) e i number svuotati come null (= "non
+      // toccare"). Senza questa normalizzazione ogni salvataggio con un campo
+      // opzionale vuoto darebbe 400 e sembrerebbe tutto rotto.
+      let patch;
+      try {
+        patch = await buildModulePatch(mod, body, gl);
+      } catch (pe) {
+        return res.status(400).json({ errore: pe.message || 'Dati non validi.' });
       }
 
       // Dispatch al modulo via Commander (orchestratore): la dashboard ha già
@@ -1312,4 +1339,4 @@ function createApiRouter(client) {
   return router;
 }
 
-module.exports = { createApiRouter, MODULE_FIELDS };
+module.exports = { createApiRouter, MODULE_FIELDS, buildModulePatch };

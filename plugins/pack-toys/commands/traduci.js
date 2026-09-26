@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 let theme;
 try {
-  theme = require('../../utils/theme');
+  theme = require('../../../src/utils/theme');
 } catch {
   const { EmbedBuilder: EB } = require('discord.js');
   theme = {

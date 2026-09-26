@@ -82,7 +82,7 @@ console.log(`📦 Caricati ${client.commands.size} comandi.`);
 // built-in vincono sempre; un plugin rotto non ferma il bot.
 try {
   const { loadPluginCommands } = require('./modules/pluginLoader');
-  const { commands: pluginCommands, warnings } = loadPluginCommands();
+  const { commands: pluginCommands, warnings, disabled } = loadPluginCommands();
   for (const w of warnings) console.warn(`[ATTENZIONE] ${w}`);
   for (const p of pluginCommands) {
     if (client.commands.has(p.name)) {
@@ -93,6 +93,7 @@ try {
     client.commands.set(p.name, p.mod);
   }
   if (pluginCommands.length) console.log(`🔌 Plugin: ${pluginCommands.length} comandi extra.`);
+  if (disabled && disabled.length) console.log(`🔌 Plugin disattivati: ${disabled.join(', ')} ("enabled": true per riaverli).`);
 } catch (e) {
   console.error(`[ERRORE] Caricamento plugin fallito: ${e.message} (i comandi built-in restano attivi)`);
 }

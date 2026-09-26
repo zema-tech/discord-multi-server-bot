@@ -38,6 +38,7 @@ function validateManifest(raw, source) {
     title: typeof raw.title === 'string' && raw.title ? raw.title.slice(0, 64) : raw.id,
     description: typeof raw.description === 'string' ? raw.description.slice(0, 500) : '',
     author: typeof raw.author === 'string' ? raw.author.slice(0, 64) : '',
+    enabled: raw.enabled !== false,
     commands,
   };
 }
@@ -65,12 +66,13 @@ function validateCommand(mod, source) {
 }
 
 /**
- * Scansiona plugins/ e ritorna { plugins: [{ manifest, dir, commands: [{name, mod}] }], warnings[] }.
+ * Scansiona plugins/ e ritorna { plugins: [{ manifest, dir, commands: [{name, mod}] }], disabled: [id], warnings[] }.
+ * I plugin con "enabled": false vengono saltati (opt-in da plugin.json).
  * @param {{ root?: string }} opts
  */
 function scanPlugins(opts = {}) {
   const root = opts.root || pluginsRoot();
-  const out = { plugins: [], warnings: [] };
+  const out = { plugins: [], disabled: [], warnings: [] };
   let entries = [];
   try {
     if (!fs.existsSync(root)) return out;
@@ -94,6 +96,10 @@ function scanPlugins(opts = {}) {
       manifest = validateManifest(JSON.parse(fs.readFileSync(manifestFile, 'utf8')), `plugins/${name}`);
     } catch (e) {
       out.warnings.push(`plugins/${name}: ${String(e && e.message || e).split('\n')[0]}`);
+      continue;
+    }
+    if (!manifest.enabled) {
+      out.disabled.push(manifest.id);
       continue;
     }
     const commandsDir = path.join(dir, 'commands');
@@ -124,12 +130,12 @@ function scanPlugins(opts = {}) {
 
 /** Solo i comandi, piatti: [{ pluginId, name, mod }]. */
 function loadPluginCommands(opts = {}) {
-  const { plugins, warnings } = scanPlugins(opts);
+  const { plugins, disabled, warnings } = scanPlugins(opts);
   const commands = [];
   for (const p of plugins) {
     for (const c of p.commands) commands.push({ pluginId: p.manifest.id, name: c.name, mod: c.mod });
   }
-  return { commands, plugins: plugins.map((p) => p.manifest), warnings };
+  return { commands, plugins: plugins.map((p) => p.manifest), disabled, warnings };
 }
 
 module.exports = { scanPlugins, loadPluginCommands, validateManifest, validateCommand, pluginsRoot };

@@ -11,6 +11,9 @@ plugins/
     plugin.json
     commands/saluto.js
     README.md
+  pack-toys/               ← giochini ex-core (coinflip, rps, gatto, meteo, qr, traduci)
+    plugin.json            ← "enabled": false di default: non viene caricato
+    commands/*.js
 ```
 
 ## Installare un plugin
@@ -46,6 +49,8 @@ warning, mai crash):
 - `id`: 2-32 char, inizia con lettera, solo lettere/numeri/trattini (stesso
   contratto di `src/modules/defineModule.js`).
 - `version`: semver `x.y.z`.
+- `enabled`: `false` = plugin saltato da bot e deploy (opt-in, es. `pack-toys`).
+  Default `true`.
 - `commands`: nomi slash dichiarati (devono corrispondere ai file in
   `commands/`, altrimenti warning).
 

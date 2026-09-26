@@ -1,0 +1,9 @@
+{
+  "id": "pack-toys",
+  "version": "1.0.0",
+  "title": "Pack Giochini",
+  "description": "Comandi leggeri spostati dal core: coinflip, rps, gatto, meteo, qr, traduci. Disattivato di default.",
+  "author": "zema-tech",
+  "enabled": false,
+  "commands": ["coinflip", "rps", "gatto", "meteo", "qr", "traduci"]
+}

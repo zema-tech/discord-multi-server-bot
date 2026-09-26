@@ -13,7 +13,7 @@ let applyFooter = (embed, interaction) => {
   return embed;
 };
 try {
-  const theme = require('../../utils/theme');
+  const theme = require('../../../src/utils/theme');
   if (theme?.COLORS) COLORS = theme.COLORS;
   if (typeof theme?.truncate === 'function') truncate = theme.truncate;
   if (typeof theme?.applyFooter === 'function') applyFooter = theme.applyFooter;
