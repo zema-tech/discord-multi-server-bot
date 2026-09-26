@@ -83,10 +83,49 @@ const PROVIDER_DEFS = {
     label: 'Ollama (locale)', kind: 'openai', keyEnv: null,
     url: 'http://localhost:11434/v1/chat/completions', defaultModel: 'llama3.1',
   },
+  fireworks: {
+    label: 'Fireworks', kind: 'openai', keyEnv: 'FIREWORKS_API_KEY',
+    url: 'https://api.fireworks.ai/inference/v1/chat/completions', defaultModel: 'accounts/fireworks/models/kimi-k2p6',
+  },
+  novita: {
+    label: 'Novita', kind: 'openai', keyEnv: 'NOVITA_API_KEY',
+    url: 'https://api.novita.ai/openai/v1/chat/completions', defaultModel: 'moonshotai/kimi-k2.5',
+  },
+  huggingface: {
+    label: 'Hugging Face', kind: 'openai', keyEnv: 'HF_TOKEN',
+    url: 'https://router.huggingface.co/v1/chat/completions', defaultModel: 'deepseek-ai/DeepSeek-V3.2',
+  },
+  nvidia: {
+    label: 'NVIDIA NIM', kind: 'openai', keyEnv: 'NVIDIA_API_KEY',
+    url: 'https://integrate.api.nvidia.com/v1/chat/completions', defaultModel: 'nvidia/nemotron-3-super-120b-a12b',
+  },
+  kimi: {
+    label: 'Kimi/Moonshot', kind: 'openai', keyEnv: 'KIMI_API_KEY',
+    url: 'https://api.moonshot.ai/v1/chat/completions', defaultModel: 'kimi-for-coding',
+  },
   pollinations: { label: 'Pollinations (gratis)', kind: 'pollinations', keyEnv: null, url: 'https://text.pollinations.ai', defaultModel: '' },
 };
 
-const AUTO_ORDER = ['openai', 'anthropic', 'gemini', 'groq', 'openrouter', 'mistral', 'deepseek', 'xai', 'together', 'cerebras'];
+const AUTO_ORDER = ['openai', 'anthropic', 'gemini', 'groq', 'openrouter', 'mistral', 'deepseek', 'xai', 'together', 'cerebras', 'fireworks', 'novita', 'huggingface', 'nvidia', 'kimi'];
+
+/** Alias stile Hermes (--provider claude == anthropic). */
+const ALIASES = { claude: 'anthropic', google: 'gemini', grok: 'xai', hf: 'huggingface' };
+
+/** Nome canonico (risolve gli alias). */
+function canon(name) {
+  const n = String(name || '').toLowerCase().trim();
+  return ALIASES[n] || n;
+}
+
+/** AI_MODEL senza eventuale prefisso "provider:" noto (stile Hermes). */
+function cleanModel(env) {
+  const model = String(env.AI_MODEL || '').trim();
+  const colon = model.indexOf(':');
+  if (colon > 0 && PROVIDER_DEFS[canon(model.slice(0, colon))]) {
+    return model.slice(colon + 1).trim();
+  }
+  return model;
+}
 
 function errWith(code, message) {
   const e = new Error(message);
@@ -108,19 +147,32 @@ function isNetworkError(err) {
 
 /**
  * Rileva il provider da usare. `env` iniettabile per i test.
- * @returns {{name,label,kind,url,model,key}}
+ * AI_MODEL accetta "provider:modello" (stile Hermes): il prefisso vince su
+ * AI_PROVIDER. Prefisso sconosciuto = tutto l'ID modello (retrocompatibile).
+ * @returns {{name,label,kind,url,model,key,keys}}
  */
 function detectProvider(env = process.env) {
   env = withOverrides(env);
-  const wanted = String(env.AI_PROVIDER || 'auto').toLowerCase().trim();
-  const model = String(env.AI_MODEL || '').trim();
+  const wanted = canon(env.AI_PROVIDER || 'auto');
+  let model = String(env.AI_MODEL || '').trim();
+  let forced = null;
+  const colon = model.indexOf(':');
+  if (colon > 0) {
+    const prefix = canon(model.slice(0, colon));
+    if (PROVIDER_DEFS[prefix]) {
+      forced = prefix;
+      model = model.slice(colon + 1).trim();
+    }
+  }
+  const pick = forced || wanted;
 
-  if (wanted !== 'auto') {
-    if (PROVIDER_DEFS[wanted]) {
-      const def = PROVIDER_DEFS[wanted];
+  if (pick !== 'auto') {
+    if (PROVIDER_DEFS[pick]) {
+      const def = PROVIDER_DEFS[pick];
+      const keys = poolKeys(def, env);
       return {
-        name: wanted, label: def.label, kind: def.kind, url: ollamaUrl(def, env),
-        model: model || def.defaultModel, key: def.keyEnv ? String(env[def.keyEnv] || '') : '',
+        name: pick, label: def.label, kind: def.kind, url: providerUrl(def, env),
+        model: model || def.defaultModel, key: keys[0] || '', keys,
       };
     }
     // AI_PROVIDER=custom o valore ignoto + AI_API_URL → endpoint OpenAI-compatibile
@@ -128,7 +180,7 @@ function detectProvider(env = process.env) {
       return {
         name: 'custom', label: 'Custom (OpenAI-compatibile)', kind: 'openai',
         url: String(env.AI_API_URL).replace(/\/+$/, ''), model,
-        key: String(env.AI_API_KEY || ''),
+        key: String(env.AI_API_KEY || ''), keys: [String(env.AI_API_KEY || '')],
       };
     }
     throw errWith('http', `AI_PROVIDER "${wanted}" non riconosciuto.`);
@@ -137,9 +189,10 @@ function detectProvider(env = process.env) {
   for (const name of AUTO_ORDER) {
     const def = PROVIDER_DEFS[name];
     if (def.keyEnv && String(env[def.keyEnv] || '').trim()) {
+      const keys = poolKeys(def, env);
       return {
-        name, label: def.label, kind: def.kind, url: def.url,
-        model: model || def.defaultModel, key: String(env[def.keyEnv]).trim(),
+        name, label: def.label, kind: def.kind, url: providerUrl(def, env),
+        model: model || def.defaultModel, key: keys[0] || '', keys,
       };
     }
   }
@@ -147,40 +200,70 @@ function detectProvider(env = process.env) {
     return {
       name: 'custom', label: 'Custom (OpenAI-compatibile)', kind: 'openai',
       url: String(env.AI_API_URL).replace(/\/+$/, ''), model,
-      key: String(env.AI_API_KEY || ''),
+      key: String(env.AI_API_KEY || ''), keys: [String(env.AI_API_KEY || '')],
     };
   }
   const p = PROVIDER_DEFS.pollinations;
-  return { name: 'pollinations', label: p.label, kind: p.kind, url: (env.AI_API_URL || p.url).replace(/\/+$/, ''), model, key: '' };
+  return { name: 'pollinations', label: p.label, kind: p.kind, url: (env.AI_API_URL || p.url).replace(/\/+$/, ''), model, key: '', keys: [''] };
 }
 
 /** Stato leggibile per /ai-config mostra: { name, label, model, free, configured, fallbacks } */
 function activeProvider(env = process.env) {
   try {
     const p = detectProvider(env);
-    return { name: p.name, label: p.label, model: p.model || 'default', free: p.name === 'pollinations', configured: true, fallbacks: fallbackNames(env, p.name) };
+    return { name: p.name, label: p.label, model: p.model || 'default', free: p.name === 'pollinations' || p.name === 'ollama', configured: true, fallbacks: fallbackNames(env, p.name) };
   } catch {
     return { name: 'none', label: 'non configurato', model: '-', free: false, configured: false, fallbacks: [] };
   }
 }
 
-/** URL effettivo: Ollama onora OLLAMA_HOST, gli altri usano l'URL del catalogo. */
-function ollamaUrl(def, env) {
-  if (def.keyEnv !== null || !/ollama/i.test(def.label)) return def.url;
-  const host = String(env.OLLAMA_HOST || '').trim().replace(/\/+$/, '');
-  if (!host) return def.url;
-  return `${host}/v1/chat/completions`;
+/**
+ * URL effettivo del provider. Precedenza: OLLAMA_HOST per Ollama,
+ * <PREFIX>_BASE_URL per gli altri (es. OPENAI_BASE_URL, GROQ_BASE_URL —
+ * stile Hermes), altrimenti l'URL del catalogo.
+ */
+function providerUrl(def, env) {
+  if (def.keyEnv === null) {
+    if (/ollama/i.test(def.label)) {
+      const host = String(env.OLLAMA_HOST || '').trim().replace(/\/+$/, '');
+      if (host) return `${host}/v1/chat/completions`;
+    }
+    return def.url;
+  }
+  const prefix = String(def.keyEnv).replace(/(_API_KEY|_TOKEN)$/, '');
+  const override = String(env[`${prefix}_BASE_URL`] || '').trim().replace(/\/+$/, '');
+  return override || def.url;
 }
 
 /**
- * Catena di failover da AI_FALLBACKS ("groq, openrouter"): nomi validi,
- * dedup, escluso il primario. Usata da resolveChain.
+ * Pool di chiavi stile Hermes (credential pools): "sk-a,sk-b" nel *_API_KEY.
+ * Ritorna array (singola chiave = pool da 1). Mai vuoto.
+ */
+function poolKeys(def, env) {
+  if (!def.keyEnv) return [''];
+  const keys = String(env[def.keyEnv] || '').split(',').map((k) => k.trim()).filter(Boolean);
+  return keys.length ? keys : [''];
+}
+
+/** Cursori round-robin per pool (solo quando il pool ha >1 chiave). */
+const poolCursor = {};
+
+function poolStart(name, len) {
+  if (len <= 1) return 0;
+  const i = Number.isFinite(poolCursor[name]) ? poolCursor[name] % len : 0;
+  poolCursor[name] = (i + 1) % len;
+  return i;
+}
+
+/**
+ * Catena di failover da AI_FALLBACKS ("groq, openrouter"): nomi validi
+ * (alias risolti), dedup, escluso il primario. Usata da resolveChain.
  */
 function fallbackNames(env = process.env, primary) {
   const raw = String(env.AI_FALLBACKS || '').split(',');
   const out = [];
   for (const n of raw) {
-    const name = n.toLowerCase().trim();
+    const name = canon(n);
     if (!name || name === primary || out.includes(name)) continue;
     if (!PROVIDER_DEFS[name]) continue;
     out.push(name);
@@ -196,19 +279,19 @@ function fallbackNames(env = process.env, primary) {
 function resolveChain(env = process.env) {
   env = withOverrides(env);
   const primary = detectProvider(env);
-  const model = String(env.AI_MODEL || '').trim();
+  const model = cleanModel(env);
   const chain = [primary];
   const skipped = [];
   for (const name of fallbackNames(env, primary.name)) {
     const def = PROVIDER_DEFS[name];
-    const key = def.keyEnv ? String(env[def.keyEnv] || '').trim() : '';
-    if (def.keyEnv && !key) {
+    const keys = poolKeys(def, env);
+    if (def.keyEnv && !keys[0]) {
       skipped.push({ name, reason: `chiave ${def.keyEnv} mancante` });
       continue;
     }
     chain.push({
-      name, label: def.label, kind: def.kind, url: ollamaUrl(def, env),
-      model: model || def.defaultModel, key,
+      name, label: def.label, kind: def.kind, url: providerUrl(def, env),
+      model: model || def.defaultModel, key: keys[0] || '', keys,
     });
   }
   return { chain, skipped };
@@ -227,8 +310,9 @@ function listProviders(env = process.env) {
   return Object.entries(PROVIDER_DEFS).map(([name, def]) => {
     const key = def.keyEnv ? String(env[def.keyEnv] || '').trim() : '';
     const configured = name === 'pollinations' || name === 'ollama' || !!key;
+    const aliases = Object.entries(ALIASES).filter(([, c]) => c === name).map(([a]) => a);
     return {
-      name, label: def.label, keyEnv: def.keyEnv,
+      name, label: def.label, keyEnv: def.keyEnv, aliases,
       model: String(env.AI_MODEL || '').trim() || def.defaultModel || 'default',
       free: name === 'pollinations' || name === 'ollama',
       configured, selected: selected === name,
@@ -396,8 +480,28 @@ async function complete({ messages, system = '', maxTokens = 800, env = process.
   throw primaryError || errWith('http', 'AI non disponibile, riprova più tardi.');
 }
 
-/** Singolo provider con 1 retry su timeout/rete. Mappatura errori invariata. */
+/**
+ * Singolo provider con pool di chiavi: round-robin tra le chiamate, e se una
+ * chiave fallisce (auth/rate/...) prova la successiva prima di cedere il
+ * turno al provider dopo nella catena. Con pool da 1 = comportamento storico.
+ */
 async function attemptProvider(provider, sys, msgs, maxTokens) {
+  const keys = Array.isArray(provider.keys) && provider.keys.length ? provider.keys : [provider.key || ''];
+  const start = poolStart(provider.name, keys.length);
+  let lastError = null;
+  for (let k = 0; k < keys.length; k++) {
+    const p = { ...provider, key: keys[(start + k) % keys.length] };
+    try {
+      return await attemptOnce(p, sys, msgs, maxTokens);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError || errWith('http', 'AI non disponibile, riprova più tardi.');
+}
+
+/** Una chiave, con 1 retry su timeout/rete. Mappatura errori invariata. */
+async function attemptOnce(provider, sys, msgs, maxTokens) {
   let lastError = null;
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     try {
@@ -426,6 +530,6 @@ async function attemptProvider(provider, sys, msgs, maxTokens) {
 
 module.exports = {
   complete, detectProvider, activeProvider, extractLooseText,
-  resolveChain, listProviders, fallbackNames,
-  PROVIDER_DEFS, TIMEOUT_MS,
+  resolveChain, listProviders, fallbackNames, canon, poolKeys,
+  ALIASES, PROVIDER_DEFS, TIMEOUT_MS,
 };

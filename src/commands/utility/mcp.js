@@ -21,7 +21,11 @@ module.exports = {
     .setName('mcp')
     .setDescription('Connessioni MCP esterne del bot (stile Hermes)')
     .addSubcommand((s) => s.setName('stato').setDescription('Server MCP connessi / falliti / tool registrati'))
-    .addSubcommand((s) => s.setName('lista').setDescription('Tool disponibili (mcp_<server>_<tool>)'))
+    .addSubcommand((s) => s.setName('lista').setDescription('Tool disponibili in questo server (mcp_<server>_<tool>)'))
+    .addSubcommand((s) =>
+      s.setName('cerca').setDescription('Cerca un tool tra i server connessi (stile Composio)')
+        .addStringOption((o) => o.setName('query').setDescription('Parole chiave (es. "github issue")').setRequired(true).setMaxLength(200))
+    )
     .addSubcommand((s) =>
       s.setName('chiama').setDescription('Chiama un tool MCP esterno')
         .addStringOption((o) => o.setName('nome').setDescription('Nome tool (mcp_server_tool)').setRequired(true).setMaxLength(120))
@@ -39,6 +43,7 @@ module.exports = {
     }
     const sub = interaction.options.getSubcommand();
     const c = client();
+    const gid = interaction.guild.id; // scope: i server con guilds:[...] filtrano qui
 
     if (sub === 'stato') {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -50,6 +55,7 @@ module.exports = {
       }
       const lines = (sum.status || []).map((s) =>
         `${s.status === 'connected' ? '🟢' : s.status === 'disabled' ? '⚪' : '🔴'} \`${s.name}\` (${s.transport}) — ${s.tools} tool` +
+        (s.guilds ? ` · solo ${s.guilds.length} server` : '') +
         (s.error ? ` — ${truncate(s.error, 120)}` : '')
       );
       const embed = new EmbedBuilder()
@@ -68,17 +74,37 @@ module.exports = {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       let defs;
       try {
-        defs = await c.listTools();
+        defs = await c.listTools({ guildId: gid });
       } catch (e) {
         return interaction.editReply({ embeds: [themeErr(e?.message || 'Lista MCP fallita.')] });
       }
       if (!defs.length) {
-        return interaction.editReply({ content: '🔌 Nessun tool MCP esterno. Configura `mcp/servers.json` poi `/mcp ricarica`.' }).catch(() => null);
+        return interaction.editReply({ content: '🔌 Nessun tool MCP per questo server. Configura `mcp/servers.json` poi `/mcp ricarica`.' }).catch(() => null);
       }
       const embed = new EmbedBuilder()
         .setColor(COLORS.primary)
         .setTitle(`🔌 Tool MCP (${defs.length})`)
         .setDescription(truncate(defs.slice(0, 25).map((d) => `\`${d.name}\` — ${truncate(d.description || '', 90)}`).join('\n'), 4000))
+        .setTimestamp();
+      return interaction.editReply({ embeds: [embed] }).catch(() => null);
+    }
+
+    if (sub === 'cerca') {
+      const query = interaction.options.getString('query', true).trim();
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      let hits;
+      try {
+        hits = await c.searchTools(query, { guildId: gid });
+      } catch (e) {
+        return interaction.editReply({ embeds: [themeErr(e?.message || 'Ricerca MCP fallita.')] });
+      }
+      if (!hits.length) {
+        return interaction.editReply({ content: `🔍 Niente per "${query}". Prova con altre parole o \`/mcp lista\`.` }).catch(() => null);
+      }
+      const embed = new EmbedBuilder()
+        .setColor(COLORS.primary)
+        .setTitle(`🔍 MCP: ${hits.length} per "${truncate(query, 60)}"`)
+        .setDescription(truncate(hits.map((h) => `\`${h.name}\` (\`${h.server}\`) — ${truncate(h.description || '', 80)}`).join('\n'), 4000))
         .setTimestamp();
       return interaction.editReply({ embeds: [embed] }).catch(() => null);
     }
@@ -94,7 +120,7 @@ module.exports = {
       }
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       try {
-        const out = await c.callTool(nome, args);
+        const out = await c.callTool(nome, args, { guildId: gid });
         return interaction.editReply({ content: truncate(`✅ \`${nome}\` via \`${out.server}\`:\n\`\`\`\n${out.text || '(vuoto)'}\n\`\`\``, 1900) }).catch(() => null);
       } catch (e) {
         return interaction.editReply({ embeds: [themeErr(e?.message || 'Chiamata MCP fallita.')] });

@@ -70,6 +70,9 @@ function normalizeServer(name, raw, env = process.env) {
     headers: (r.headers && typeof r.headers === 'object' && !Array.isArray(r.headers)) ? { ...r.headers } : {},
     timeout,
     enabled: r.enabled !== false,
+    guilds: Array.isArray(r.guilds) && r.guilds.map(String).filter(Boolean).length
+      ? [...new Set(r.guilds.map(String).filter(Boolean))]
+      : null, // null = tutti i server (stile Composio: sessione senza restrizioni)
     tools: {
       include: asList(tools.include),
       exclude: asList(tools.exclude),

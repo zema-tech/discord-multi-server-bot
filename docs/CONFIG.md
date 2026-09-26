@@ -11,7 +11,7 @@ La configurazione per-server (lingua, canali, welcome, automod, ticket, livelli,
 | `DISCORD_TOKEN` | sì | — | `src/index.js`, `deploy-commands.js` | Token del bot. Senza, il bot esce con errore. |
 | `CLIENT_ID` | sì (per deploy comandi e dashboard) | — | `deploy-commands.js`, `src/dashboard/auth.js` | Application ID. `deploy-commands.js` lo usa senza fallback. |
 | `GUILD_ID` | no | — (deploy globale) | `deploy-commands.js` | Se impostato, registra i comandi solo sul server di test (veloce); altrimenti globale (fino a ~1h). |
-| `AI_PROVIDER` | no | `auto` | `src/utils/aiProviders.js` | `auto` sceglie da solo tra le chiavi presenti; valori: `openai`, `anthropic`, `gemini`, `groq`, `openrouter`, `mistral`, `deepseek`, `xai`, `together`, `cerebras`, `ollama`, `pollinations`; valore ignoto + `AI_API_URL` = endpoint OpenAI-compatibile custom. |
+| `AI_PROVIDER` | no | `auto` | `src/utils/aiProviders.js` | `auto` sceglie da solo tra le chiavi presenti; valori: `openai`, `anthropic`, `gemini`, `groq`, `openrouter`, `mistral`, `deepseek`, `xai`, `together`, `cerebras`, `ollama`, `fireworks`, `novita`, `huggingface`, `nvidia`, `kimi`, `pollinations` (+ alias `claude`, `google`, `grok`, `hf`); valore ignoto + `AI_API_URL` = endpoint OpenAI-compatibile custom. |
 | `OPENAI_API_KEY` | no (ne basta una) | — | `src/utils/aiProviders.js` | Modello default `gpt-4o-mini`. |
 | `ANTHROPIC_API_KEY` | no (ne basta una) | — | `src/utils/aiProviders.js` | Modello default `claude-3-5-haiku-20241022`. |
 | `GEMINI_API_KEY` | no (ne basta una) | — | `src/utils/aiProviders.js` | Modello default `gemini-2.0-flash`. |
@@ -21,10 +21,15 @@ La configurazione per-server (lingua, canali, welcome, automod, ticket, livelli,
 | `DEEPSEEK_API_KEY` | no (ne basta una) | — | `src/utils/aiProviders.js` | Modello default `deepseek-chat`. |
 | `XAI_API_KEY` | no (ne basta una) | — | `src/utils/aiProviders.js` | Modello default `grok-3-mini`. |
 | `TOGETHER_API_KEY` | no (ne basta una) | — | `src/utils/aiProviders.js` | Modello default `meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo`. |
-| `CEREBRAS_API_KEY` | no (ne basta una) | — | `src/utils/aiProviders.js` | Modello default `llama3.1-8b` (velocissimo). |
+| `CEREBRAS_API_KEY` | no (ne basta una) | — | `src/utils/aiProviders.js` | Modello default `llama3.1-8b` (velocissimo). Chiavi multiple con virgola = pool stile Hermes (`sk-a,sk-b`: rotazione + failover chiave). |
+| `FIREWORKS_API_KEY` | no (ne basta una) | — | `src/utils/aiProviders.js` | Modello default `accounts/fireworks/models/kimi-k2p6`. |
+| `NOVITA_API_KEY` | no (ne basta una) | — | `src/utils/aiProviders.js` | Modello default `moonshotai/kimi-k2.5` (200+ modelli via `AI_MODEL`). |
+| `HF_TOKEN` | no (ne basta una) | — | `src/utils/aiProviders.js` | Hugging Face Inference Providers, default `deepseek-ai/DeepSeek-V3.2`. |
+| `NVIDIA_API_KEY` | no (ne basta una) | — | `src/utils/aiProviders.js` | Modello default `nvidia/nemotron-3-super-120b-a12b`. |
+| `KIMI_API_KEY` | no (ne basta una) | — | `src/utils/aiProviders.js` | Moonshot, default `kimi-for-coding`. |
+| `AI_MODEL` | no | modello default del provider | `src/utils/aiProviders.js` | Accetta `provider:modello` stile Hermes (es. `groq:llama-3.3-70b-versatile`, vince su `AI_PROVIDER`). Override endpoint via `<PREFIX>_BASE_URL` (es. `GROQ_BASE_URL`). |
 | `AI_FALLBACKS` | no | — (nessun failover) | `src/utils/aiProviders.js` | Es. `groq,openrouter`: se il primario fallisce (rate, timeout, rete, HTTP, chiave), prova in ordine. Se falliscono tutti, l'errore mostrato è del primario. |
 | `OLLAMA_HOST` | no | `http://localhost:11434` | `src/utils/aiProviders.js` | Con `AI_PROVIDER=ollama`: IA locale (default `llama3.1`), zero cloud, nessuna chiave. |
-| `AI_MODEL` | no | modello default del provider | `src/utils/aiProviders.js` | Override del modello (utile anche con `AI_API_URL` custom). |
 | `AI_API_URL` | no | `https://text.pollinations.ai` | `src/utils/aiProviders.js` | Endpoint OpenAI-compatibile custom; senza chiavi si usa Pollinations gratis, nessuna chiave richiesta. |
 | `AI_API_KEY` | no | — | `src/utils/aiProviders.js` | Chiave per `AI_API_URL` custom. |
 | `AI_DAILY_LIMIT` | no | `500` | `src/utils/ai.js` | Budget giornaliero chiamate AI su chiave condivisa (`0` = illimitato). Oltre il limite l'AI risponde "Budget giornaliero esaurito". |

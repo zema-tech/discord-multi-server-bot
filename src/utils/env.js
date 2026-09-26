@@ -20,7 +20,9 @@
   *   AI_PROVIDER           'auto'
   *   OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, GROQ_API_KEY,
   *   OPENROUTER_API_KEY, MISTRAL_API_KEY, DEEPSEEK_API_KEY, XAI_API_KEY,
-  *   TOGETHER_API_KEY, CEREBRAS_API_KEY, AI_API_KEY   '' (basta UNA chiave)
+  *   TOGETHER_API_KEY, CEREBRAS_API_KEY, FIREWORKS_API_KEY, NOVITA_API_KEY,
+  *   HF_TOKEN, NVIDIA_API_KEY, KIMI_API_KEY, AI_API_KEY   '' (basta UNA chiave;
+  *   pool con virgola: "sk-a,sk-b" = rotazione stile Hermes credential pools)
   *   AI_FALLBACKS          '' (es. "groq,openrouter": failover in ordine)
   *   OLLAMA_HOST           '' (default http://localhost:11434 per AI_PROVIDER=ollama)
  *   AI_MODEL              '' (modello custom; default sensato per provider)
@@ -89,6 +91,11 @@ function getEnv(overrides) {
     XAI_API_KEY: str(source, 'XAI_API_KEY', ''),
     TOGETHER_API_KEY: str(source, 'TOGETHER_API_KEY', ''),
     CEREBRAS_API_KEY: str(source, 'CEREBRAS_API_KEY', ''),
+    FIREWORKS_API_KEY: str(source, 'FIREWORKS_API_KEY', ''),
+    NOVITA_API_KEY: str(source, 'NOVITA_API_KEY', ''),
+    HF_TOKEN: str(source, 'HF_TOKEN', ''),
+    NVIDIA_API_KEY: str(source, 'NVIDIA_API_KEY', ''),
+    KIMI_API_KEY: str(source, 'KIMI_API_KEY', ''),
     OLLAMA_HOST: str(source, 'OLLAMA_HOST', '').trim(),
     AI_FALLBACKS: str(source, 'AI_FALLBACKS', '').trim(),
     AI_MODEL: str(source, 'AI_MODEL', '').trim(),

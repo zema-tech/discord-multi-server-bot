@@ -23,6 +23,26 @@
       "_comment": "GET web sicuri per la AI (riassunti, meteo, docs).",
       "enabled": false
     },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "_comment": "Ragionamento passo-passo per problemi complessi. Solo un server: guilds lo limita (stile Composio).",
+      "enabled": false,
+      "guilds": ["ID_SERVER_QUI"]
+    },
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "_comment": "Memoria a grafo per la AI (entità/relazioni).",
+      "enabled": false
+    },
+    "brave-search": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+      "env": { "BRAVE_API_KEY": "BSA_METTI_CHIAVE_QUI" },
+      "_comment": "Ricerca web+news (chiave gratis su brave.com). Trova i tool con /mcp cerca query:search.",
+      "enabled": false
+    },
     "sqlite": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-sqlite", "--db-path", "./data/bot.db"],

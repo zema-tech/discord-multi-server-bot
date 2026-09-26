@@ -23,8 +23,9 @@ cp mcp/servers.example.json mcp/servers.json
 # MCP_SERVERS_PATH=./mcp/servers.json
 
 # 4. Riavvia il bot, poi da Discord:
-/mcp stato    # quali server sono connessi + quanti tool
-/mcp lista    # nomi tool mcp_<server>_<tool>
+/mcp stato    # quali server sono connessi + quanti tool (+ scope guilds)
+/mcp lista    # nomi tool mcp_<server>_<tool> visibili in QUESTO server
+/mcp cerca query:github issue  # ricerca tool (discovery runtime stile Composio)
 /mcp ricarica # rilegge mcp/servers.json senza riavviare
 ```
 
@@ -68,6 +69,9 @@ Zero nuove dipendenze npm: stdio via `child_process`, HTTP via `fetch` nativa.
 
 Chiavi supportate per server (come Hermes): `command`, `args`, `env`, `cwd`,
 `url`, `headers`, `timeout` (ms, default 30000), `enabled` (default true),
+`guilds` (allowlist ID server stile Composio: i tool di quel server esistono
+solo lì — `/mcp lista`, `/mcp cerca`, `/mcp chiama` e la AI li vedono solo in
+quei server; assente = tutti),
 `tools.include` / `tools.exclude` (stringhe esatte o glob `*`/`?`, `include` vince),
 `tools.resources` / `tools.prompts` (`false` = nasconde i wrapper utility).
 Forma corta ammessa: `"filesystem": { "command": ..., "args": [...] }` oppure

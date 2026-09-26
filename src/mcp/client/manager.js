@@ -99,6 +99,7 @@ class McpManager {
             inputSchema: (t.inputSchema && typeof t.inputSchema === 'object') ? t.inputSchema : { type: 'object' },
           },
           transport,
+          cfg,
         });
       }
       // Utility resources/prompts solo se supportate (capability-aware come Hermes)
@@ -146,21 +147,59 @@ class McpManager {
       original: utilName,
       def: { name: prefixed, description: `Utility MCP ${utilName} su ${cfg.name}.`, inputSchema: { type: 'object' } },
       transport,
+      cfg,
       utility: true,
     });
   }
 
-  listDefs() {
-    return [...this.registry.values()].map((r) => r.def);
+  /**
+   * Visibilità per guild stile Composio (sessioni per scope): `guilds: [...]`
+   * nel server limita lista e chiamate a quei server; null = tutti.
+   * Senza guildId nessun filtro (retrocompatibile).
+   */
+  visibleTo(entry, guildId) {
+    if (!entry) return false;
+    if (!guildId) return true;
+    const allow = entry.cfg && entry.cfg.guilds;
+    if (!allow) return true;
+    return allow.includes(String(guildId));
   }
 
-  getTool(prefixed) {
-    return this.registry.get(String(prefixed)) || null;
+  listDefs(guildId = null) {
+    return [...this.registry.values()]
+      .filter((r) => this.visibleTo(r, guildId))
+      .map((r) => r.def);
+  }
+
+  getTool(prefixed, guildId = null) {
+    const entry = this.registry.get(String(prefixed)) || null;
+    return this.visibleTo(entry, guildId) ? entry : null;
+  }
+
+  /**
+   * Ricerca tool tra i server connessi (discovery runtime stile Composio):
+   * match su nome, descrizione e server. Max 15.
+   */
+  searchTools(query, guildId = null, limit = 15) {
+    const words = String(query || '').toLowerCase().split(/[^a-z0-9_]+/).filter((w) => w.length > 2);
+    if (!words.length) return [];
+    const scored = [];
+    for (const r of this.registry.values()) {
+      if (!this.visibleTo(r, guildId)) continue;
+      const hay = `${r.def.name} ${r.def.description || ''} ${r.server}`.toLowerCase();
+      let score = 0;
+      for (const w of words) {
+        if (r.def.name.toLowerCase().includes(w)) score += 3;
+        else if (hay.includes(w)) score += 1;
+      }
+      if (score > 0) scored.push({ def: r.def, server: r.server, score });
+    }
+    return scored.sort((a, b) => b.score - a.score).slice(0, limit).map(({ def, server, score }) => ({ ...def, server, score }));
   }
 
   /** Chiama un tool col nome prefissato. Ritorna testo pronto per la AI/chat. */
-  async callTool(prefixed, args) {
-    const entry = this.getTool(prefixed);
+  async callTool(prefixed, args, guildId = null) {
+    const entry = this.getTool(prefixed, guildId);
     if (!entry) {
       const e = new Error(`Tool MCP sconosciuto: ${prefixed}`);
       e.code = 'unknown_tool';
@@ -190,6 +229,7 @@ class McpManager {
       enabled: s.cfg.enabled,
       status: s.status,
       tools: s.tools.length,
+      guilds: s.cfg.guilds,
       utility: s.utility || [],
       error: s.error,
     }));
@@ -221,8 +261,8 @@ class McpManager {
   }
 
   /** Specs in formato OpenAI function-calling per la AI del bot. */
-  toOpenAIFunctions() {
-    return this.listDefs().map((d) => ({
+  toOpenAIFunctions(guildId = null) {
+    return this.listDefs(guildId).map((d) => ({
       name: d.name,
       description: d.description,
       parameters: d.inputSchema,

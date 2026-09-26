@@ -46,6 +46,82 @@
       }
     },
     {
+      "name": "memory",
+      "description": "Memoria persistente a grafo per la AI (entità, relazioni, osservazioni).",
+      "transport": "stdio",
+      "install": "npx -y @modelcontextprotocol/server-memory",
+      "needs": [],
+      "config": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-memory"] }
+    },
+    {
+      "name": "sequential-thinking",
+      "description": "Ragionamento passo-passo per problemi complessi (debug, decisioni).",
+      "transport": "stdio",
+      "install": "npx -y @modelcontextprotocol/server-sequential-thinking",
+      "needs": [],
+      "config": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"] }
+    },
+    {
+      "name": "brave-search",
+      "description": "Ricerca web + news via Brave (serve chiave gratis).",
+      "transport": "stdio",
+      "install": "npx -y @modelcontextprotocol/server-brave-search",
+      "needs": ["BRAVE_API_KEY"],
+      "config": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+        "env": { "BRAVE_API_KEY": "***" }
+      }
+    },
+    {
+      "name": "postgres",
+      "description": "Query SQL in sola lettura su Postgres (whitelista gli schemi).",
+      "transport": "stdio",
+      "install": "npx -y @modelcontextprotocol/server-postgres <connection-string>",
+      "needs": ["connection string"],
+      "config": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-postgres", "postgresql://user:***@localhost:5432/db"]
+      }
+    },
+    {
+      "name": "gitlab",
+      "description": "Issue, MR e repo GitLab via token.",
+      "transport": "stdio",
+      "install": "npx -y @modelcontextprotocol/server-gitlab",
+      "needs": ["GITLAB_PERSONAL_ACCESS_TOKEN", "GITLAB_API_URL (se self-hosted)"],
+      "config": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-gitlab"],
+        "env": { "GITLAB_PERSONAL_ACCESS_TOKEN": "***" },
+        "tools": { "include": ["list_issues", "create_issue", "search_*"] }
+      }
+    },
+    {
+      "name": "puppeteer",
+      "description": "Browser headless per screenshot e scraping (pesante: abilita solo se serve).",
+      "transport": "stdio",
+      "install": "npx -y @modelcontextprotocol/server-puppeteer",
+      "needs": [],
+      "config": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
+        "tools": { "exclude": ["delete_*"] }
+      }
+    },
+    {
+      "name": "composio",
+      "description": "1000+ app via Composio (Gmail, Notion, Linear...): incolla l'URL MCP della tua sessione.",
+      "transport": "http",
+      "install": "dashboard Composio → crea sessione → copia l'URL MCP",
+      "needs": ["URL sessione Composio", "COMPOSIO_API_KEY (se richiesto dall'endpoint)"],
+      "config": {
+        "url": "https://mcp.composio.dev/v3/mcp/TUA-SESSIONE",
+        "headers": { "x-api-key": "***" },
+        "tools": { "exclude": ["delete_*"] }
+      }
+    },
+    {
       "name": "openai-compatibile",
       "description": "Qualunque gateway OpenAI-compatibile (LiteLLM, OpenRouter MCP, aziendale).",
       "transport": "http",
