@@ -7,7 +7,7 @@ module.exports = defineModule({
   icon: 'sliders',
   section: 'Utilità',
   description: 'Setup guidato, sondaggi, giveaway, inviti, statistiche e info.',
-  commands: ['setup', 'wizard', 'template', 'lingua', 'permessi', 'embed', 'costruisci', 'evento', 'giveaway', 'poll', 'suggest', 'inviti', 'serverinfo', 'analytics', 'avatar', 'profilo', 'remind', 'snipe', 'export', 'mydata', 'config', 'selfimprove', 'traduci', 'userinfo', 'stats-canali', 'youtube'],
+  commands: ['setup', 'wizard', 'template', 'lingua', 'permessi', 'embed', 'costruisci', 'evento', 'giveaway', 'poll', 'suggest', 'inviti', 'serverinfo', 'analytics', 'avatar', 'profilo', 'remind', 'snipe', 'export', 'mydata', 'config', 'selfimprove', 'traduci', 'userinfo', 'stats-canali', 'youtube', 'token'],
   db: ['guildConfig', 'customPerms', 'invites', 'analytics'],
   events: ['guildMemberAdd', 'inviteTracker'],
   handlers: [],

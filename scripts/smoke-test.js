@@ -2675,6 +2675,82 @@ try {
   fail(`wow (qatest): ${e.message.split('\n')[0]}`);
 }
 
+// ------------------------------------------------- (c18) MCP PER CLAUDE
+console.log('== [18/5] MCP (token + JSON-RPC + tool reali) ==');
+hostPromise = hostPromise.then(() => (async () => {
+  try {
+    const tokens = require(path.join(DB_DIR, 'apiTokens.js'));
+    for (const fn of ['createToken', 'verifyToken', 'listTokens', 'revokeToken']) {
+      if (typeof tokens[fn] !== 'function') fail(`mcp: apiTokens.${fn} mancante`);
+    }
+    const MQ = 'qatest_mcp';
+    const rec = tokens.createToken(MQ, 'owner1', 'qa');
+    if (!rec.token || !rec.token.startsWith('dbt_')) fail('mcp: formato token');
+    const back = tokens.verifyToken(rec.token);
+    if (!back || back.guildId !== MQ) fail('mcp: verify');
+    if (tokens.verifyToken('dbt_nope') !== null) fail('mcp: token falso accettato');
+    if (!tokens.listTokens(MQ).some((t) => t.id === rec.id)) fail('mcp: lista');
+    if (tokens.revokeToken(rec.id) !== true || tokens.verifyToken(rec.token) !== null) {
+      fail('mcp: revoke');
+    }
+
+    // HTTP reale: express + mountMcp, token QA fresco.
+    const rec2 = tokens.createToken(MQ, 'owner1', 'qa-http');
+    const express = require('express');
+    const { mountMcp } = require(path.join(ROOT, 'src', 'mcp', 'server.js'));
+    const app = express();
+    app.use(express.json({ limit: '256kb' }));
+    mountMcp(app);
+    const port = 31000 + Math.floor(Math.random() * 1000);
+    const server = await new Promise((resolve, reject) => {
+      const s = app.listen(port, () => resolve(s));
+      s.on('error', reject);
+    });
+    const call = async (body, token) => {
+      const res = await fetch(`http://127.0.0.1:${port}/mcp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(body),
+      });
+      return { status: res.status, json: await res.json().catch(() => ({})) };
+    };
+    try {
+      const noAuth = await call({ jsonrpc: '2.0', id: 1, method: 'tools/list' });
+      if (noAuth.status !== 401) fail('mcp: senza token atteso 401');
+      const init = await call({ jsonrpc: '2.0', id: 1, method: 'initialize' }, rec2.token);
+      if (init.status !== 200 || !init.json.result || !init.json.result.capabilities) fail('mcp: initialize');
+      const list = await call({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, rec2.token);
+      const names = (list.json.result?.tools || []).map((t) => t.name);
+      for (const t of ['modules_list', 'module_status', 'module_toggle', 'guild_snapshot', 'brain_search', 'ticket_stats']) {
+        if (!names.includes(t)) fail(`mcp: tool ${t} mancante`);
+      }
+      const mods = await call({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'modules_list', arguments: {} } }, rec2.token);
+      if (mods.status !== 200 || !JSON.parse(mods.json.result.content[0].text).some((m) => m.id === 'tickets')) {
+        fail('mcp: modules_list non risponde');
+      }
+      const wrongGuild = await call({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'module_status', arguments: { guildId: 'altra' } } }, rec2.token);
+      if (wrongGuild.status !== 400) fail('mcp: guild diversa dal token dovrebbe fallire');
+      const status = await call({ jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'module_status', arguments: { guildId: MQ } } }, rec2.token);
+      if (status.status !== 200) fail('mcp: module_status');
+      const unknown = await call({ jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'nope', arguments: {} } }, rec2.token);
+      if (unknown.status !== 400) fail('mcp: tool ignoto dovrebbe fallire');
+    } finally {
+      await new Promise((r) => server.close(r));
+    }
+    tokens.revokeToken(rec2.id);
+    const { load, save, dbFile } = require(path.join(DB_DIR, 'jsonDb.js'));
+    const f = dbFile('apiTokens');
+    const db = load(f);
+    for (const [k, v] of Object.entries(db)) {
+      if (v && v.guildId === MQ) delete db[k];
+    }
+    save(f, db);
+    console.log('mcp: token, protocollo, tool, isolamento guild ok');
+  } catch (e) {
+    fail(`mcp (qatest): ${e.message.split('\n')[0]}`);
+  }
+})());
+
 // ------------------------------------------------------------------ REPORT
 function report() {
 console.log('\n================ SMOKE TEST ================');

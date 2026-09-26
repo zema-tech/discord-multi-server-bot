@@ -170,6 +170,17 @@ function startDashboard(client) {
   auth.registerAuthRoutes(app);
   app.use('/api', createApiRateLimiter(), auth.requireAuth, createApiRouter(client));
 
+  // MCP per Claude/esterno: POST /mcp con Bearer personale (vedi /token crea).
+  // Rate-limit dedicato come /api, mai cookie/sessione: solo token.
+  try {
+    const { mountMcp } = require('../mcp/server');
+    const mcpLimiter = createApiRateLimiter();
+    app.use('/mcp', mcpLimiter);
+    if (typeof mountMcp === 'function') mountMcp(app);
+  } catch (e) {
+    console.error('[Dashboard] mcp non montato:', e && e.message ? e.message : e);
+  }
+
   // Registro audit: best-effort, mai bloccare l'avvio se il modulo manca.
   try {
     const { mountAudit } = require('./auditRoutes');
