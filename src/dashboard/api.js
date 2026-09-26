@@ -52,9 +52,9 @@ const MODULE_FIELDS = {
   starboard: { channelId: 'channel', threshold: 'number', emoji: 'emoji' },
   confessioni: { channelId: 'channel' },
   levels: { levelupEnabled: 'bool', levelupChannelId: 'channel' },
-  tickets: { logChannelId: 'channel', maxPerUser: 'number', autoCloseDays: 'number' },
+  tickets: { logChannelId: 'channel', maxPerUser: 'number', autoCloseDays: 'number', panelChannelId: 'channel', categoryId: 'channel', supportRoleIds: 'roles', autoDeleteDays: 'number' },
   tempvoice: { lobbyChannelId: 'channel', categoryId: 'channel' },
-  ai: { mentionReply: 'bool', automodAI: 'bool', ticketAI: 'bool', funAI: 'bool', systemPrompt: 'text' },
+  ai: { mentionReply: 'bool', automodAI: 'bool', ticketAI: 'bool', funAI: 'bool', systemPrompt: 'text', mentionChannels: 'channels' },
   logging: { logChannelId: 'channel' },
   // Moduli "lista": validati ad-hoc nel PUT (action-based), mai con checkType.
   autoresponder: {},
@@ -73,6 +73,9 @@ function checkType(tipo, v) {
   if (tipo === 'emoji') return typeof v === 'string' && v.length >= 1 && v.length <= 50;
   if (tipo === 'roles') {
     return Array.isArray(v) && v.length <= 25 && v.every((r) => typeof r === 'string');
+  }
+  if (tipo === 'channels') {
+    return Array.isArray(v) && v.length <= 50 && v.every((r) => typeof r === 'string');
   }
   return false;
 }
@@ -123,10 +126,10 @@ function resolveRoles(guild, ids) {
 // Range allineati ai clamp dei DB (mai più larghi di loro):
 // tickets sanitizza maxPerUser 1..20 e autoCloseDays 0..365,
 // starboard threshold 1..100, autorole delaySeconds 0..3600.
-const NUMBER_RANGES = {
-  maxMentions: [1, 20], maxPerUser: [1, 20], autoCloseDays: [0, 365],
-  maxCapsPercent: [10, 100], threshold: [1, 100], delaySeconds: [0, 3600],
-};
+      const NUMBER_RANGES = {
+        maxMentions: [1, 20], maxPerUser: [1, 20], autoCloseDays: [0, 365], autoDeleteDays: [0, 90],
+        maxCapsPercent: [10, 100], threshold: [1, 100], delaySeconds: [0, 3600],
+      };
 // aiConfig tronca systemPrompt a MAX_SYSTEM_PROMPT=2000: stesso tetto qui.
 const TEXT_LIMITS = {
   welcomeMessage: 500, goodbyeMessage: 500, systemPrompt: 2000, badWords: 1000,
@@ -177,6 +180,15 @@ async function buildModulePatch(mod, body, gl) {
       if (r.missing) throw patchError('Un ruolo selezionato non esiste più: ricarica la pagina.');
       if (r.managed) throw patchError('I ruoli dei bot non possono essere autorole.');
       v = r.roles;
+    } else if (spec[k] === 'channels') {
+      const out = [];
+      for (const id of v) {
+        if (!isSnowflake(id)) throw patchError(`Canale non valido in ${k}.`);
+        const r = await resolveChannel(gl, id);
+        if (r.invalid || r.missing) throw patchError('Un canale selezionato non esiste più: ricarica la pagina.');
+        if (!out.includes(id)) out.push(id);
+      }
+      v = out.slice(0, 50);
     } else if (spec[k] === 'lang') {
       if (v !== 'it' && v !== 'en') throw patchError('Lingua non valida (it/en).');
     } else if (spec[k] === 'emoji' && typeof v === 'string') {
@@ -981,8 +993,12 @@ function createApiRouter(client) {
         description: 'Supporto organizzato con auto-chiusura per inattività.',
         fields: [
           { key: 'logChannelId', label: 'Canale log ticket', type: 'channel' },
+          { key: 'panelChannelId', label: 'Canale pannello apertura', type: 'channel' },
+          { key: 'categoryId', label: 'Categoria ticket', type: 'channel' },
+          { key: 'supportRoleIds', label: 'Ruoli staff ticket', type: 'roles', help: 'Possono vedere e gestire i ticket.' },
           { key: 'maxPerUser', label: 'Max ticket aperti per utente', type: 'number' },
           { key: 'autoCloseDays', label: 'Giorni auto-chiusura (0 = off)', type: 'number' },
+          { key: 'autoDeleteDays', label: 'Giorni auto-cancellazione chiusi (0 = off)', type: 'number' },
         ],
       },
       {
@@ -998,6 +1014,7 @@ function createApiRouter(client) {
         description: 'Risposte automatiche e assistenza contestuale.',
         fields: [
           { key: 'mentionReply', label: 'Risposta alle menzioni', type: 'bool' },
+          { key: 'mentionChannels', label: 'Canali risposta menzioni (vuoto = tutti)', type: 'channels', help: 'Solo in questi canali il bot risponde quando menzionato.' },
           { key: 'automodAI', label: 'Automod AI', type: 'bool' },
           { key: 'ticketAI', label: 'AI nei ticket', type: 'bool' },
           { key: 'funAI', label: 'AI divertente', type: 'bool' },

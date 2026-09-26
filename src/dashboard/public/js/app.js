@@ -31,15 +31,15 @@ const DETAIL_SCHEMA = {
 
 /** Tips brevi per modulo (stile MEE6/Peak: cosa fare prima). */
 const MOD_TIPS = {
-  ai: ['Attiva solo i sotto-servizi che usi (menzioni, ticket, fun).', 'Scrivi il prompt di sistema in italiano, max 2000 caratteri.'],
-  autoresponder: ['Un trigger = una riga: parola chiave a sinistra, risposta a destra.', 'Usa il pannello sotto per aggiungere/rimuovere senza salvare.'],
-  tickets: ['Imposta il canale log prima di aprire ticket.', 'Auto-chiusura 0 = mai (solo manuale).'],
+  ai: ['Attiva solo i sotto-servizi che usi (menzioni, ticket, fun).', 'Scrivi il prompt di sistema in italiano, max 2000 caratteri.', 'Con Risposta menzioni attiva, limita i canali per evitare spam.'],
+  autoresponder: ['Modalità: contiene (default), esatta o regex.', 'Usa il pannello sotto per aggiungere/rimuovere senza salvare.'],
+  tickets: ['Imposta canale log + canale pannello + categoria prima di aprire ticket.', 'Auto-chiusura 0 = mai (solo manuale); auto-cancellazione pulisce i chiusi.'],
   tempvoice: ['Serve una lobby vocale + una categoria: senza, le stanze non nascono.'],
   starboard: ['Soglia alta = bacheca selettiva; emoji singola e riconoscibile.'],
   moderation: ['Parti con anti-spam + anti-invite, aggiungi il resto dopo.'],
   levels: ['Annunci level-up nello stesso canale se non scegli un canale.'],
   autorole: ['Mai ruoli dei bot; un ritardo di qualche secondo evita i raid.'],
-  customCommands: ['I comandi !nome usano {user} {server} {count}; max 20.'],
+  customCommands: ['I comandi !nome usano {user} {server} {count}; max 20.', 'Con la matita modifichi la risposta senza ricreare il comando.'],
   system: ['Lingua e log stanno in Generale; benvenuto e addii hanno variabili {user} {server} {count}.'],
   fun: ['Le confessioni sono anonime con cooldown anti-abuso.'],
 };
@@ -462,6 +462,12 @@ function fieldInput(mod, f, cur) {
       const opts = roles.map((r) => `<option value="${esc(r.id)}"${curArr.includes(String(r.id)) ? ' selected' : ''}>@${esc(r.name)}</option>`).join('');
       return `<div class="field"><label>${esc(f.label)}</label><select multiple size="5" data-fkey="${esc(f.key)}">${opts}</select>${help}</div>`;
     }
+    case 'channels': {
+      const chs = (S.meta.channels || []).filter((c) => c.type === 0 || c.type === 'GUILD_TEXT' || c.type == null);
+      const curArr = Array.isArray(val) ? val.map(String) : [];
+      const opts = chs.map((c) => `<option value="${esc(c.id)}"${curArr.includes(String(c.id)) ? ' selected' : ''}>#${esc(c.name || c.id)}</option>`).join('');
+      return `<div class="field"><label>${esc(f.label)}</label><select multiple size="5" data-fkey="${esc(f.key)}">${opts}</select>${help}</div>`;
+    }
     case 'lang':
       return `<div class="field"><label>${esc(f.label)}</label><select data-fkey="${esc(f.key)}">
         <option value="it"${val === 'it' ? ' selected' : ''}>Italiano</option>
@@ -511,20 +517,23 @@ function wireConfig() {
 function customAutoresponder() {
   const list = ((S.detail.lists || {}).autoresponder) || [];
   const rows = list.map((t) => `<tr><td class="mono">${esc(t.match || t.id || '?')}</td><td>${esc((t.response || '').slice(0, 90))}</td>
-    <td class="mono">${esc(t.mode || '')}</td><td><button class="icon-btn danger" data-ar-del="${esc(t.id)}">🗑️</button></td></tr>`).join('');
+    <td class="mono">${esc(t.mode || 'include')}${t.caseSensitive ? ' 🔠' : ''}</td><td><button class="icon-btn danger" data-ar-del="${esc(t.id)}">🗑️</button></td></tr>`).join('');
   return `<div class="row-flex" style="margin:.6rem 0"><span class="badge">${list.length} trigger</span></div>
     <table class="tbl"><thead><tr><th>Trigger</th><th>Risposta</th><th>Modo</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="empty">Nessun trigger.</td></tr>'}</tbody></table>
     <div class="row-flex" style="margin-top:.7rem">
       <input type="text" id="arMatch" class="grow" placeholder="Parola trigger…" maxlength="200">
       <input type="text" id="arResp" class="grow" placeholder="Risposta…" maxlength="1500">
+      <select id="arMode" title="Modalità"><option value="include">contiene</option><option value="exact">esatta</option><option value="regex">regex</option></select>
+      <label class="check-row" title="Maiuscole/minuscole"><input type="checkbox" id="arCase"> Aa</label>
       <button class="btn btn-primary btn-sm" id="arAdd">➕ Aggiungi</button>
-    </div>`;
+    </div>
+    <p class="help">exact = messaggio identico · regex = pattern (es. ^ciao.*) · 🔠 = distingue maiuscole.</p>`;
 }
 
 function customCommands() {
   const list = ((S.detail.lists || {}).customCommands) || [];
   const rows = list.map((t) => `<tr><td class="mono">!${esc(t.name || '?')}</td><td>${esc((t.response || '').slice(0, 90))}</td>
-    <td class="mono">${t.uses ?? ''}</td><td><button class="icon-btn danger" data-cc-del="${esc(t.name)}">🗑️</button></td></tr>`).join('');
+    <td class="mono">${t.uses ?? ''}</td><td style="white-space:nowrap"><button class="icon-btn" data-cc-edit="${esc(t.name)}" title="Modifica">✏️</button> <button class="icon-btn danger" data-cc-del="${esc(t.name)}">🗑️</button></td></tr>`).join('');
   return `<div class="row-flex" style="margin:.6rem 0"><span class="badge">${list.length}/20 comandi</span></div>
     <table class="tbl"><thead><tr><th>Comando</th><th>Risposta</th><th>Usi</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="empty">Nessun comando. Variabili: {user} {args} {count}…</td></tr>'}</tbody></table>
     <div class="row-flex" style="margin-top:.7rem">
@@ -553,7 +562,7 @@ function wireLists() {
   if (arAdd) arAdd.onclick = async () => {
     const match = $('#arMatch').value.trim(), response = $('#arResp').value.trim();
     if (!match || !response) return toast('Parola e risposta obbligatorie.', 'err');
-    try { await Api.saveModule(S.gid, 'autoresponder', { action: 'add', match, response }); toast('Trigger aggiunto ✅', 'ok'); await reload(); }
+    try { await Api.saveModule(S.gid, 'autoresponder', { action: 'add', match, response, mode: $('#arMode').value, caseSensitive: $('#arCase').checked }); toast('Trigger aggiunto ✅', 'ok'); await reload(); }
     catch (e) { apiErr(e); }
   };
   document.querySelectorAll('[data-ar-del]').forEach((b) => {
@@ -566,9 +575,27 @@ function wireLists() {
   if (ccAdd) ccAdd.onclick = async () => {
     const name = $('#ccName').value.trim(), response = $('#ccResp').value.trim();
     if (!name || !response) return toast('Nome e risposta obbligatorie.', 'err');
-    try { await Api.saveModule(S.gid, 'commands', { action: 'create', name, response }); toast('Comando creato ✅', 'ok'); await reload(); }
+    const editing = ccAdd.dataset.editing;
+    try {
+      await Api.saveModule(S.gid, 'commands', editing ? { action: 'update', name, response } : { action: 'create', name, response });
+      toast(editing ? 'Comando aggiornato ✅' : 'Comando creato ✅', 'ok');
+      await reload();
+    }
     catch (e) { apiErr(e); }
   };
+  document.querySelectorAll('[data-cc-edit]').forEach((b) => {
+    b.onclick = () => {
+      const items = ((S.detail.lists || {}).customCommands) || [];
+      const it = items.find((t) => t.name === b.dataset.ccEdit);
+      if (!it) return;
+      $('#ccName').value = it.name;
+      $('#ccResp').value = it.response || '';
+      const add = $('#ccAdd');
+      add.dataset.editing = it.name;
+      add.textContent = `💾 Salva !${it.name}`;
+      $('#ccName').disabled = true;
+    };
+  });
   document.querySelectorAll('[data-cc-del]').forEach((b) => {
     b.onclick = async () => {
       try { await Api.saveModule(S.gid, 'commands', { action: 'remove', name: b.dataset.ccDel }); toast('Comando rimosso.', 'ok'); await reload(); }
