@@ -1,18 +1,12 @@
 'use strict';
 /**
  * mcp/tools/modules.js — tool moduli via Commander (orchestratore, mai DB diretti).
+ * Lo status include la voce roster (nome/membri/freschezza) quando disponibile.
  */
-const { textResult, toolError, ERR } = require('../protocol');
+const { assertGuild, rosterStatus, textResult, toolError, ERR } = require('./scope');
 
 function commander() {
   return require('../../modules/commander');
-}
-
-function assertGuild(tokenRec, guildId) {
-  const gid = String(guildId || '');
-  if (!gid) throw toolError(ERR.INVALID_PARAMS, 'guildId mancante.');
-  if (gid !== tokenRec.guildId) throw toolError(ERR.FORBIDDEN_GUILD, 'Token non valido per questo server.');
-  return gid;
 }
 
 const modulesList = {
@@ -32,7 +26,7 @@ const modulesList = {
 const moduleStatus = {
   def: {
     name: 'module_status',
-    description: 'Salute dei moduli in un server: on/off, protezione, errori.',
+    description: 'Salute dei moduli in un server: on/off, protezione, errori + voce roster.',
     inputSchema: {
       type: 'object',
       properties: { guildId: { type: 'string', description: 'ID server (deve matchare il token)' } },
@@ -42,17 +36,25 @@ const moduleStatus = {
   async run(args, token) {
     const gid = assertGuild(token, args.guildId);
     const c = commander();
-    return textResult(JSON.stringify(c.moduleHealth(gid).map((m) => ({
-      id: m.id, enabled: m.enabled, isolated: m.isolated, ok: m.ok,
-      errors: (m.errors || []).length,
-    }))));
+    const roster = rosterStatus(gid);
+    const health = c.moduleHealth(gid);
+    return textResult(JSON.stringify({
+      guildId: gid,
+      roster: roster.entry,
+      rosterUpdatedAt: roster.updatedAt,
+      botPresente: roster.present,
+      modules: health.map((m) => ({
+        id: m.id, enabled: m.enabled, isolated: m.isolated, ok: m.ok,
+        errors: (m.errors || []).length,
+      })),
+    }));
   },
 };
 
 const moduleToggle = {
   def: {
     name: 'module_toggle',
-    description: 'Accende/spegne un modulo in un server.',
+    description: 'Accende/spegne un modulo in un server (via Commander).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -67,8 +69,12 @@ const moduleToggle = {
     const gid = assertGuild(token, args.guildId);
     if (typeof args.enabled !== 'boolean') throw toolError(ERR.INVALID_PARAMS, 'enabled deve essere boolean.');
     const c = commander();
-    const entry = c.setModuleEnabled(gid, args.moduleId, args.enabled);
-    return textResult(JSON.stringify({ id: entry?.id || args.moduleId, enabled: entry?.enabled ?? args.enabled }));
+    try {
+      const entry = c.setModuleEnabled(gid, args.moduleId, args.enabled);
+      return textResult(JSON.stringify({ id: entry?.id || args.moduleId, enabled: entry?.enabled ?? args.enabled }));
+    } catch (e) {
+      throw toolError(ERR.INVALID_PARAMS, String((e && e.message) || 'Toggle fallito.').slice(0, 300));
+    }
   },
 };
 

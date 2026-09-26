@@ -3,7 +3,9 @@
  * src/dashboard/discordRest.js — Chiamate REST a Discord con Bot token.
  *
  * Usato dal processo dashboard standalone (senza gateway proprio) per
- * leggere canali, ruoli e conteggi dei server. Solo GET, mai scritture.
+ * leggere canali, ruoli e conteggi dei server, e per l'unica scrittura
+ * consentita: `sendMessage` (usata dal tool MCP `announce_send`, con scope
+ * canale + anti everyone/here nel tool, mai qui dentro).
  * Errori con .status HTTP (401/403/404/429/5xx) o senza status (rete/timeout).
  *
  * Niente dipendenze: fetch globale + AbortController (timeout 15s).
@@ -99,4 +101,47 @@ async function getRoles(gid) {
     }));
 }
 
-module.exports = { getGuild, getChannels, getRoles };
+/** Invia un messaggio di testo in un canale. Ritorna { id, channelId }. */
+async function sendMessage(channelId, text) {
+  const t = token();
+  if (!t) {
+    const e = new Error('DISCORD_TOKEN mancante: invio non possibile.');
+    e.status = 500;
+    throw e;
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const r = await fetch(`${DISCORD_API}/channels/${encodeURIComponent(channelId)}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bot ${t}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'discord-multi-server-bot-dashboard/1.0',
+      },
+      body: JSON.stringify({ content: text }),
+      signal: controller.signal,
+    });
+    if (r.status === 429) {
+      const e = new Error('Discord rate-limit (429), riprova tra poco.');
+      e.status = 429;
+      throw e;
+    }
+    if (!r.ok) {
+      const e = new Error(`Discord API invio: HTTP ${r.status}`);
+      e.status = r.status;
+      throw e;
+    }
+    const msg = await r.json();
+    return { id: msg && msg.id ? String(msg.id) : null, channelId: String(channelId) };
+  } catch (e) {
+    if (e && e.name === 'AbortError') {
+      throw new Error('Discord non risponde (timeout 15s), riprova più tardi.');
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+module.exports = { getGuild, getChannels, getRoles, sendMessage };

@@ -1,4 +1,4 @@
-# MCP — due direzioni (stile Hermes Agent)
+# MCP — telecomando del bot (stile Hermes Agent)
 
 Ispirato a [NousResearch/hermes-agent](https://github.com/nousresearch/hermes-agent):
 stessi concetti (`mcp_servers`, `tools.include/exclude`, stdio + Streamable HTTP,
@@ -9,11 +9,11 @@ prefisso `mcp_<server>_<tool>`), adattati al bot.
 | **A. Server** (IA → bot) | Claude/ChatGPT operano il bot via `POST /mcp` | `/token crea`, snippet in `mcp/claude.example.json` |
 | **B. Client** (bot → IA/tool) | Il bot usa MCP server esterni come tool | `mcp/servers.json` (da `mcp/servers.example.json`), comando `/mcp` |
 
-## A. Server — collega Claude al bot
+## A. Server — telecomando del bot
 
-Il bot espone un **MCP server** (Streamable HTTP) su `POST /mcp`: Claude opera
-il bot via Commander — moduli, salute, statistiche, cervello — solo nel server
-legato al tuo token. Niente password Discord a Claude, solo un token revocabile.
+Il bot espone un **MCP server** (Streamable HTTP) su `POST /mcp`. Protocollo
+(`src/mcp/protocol.js`) e auth Bearer (`src/mcp/auth.js`) sono stabili e non si
+toccano: ogni token vale per **un solo server** e ogni tool lo enforza.
 
 ### A.1. Crea il token (una volta, da Discord)
 
@@ -47,31 +47,62 @@ metodi `initialize` (risponde con header `Mcp-Session-Id`, da rimandare),
 `tools/list`, `tools/call`. `GET /mcp` apre uno stream SSE (serve sessione),
 `DELETE /mcp` la chiude.
 
-Struttura codice: `src/mcp/` — `protocol.js` (JSON-RPC), `auth.js`
-(Bearer + sessioni), `tools/` (un file per area + `index.js` registro:
-nuovo tool = nuovo file + una riga), `server.js` (mount Express).
+Struttura codice: `src/mcp/` — `protocol.js` (JSON-RPC, stabile), `auth.js`
+(Bearer + sessioni, stabile), `tools/` (un file per area + `index.js`
+registro: nuovo tool = nuovo file + una riga), `server.js` (mount Express).
 
-### A.3. Cosa può fare Claude
+### A.3. Regole di scope (valgono per tutti i tool)
+
+1. Ogni chiamata richiede `guildId`, che deve matchare il server del token
+   (403 logico altrimenti) — helper condiviso `src/mcp/tools/scope.js`.
+2. Lo **status viene dal roster**: `module_status` e `guild_info` includono la
+   voce presence del server (nome, membri, freschezza snapshot) letta dal DB
+   condiviso. Se il bot non è (più) nel server, il tool lo segnala
+   (`botPresente: false`) ma risponde comunque — il roster è informativo,
+   mai un blocco.
+3. I `limit` dei top sono cappati (default 10, max 25).
+
+### A.4. Tool di lettura (mai scritture)
 
 | Tool | Cosa fa |
 |------|---------|
-| `modules_list` | moduli, versioni, comandi |
-| `module_status` | on/off, protezione 🛡️, errori (per server) |
-| `module_toggle` | accende/spegne un modulo |
-| `guild_snapshot` | moduli + ticket + top livelli |
-| `brain_search` | cerca in skill/memorie/file del server |
+| `modules_list` | moduli, versioni, comandi (senza guildId) |
+| `module_status` | on/off, protezione 🛡️, errori + voce roster |
+| `guild_info` | scheda server: roster, moduli on, ticket aperti, note, skill |
+| `guild_snapshot` | moduli + ticket + top livelli (compatta) |
+| `brain_search` | cerca in skill/memorie/file (`query`) |
 | `ticket_stats` | per tipo, chiusura media, rating, top staff |
+| `economy_top` | top portafogli (`limit`) |
+| `levels_top` | top livelli/XP (`limit`) |
+| `mod_history` | storico moderazione di un utente (`userId`, `limit`) |
+| `analytics_summary` | messaggi/ingressi/uscite ultimi N giorni (`days`, max 30) |
+| `config_get` | config server in sola lettura (lingua, canali, automod…) |
+| `shop_list` | catalogo ruoli in vendita |
+| `invites_top` | top invitanti (`limit`) |
+| `channels_list` | canali live da Discord (id, nome, tipo) |
+| `roles_list` | ruoli live da Discord (id, nome, colore) |
 
-Ogni chiamata richiede `guildId`, che deve matchare il server del token
-(403 logico altrimenti). Rate-limit come le API dashboard.
+### A.5. Tool di scrittura (via Commander + scope, mai DB diretti)
 
-### A.4. Gestione
+| Tool | Cosa fa | Gate |
+|------|---------|------|
+| `module_toggle` | accende/spegne un modulo | `Commander.setModuleEnabled` |
+| `module_reload` | ricarica senza restart, azzera errori+breaker | `Commander.reloadModule` |
+| `module_reset` | azzera errori+protezione | `Commander.resetModule` |
+| `module_config` | cambia config (general, welcome, logging, levels, automod, autorole, starboard, confessioni, tickets, tempvoice, ai). Leggi prima con `config_get`. Patch max 20 chiavi, valori max 2KB | `Commander.updateModuleConfig` |
+| `announce_send` | invia un messaggio in un canale testuale **del server** (verificato in lista live, max 2000 char, @everyone/@here neutralizzati) | REST Bot token + scope canale |
+
+Esempio (Claude): "leggi `config_get`, alza il livello di automod con
+`module_config`, conferma con `module_status`, avvisa in #annunci con
+`announce_send`".
+
+### A.6. Gestione
 
 - `/token lista` — usi e ultimo uso di ogni token
 - `/token revoca id:...` — stacca Claude subito
 
 Sicurezza: token salvati solo come sha256, mai nei log; revoca istantanea;
-ogni toggle passa dal gate Commander come tutto il resto.
+ogni scrittura passa dal gate Commander come tutto il resto.
 
 ## B. Client — collega il bot alle IA (stile Hermes)
 

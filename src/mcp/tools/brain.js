@@ -2,14 +2,7 @@
 /**
  * mcp/tools/brain.js — ricerca nel cervello del server (sola lettura).
  */
-const { textResult, toolError, ERR } = require('../protocol');
-
-function assertGuild(tokenRec, guildId) {
-  const gid = String(guildId || '');
-  if (!gid) throw toolError(ERR.INVALID_PARAMS, 'guildId mancante.');
-  if (gid !== tokenRec.guildId) throw toolError(ERR.FORBIDDEN_GUILD, 'Token non valido per questo server.');
-  return gid;
-}
+const { assertGuild, textResult, toolError, ERR } = require('./scope');
 
 const brainSearch = {
   def: {

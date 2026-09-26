@@ -2,17 +2,10 @@
 /**
  * mcp/tools/guild.js — istantanea server: moduli, ticket, livelli.
  */
-const { textResult, toolError, ERR } = require('../protocol');
+const { assertGuild, textResult } = require('./scope');
 
 function commander() {
   return require('../../modules/commander');
-}
-
-function assertGuild(tokenRec, guildId) {
-  const gid = String(guildId || '');
-  if (!gid) throw toolError(ERR.INVALID_PARAMS, 'guildId mancante.');
-  if (gid !== tokenRec.guildId) throw toolError(ERR.FORBIDDEN_GUILD, 'Token non valido per questo server.');
-  return gid;
 }
 
 const guildSnapshot = {
