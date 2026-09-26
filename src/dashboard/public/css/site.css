@@ -425,3 +425,19 @@ canvas.chart { max-height: 260px; }
   .stats { grid-template-columns: 1fr; }
   .hero-cta .btn { width: 100%; justify-content: center; }
 }
+
+/* ---- Dettaglio modulo (Moduli unificati, stile MEE6/Peak) ---- */
+.mod[data-open] { cursor: pointer; }
+.mod[data-open]:hover { border-color: var(--accent); transform: translateY(-2px); }
+.mod-detail-bar { display: flex; align-items: center; gap: 0.8rem; margin-bottom: 0.4rem; flex-wrap: wrap; }
+.mod-detail-bar h1 { font-family: var(--font-display); font-size: 1.6rem; margin: 0; }
+.mod-detail-bar .ico { font-size: 1.8rem; }
+.mod-detail-bar .switch { margin-left: auto; }
+.mod-detail-bar [data-back] { flex: none; }
+.mod-detail-grid { display: grid; gap: 1.2rem; margin-top: 1.2rem; }
+.mod-detail-grid .form-card { margin-bottom: 0; }
+.defaults-box { background: var(--card-bg); border: 1px dashed var(--card-border); border-radius: var(--radius-m); padding: 1rem 1.2rem; margin-top: 1rem; font-size: 0.9rem; }
+.defaults-box h4 { margin: 0 0 0.5rem; font-size: 0.95rem; }
+.defaults-box div { padding: 0.15rem 0; color: var(--text-secondary); }
+.defaults-box div b { color: var(--text); margin-right: 0.5rem; }
+.defaults-box div span { font-family: ui-monospace, monospace; font-size: 0.82rem; }

@@ -1,18 +1,52 @@
-/* app.js — Mission Control. Viste: panoramica, moduli, configurazione, permessi, audit. */
+/* app.js — Mission Control. Viste: panoramica, moduli (+dettaglio con config), permessi, audit. */
 'use strict';
 
 const S = {
   me: null, guilds: [], gid: null, detail: null, schema: [], meta: { channels: [], roles: [] },
-  route: 'panoramica', charts: [],
+  route: 'panoramica', charts: [], selectedMod: null,
 };
 
 const NAV = [
   ['panoramica', '📊', 'Panoramica'],
   ['moduli', '🧩', 'Moduli'],
-  ['config', '⚙️', 'Configurazione'],
   ['permessi', '🔐', 'Permessi'],
   ['audit', '🧾', 'Audit'],
   ['diag', '🩺', 'Diagnostica'],
+];
+
+/** Modulo controller -> voci schema mostrate nel dettaglio (extra inclusi). */
+const DETAIL_SCHEMA = {
+  ai: ['ai'],
+  autoresponder: ['autoresponder'],
+  autorole: ['autorole'],
+  customCommands: ['commands'],
+  levels: ['levels', 'rewards'],
+  tickets: ['tickets'],
+  tempvoice: ['tempvoice'],
+  starboard: ['starboard'],
+  moderation: ['automod'],
+  system: ['general', 'welcome', 'logging'],
+  fun: ['confessioni'],
+};
+
+/** Tips brevi per modulo (stile MEE6/Peak: cosa fare prima). */
+const MOD_TIPS = {
+  ai: ['Attiva solo i sotto-servizi che usi (menzioni, ticket, fun).', 'Scrivi il prompt di sistema in italiano, max 2000 caratteri.'],
+  autoresponder: ['Un trigger = una riga: parola chiave a sinistra, risposta a destra.', 'Usa il pannello sotto per aggiungere/rimuovere senza salvare.'],
+  tickets: ['Imposta il canale log prima di aprire ticket.', 'Auto-chiusura 0 = mai (solo manuale).'],
+  tempvoice: ['Serve una lobby vocale + una categoria: senza, le stanze non nascono.'],
+  starboard: ['Soglia alta = bacheca selettiva; emoji singola e riconoscibile.'],
+  moderation: ['Parti con anti-spam + anti-invite, aggiungi il resto dopo.'],
+  levels: ['Annunci level-up nello stesso canale se non scegli un canale.'],
+  autorole: ['Mai ruoli dei bot; un ritardo di qualche secondo evita i raid.'],
+  customCommands: ['I comandi !nome usano {user} {server} {count}; max 20.'],
+  system: ['Lingua e log stanno in Generale; benvenuto e addii hanno variabili {user} {server} {count}.'],
+  fun: ['Le confessioni sono anonime con cooldown anti-abuso.'],
+};
+const GENERIC_TIPS = [
+  'Attiva il modulo con lo switch: spento, la config resta in bozza.',
+  'Canali e ruoli si scelgono dalle liste live del server.',
+  'Lascia vuoto un campo per non impostarlo (i numeri vuoti non toccano nulla).',
 ];
 
 const $ = (s, r) => (r || document).querySelector(s);
@@ -164,10 +198,14 @@ async function loadGuild() {
 }
 
 function onHash() {
-  const r = (location.hash.match(/view=([a-z]+)/) || [])[1];
+  const h = location.hash;
+  let r = (h.match(/view=([a-z]+)/) || [])[1];
+  if (r === 'config') r = 'moduli'; // voce rimossa: Configurazione vive nel dettaglio modulo
   S.route = NAV.some((n) => n[0] === r) ? r : 'panoramica';
+  S.selectedMod = S.route === 'moduli' ? ((h.match(/mod=([A-Za-z0-9-]+)/) || [])[1] || null) : null;
   renderNav();
-  ({ panoramica: vOverview, moduli: vModules, config: vConfig, permessi: vPerms, audit: vAudit, diag: vDiag })[S.route]();
+  if (S.route === 'moduli' && S.selectedMod) return vModuleDetail(S.selectedMod);
+  ({ panoramica: vOverview, moduli: vModules, permessi: vPerms, audit: vAudit, diag: vDiag })[S.route]();
 }
 
 function renderNav() {
@@ -279,10 +317,11 @@ function modBadge(m) {
 }
 
 function vModules() {
+  S.selectedMod = null;
   const ctl = Array.isArray(S.detail.controller) ? S.detail.controller : [];
-  $('#view').innerHTML = topbar('🧩 Moduli', `${ctl.length} moduli · toggle istantaneo via Commander`) +
+  $('#view').innerHTML = topbar('🧩 Moduli', `${ctl.length} moduli · click sulla card per configurare, switch per on/off`) +
     `<div class="mod-grid">` + ctl.map((m) => `
-      <div class="mod${m.enabled && !m.isolated ? '' : ' off'}" data-mod="${esc(m.id)}">
+      <div class="mod${m.enabled && !m.isolated ? '' : ' off'}" data-open="${esc(m.id)}" title="Apri dettaglio">
         <div class="mod-head">
           <span class="ico">${esc(m.icon || '🧩')}</span>
           <div><h3>${esc(m.title || m.id)}</h3><span class="ver mono">v${esc(m.version || '?')} · ${esc(m.commands ?? 0)} cmd</span></div>
@@ -293,6 +332,12 @@ function vModules() {
           ${m.locked ? '<span class="badge">🔒 sistema</span>' : modBadge(m)}
         </div>
       </div>`).join('') + `</div>`;
+  document.querySelectorAll('[data-open]').forEach((card) => {
+    card.onclick = (e) => {
+      if (e.target.closest('label.switch, input, button, a')) return; // switch non apre il dettaglio
+      location.hash = `gid=${S.gid}&view=moduli&mod=${encodeURIComponent(card.dataset.open)}`;
+    };
+  });
   document.querySelectorAll('[data-toggle]').forEach((t) => {
     t.onchange = async () => {
       const id = t.dataset.toggle;
@@ -309,11 +354,85 @@ function vModules() {
   });
 }
 
+/** Dettaglio modulo: stato + switch + default/tips + form schema. */
+function vModuleDetail(modId) {
+  S.selectedMod = modId;
+  const ctl = Array.isArray(S.detail.controller) ? S.detail.controller : [];
+  const m = ctl.find((x) => x && x.id === modId);
+  if (!m) {
+    $('#view').innerHTML = topbar('Modulo non trovato', '') +
+      `<div class="empty">Nessun modulo <span class="mono">${esc(modId)}</span> in questo server.</div>
+       <button class="btn btn-sm" data-back>← Indietro ai moduli</button>`;
+    wireBack();
+    return;
+  }
+  const schemaIds = DETAIL_SCHEMA[modId] || [];
+  const entries = S.schema.filter((s) => schemaIds.includes(s.module));
+  const mods = (S.detail && S.detail.modules) || {};
+  const cards = entries.map((s) => configCardHTML(s, mods)).join('');
+  const tips = [...(MOD_TIPS[modId] || []), ...GENERIC_TIPS];
+  const defaults = entries.flatMap((s) => (Array.isArray(s.fields) ? s.fields : [])
+    .filter((f) => f.placeholder)
+    .map((f) => `<div><b>${esc(f.label)}</b><span>${esc(f.placeholder)}</span></div>`));
+  const errs = Array.isArray(m.errors) ? m.errors.length : 0;
+  $('#view').innerHTML =
+    `<div class="mod-detail-bar">
+       <button class="btn btn-sm" data-back>← Moduli</button>
+       <span class="ico">${esc(m.icon || '🧩')}</span>
+       <h1>${esc(m.title || m.id)}</h1>
+       ${m.locked ? '<span class="badge">🔒 sistema</span>' : modBadge(m)}
+       <label class="switch" title="on/off"><input type="checkbox" data-toggle-detail${m.enabled ? ' checked' : ''} ${m.locked ? ' disabled' : ''}><span class="tr"></span></label>
+     </div>
+     <p class="sub">Stato: <b>${m.enabled ? 'attivo' : 'spento'}</b> · protezione: <b>${m.isolated ? 'isolato 🛡️' : 'ok'}</b> · errori: <b>${errs}</b> · v${esc(m.version || '?')} · ${esc(m.commands ?? 0)} comandi</p>
+     <div class="defaults-box"><h4>💡 Default e suggerimenti</h4>${tips.map((t) => `<div>• ${esc(t)}</div>`).join('')}${defaults.join('')}</div>
+     <div class="mod-detail-grid">${cards || '<div class="empty">Nessun campo: si gestisce da Discord.</div>'}</div>`;
+  wireBack();
+  const tgl = document.querySelector('[data-toggle-detail]');
+  if (tgl) {
+    tgl.onchange = async () => {
+      tgl.disabled = true;
+      try {
+        await Api.toggle(S.gid, m.id, tgl.checked);
+        toast(`${m.id} ${tgl.checked ? 'attivato ✅' : 'disattivato ⏸️'}`, 'ok');
+        await refreshController();
+      } catch (e) {
+        tgl.checked = !tgl.checked;
+        apiErr(e);
+      } finally { tgl.disabled = false; }
+    };
+  }
+  wireConfig();
+}
+
+function wireBack() {
+  document.querySelectorAll('[data-back]').forEach((b) => {
+    b.onclick = () => { location.hash = `gid=${S.gid}&view=moduli`; };
+  });
+}
+
+/** Card di config di una voce schema (stesso markup di Configurazione, riusato nel dettaglio). */
+function configCardHTML(s, mods) {
+  const cur = (mods[s.module] && typeof mods[s.module] === 'object') ? mods[s.module] : {};
+  let inner = '';
+  if (Array.isArray(s.fields) && s.fields.length) {
+    inner = s.fields.map((f) => fieldInput(s.module, f, cur[f.key])).join('') +
+      `<button class="btn btn-primary btn-sm" data-save="${esc(s.module)}">💾 Salva ${esc(s.title)}</button>`;
+  }
+  if (s.custom === 'autoresponder') inner += customAutoresponder(cur);
+  if (s.custom === 'commands') inner += customCommands(cur);
+  if (s.custom === 'rewards') inner += customRewards(cur);
+  if (!inner) inner = '<div class="empty">Nessun campo: si gestisce da Discord o pannello dedicato.</div>';
+  return `<div class="form-card"><h3>${esc(s.icon || '⚙️')} ${esc(s.title)}</h3><p class="fdesc">${esc(s.description || '')}</p>${inner}</div>`;
+}
+
 async function refreshController() {
   try {
     const d = await Api.detail(S.gid);
     S.detail = d;
-    if (S.route === 'moduli') vModules();
+    if (S.route === 'moduli') {
+      if (S.selectedMod) vModuleDetail(S.selectedMod);
+      else vModules();
+    }
   } catch (e) { apiErr(e); }
 }
 
@@ -354,39 +473,9 @@ function fieldInput(mod, f, cur) {
   }
 }
 
-function vConfig() {
-  const schema = S.schema;
-  const mods = (S.detail && S.detail.modules) || {};
-  const sections = [];
-  const seen = new Set();
-  for (const s of schema) {
-    const sec = s.section || 'Altro';
-    if (!seen.has(sec)) { seen.add(sec); sections.push(sec); }
-  }
-  $('#view').innerHTML = topbar('⚙️ Configurazione', 'Ogni sezione salva solo i suoi campi') +
-    `<div class="tabs">${sections.map((s, i) => `<button data-sec="${esc(s)}" class="${i === 0 ? 'active' : ''}">${esc(s)}</button>`).join('')}</div>
-     <div id="cfgBody"></div>`;
-  const render = (sec) => {
-    document.querySelectorAll('[data-sec]').forEach((b) => b.classList.toggle('active', b.dataset.sec === sec));
-    const cards = schema.filter((s) => (s.section || 'Altro') === sec).map((s) => {
-      const cur = (mods[s.module] && typeof mods[s.module] === 'object') ? mods[s.module] : {};
-      let inner = '';
-      if (Array.isArray(s.fields) && s.fields.length) {
-        inner = s.fields.map((f) => fieldInput(s.module, f, cur[f.key])).join('') +
-          `<button class="btn btn-primary btn-sm" data-save="${esc(s.module)}">💾 Salva ${esc(s.title)}</button>`;
-      }
-      if (s.custom === 'autoresponder') inner += customAutoresponder(cur);
-      if (s.custom === 'commands') inner += customCommands(cur);
-      if (s.custom === 'rewards') inner += customRewards(cur);
-      if (!inner) inner = '<div class="empty">Nessun campo: si gestisce da Discord o pannello dedicato.</div>';
-      return `<div class="form-card"><h3>${esc(s.icon || '⚙️')} ${esc(s.title)}</h3><p class="fdesc">${esc(s.description || '')}</p>${inner}</div>`;
-    }).join('');
-    $('#cfgBody').innerHTML = cards || '<div class="empty">Niente qui.</div>';
-    wireConfig();
-  };
-  document.querySelectorAll('[data-sec]').forEach((b) => { b.onclick = () => render(b.dataset.sec); });
-  render(sections[0]);
-}
+/* vConfig rimossa: la configurazione vive nel dettaglio modulo (vModuleDetail).
+   configCardHTML sopra riusa lo stesso markup; wireConfig/fieldInput/custom*
+   invariati. */
 
 function collectFields(card) {
   const patch = {};
@@ -502,12 +591,8 @@ function wireLists() {
 }
 
 function vConfigKeep() {
-  const sec = (document.querySelector('.tabs button.active') || {}).dataset;
-  vConfig();
-  if (sec && sec.sec) {
-    const b = document.querySelector(`[data-sec="${CSS.escape(sec.sec)}"]`);
-    if (b) b.click();
-  }
+  if (S.route === 'moduli' && S.selectedMod) vModuleDetail(S.selectedMod);
+  else if (S.route === 'moduli') vModules();
 }
 
 /* ---------------- PERMESSI ---------------- */
