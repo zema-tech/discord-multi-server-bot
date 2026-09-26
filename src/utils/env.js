@@ -105,6 +105,11 @@ function getEnv(overrides) {
     SESSION_SECRET: str(source, 'SESSION_SECRET', ''),
     CLIENT_SECRET: str(source, 'CLIENT_SECRET', ''),
     BASE_URL: str(source, 'BASE_URL', '').trim().replace(/\/+$/, ''),
+
+    // MCP client direzione B (stile Hermes: il bot chiama MCP server esterni)
+    MCP_ENABLED: str(source, 'MCP_ENABLED', '1').trim() || '1',
+    MCP_SERVERS_PATH: str(source, 'MCP_SERVERS_PATH', './mcp/servers.json'),
+    MCP_TIMEOUT: str(source, 'MCP_TIMEOUT', '30000').trim() || '30000',
   };
 }
 

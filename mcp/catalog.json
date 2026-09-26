@@ -1,0 +1,68 @@
+{
+  "$comment": "Catalogo curato stile hermes-agent optional-mcps/: per ogni voce, comando di installazione manuale. Nessuna auto-installazione: leggi sempre il repo upstream prima di eseguire.",
+  "catalog": [
+    {
+      "name": "filesystem",
+      "description": "File locali in una dir whitelista (lettura/scrittura limitata).",
+      "transport": "stdio",
+      "install": "npx -y @modelcontextprotocol/server-filesystem /home/user/projects",
+      "needs": [],
+      "config": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/user/projects"]
+      }
+    },
+    {
+      "name": "github",
+      "description": "Issue, PR, code search via gh token.",
+      "transport": "stdio",
+      "install": "npx -y @modelcontextprotocol/server-github",
+      "needs": ["GITHUB_PERSONAL_ACCESS_TOKEN"],
+      "config": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-github"],
+        "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "***" },
+        "tools": { "include": ["list_issues", "create_issue", "search_code"] }
+      }
+    },
+    {
+      "name": "fetch",
+      "description": "GET web sicuri per la AI.",
+      "transport": "stdio",
+      "install": "npx -y @modelcontextprotocol/server-fetch",
+      "needs": [],
+      "config": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-fetch"] }
+    },
+    {
+      "name": "sqlite",
+      "description": "Query sul DB locale (consigliato read-only).",
+      "transport": "stdio",
+      "install": "npx -y @modelcontextprotocol/server-sqlite --db-path ./data/bot.db",
+      "needs": [],
+      "config": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-sqlite", "--db-path", "./data/bot.db"],
+        "tools": { "exclude": ["drop_*", "delete_*"] }
+      }
+    },
+    {
+      "name": "openai-compatibile",
+      "description": "Qualunque gateway OpenAI-compatibile (LiteLLM, OpenRouter MCP, aziendale).",
+      "transport": "http",
+      "install": "nessuna: punta url al tuo gateway",
+      "needs": ["token bearer"],
+      "config": {
+        "url": "https://TUO-GATEWAY/mcp",
+        "headers": { "Authorization": "Bearer ***" }
+      }
+    },
+    {
+      "name": "ollama-locale",
+      "description": "Ollama on-premise dietro bridge MCP. Zero cloud.",
+      "transport": "http",
+      "install": "esponi un bridge MCP su http://localhost:11434/mcp",
+      "needs": [],
+      "config": { "url": "http://localhost:11434/mcp" }
+    }
+  ]
+}

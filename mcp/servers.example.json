@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json.schemastore.org/mcp.json",
+  "$comment": "Copia in mcp/servers.json e abilita solo ciò che serve. Stile Hermes mcp_servers: stdio + HTTP, include/exclude, enabled.",
+  "mcp_servers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/user/projects"],
+      "_comment": "Whitelista UNA dir di progetto. La AI legge/scrive solo lì.",
+      "enabled": false,
+      "tools": { "include": ["read_file", "list_directory", "search_files"] }
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_METTI_IL_TOKEN_QUI" },
+      "_comment": "Issue/PR. Crea token solo con scope repo/read.",
+      "enabled": false,
+      "tools": { "include": ["list_issues", "create_issue", "search_code"] }
+    },
+    "fetch": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-fetch"],
+      "_comment": "GET web sicuri per la AI (riassunti, meteo, docs).",
+      "enabled": false
+    },
+    "sqlite": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sqlite", "--db-path", "./data/bot.db"],
+      "_comment": "Query sul DB del bot. Tieni exclude su scritture se lo esponi alla AI.",
+      "enabled": false,
+      "tools": { "exclude": ["drop_*", "delete_*"] }
+    },
+    "ollama-locale": {
+      "url": "http://localhost:11434/mcp",
+      "_comment": "Bridge MCP davanti a Ollama on-premise (es. via LiteLLM/mcp-gateway). Zero cloud.",
+      "enabled": false
+    },
+    "openai-compatibile": {
+      "url": "https://TUO-GATEWAY/mcp",
+      "headers": { "Authorization": "Bearer METTI_TOKEN_QUI" },
+      "_comment": "Qualunque gateway OpenAI-compatibile (LiteLLM, OpenRouter MCP, interno aziendale).",
+      "enabled": false,
+      "tools": { "exclude": ["delete_*"] }
+    }
+  }
+}
