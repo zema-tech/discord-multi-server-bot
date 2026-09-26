@@ -24,10 +24,26 @@ const DETAIL_SCHEMA = {
   tickets: ['tickets'],
   tempvoice: ['tempvoice'],
   starboard: ['starboard'],
-  moderation: ['automod'],
+  moderation: ['automod', 'warns', 'perms'],
   system: ['general', 'welcome', 'logging'],
-  fun: ['confessioni'],
+  fun: ['confessioni', 'birthdays'],
+  warns: ['warns'],
+  perms: ['perms'],
+  reactionroles: ['reactionroles'],
+  shop: ['shop'],
+  youtube: ['youtube'],
+  birthdays: ['birthdays'],
 };
+
+/** Moduli solo-config (senza controller on/off): card extra nella griglia. */
+const EXTRA_MODULES = [
+  { id: 'warns', icon: '⚠️', title: 'Warnazioni', description: 'Azioni automatiche a soglia warn (timeout/kick/ban).' },
+  { id: 'reactionroles', icon: '🎨', title: 'Reaction roles', description: 'Pannello ruoli con emoji e opzioni.' },
+  { id: 'shop', icon: '🛒', title: 'Negozio ruoli', description: 'Ruoli in vendita con le monete del server.' },
+  { id: 'youtube', icon: '📺', title: 'Notifiche YouTube', description: 'Annuncia nuovi video via RSS gratis.' },
+  { id: 'birthdays', icon: '🎂', title: 'Compleanni', description: 'Canale annunci compleanni.' },
+  { id: 'perms', icon: '🔐', title: 'Permessi comandi', description: 'Limita i comandi slash a ruoli specifici.' },
+];
 
 /** Tips brevi per modulo (stile MEE6/Peak: cosa fare prima). */
 const MOD_TIPS = {
@@ -42,6 +58,12 @@ const MOD_TIPS = {
   customCommands: ['I comandi !nome usano {user} {server} {count}; max 20.'],
   system: ['Lingua e log stanno in Generale; benvenuto e addii hanno variabili {user} {server} {count}.'],
   fun: ['Le confessioni sono anonime con cooldown anti-abuso.'],
+  warns: ['Parti da 3 warn → timeout 10 min; alza solo se serve.'],
+  reactionroles: ['Prima il pannello (canale+messaggio), poi le opzioni ruolo.'],
+  shop: ['Prezzi interi >= 1 moneta; i ruoli devono esistere nel server.'],
+  youtube: ['Incolla ID canale (UC…) o URL; max 10 feed per server.'],
+  birthdays: ['Le date si salvano con /compleanno, qui solo il canale annunci.'],
+  perms: ['Vuoto = comando libero a tutti; max 5 ruoli per comando.'],
 };
 const GENERIC_TIPS = [
   'Attiva il modulo con lo switch: spento, la config resta in bozza.',
@@ -319,19 +341,23 @@ function modBadge(m) {
 function vModules() {
   S.selectedMod = null;
   const ctl = Array.isArray(S.detail.controller) ? S.detail.controller : [];
-  $('#view').innerHTML = topbar('🧩 Moduli', `${ctl.length} moduli · click sulla card per configurare, switch per on/off`) +
-    `<div class="mod-grid">` + ctl.map((m) => `
+  const card = (m, extra) => `
       <div class="mod${m.enabled && !m.isolated ? '' : ' off'}" data-open="${esc(m.id)}" title="Apri dettaglio">
         <div class="mod-head">
           <span class="ico">${esc(m.icon || '🧩')}</span>
-          <div><h3>${esc(m.title || m.id)}</h3><span class="ver mono">v${esc(m.version || '?')} · ${esc(m.commands ?? 0)} cmd</span></div>
+          <div><h3>${esc(m.title || m.id)}</h3><span class="ver mono">${m.version ? `v${esc(m.version)} · ` : ''}${esc(m.commands ?? 0)} cmd</span></div>
         </div>
         <p class="desc">${esc(m.description || '')}</p>
         <div class="mod-foot">
-          <label class="switch" title="on/off"><input type="checkbox" data-toggle="${esc(m.id)}"${m.enabled ? ' checked' : ''} ${m.locked ? ' disabled' : ''}><span class="tr"></span></label>
+          ${extra
+            ? '<span class="badge">⚙️ config</span>'
+            : `<label class="switch" title="on/off"><input type="checkbox" data-toggle="${esc(m.id)}"${m.enabled ? ' checked' : ''} ${m.locked ? ' disabled' : ''}><span class="tr"></span></label>`}
           ${m.locked ? '<span class="badge">🔒 sistema</span>' : modBadge(m)}
         </div>
-      </div>`).join('') + `</div>`;
+      </div>`;
+  $('#view').innerHTML = topbar('🧩 Moduli', `${ctl.length + EXTRA_MODULES.length} voci · click sulla card per configurare, switch per on/off`) +
+    `<div class="mod-grid">` + ctl.map((m) => card(m, false)).join('') +
+    EXTRA_MODULES.map((m) => card({ ...m, enabled: true }, true)).join('') + `</div>`;
   document.querySelectorAll('[data-open]').forEach((card) => {
     card.onclick = (e) => {
       if (e.target.closest('label.switch, input, button, a')) return; // switch non apre il dettaglio
@@ -358,7 +384,8 @@ function vModules() {
 function vModuleDetail(modId) {
   S.selectedMod = modId;
   const ctl = Array.isArray(S.detail.controller) ? S.detail.controller : [];
-  const m = ctl.find((x) => x && x.id === modId);
+  const m = ctl.find((x) => x && x.id === modId) ||
+    (() => { const e = EXTRA_MODULES.find((x) => x.id === modId); return e ? { ...e, enabled: true } : null; })();
   if (!m) {
     $('#view').innerHTML = topbar('Modulo non trovato', '') +
       `<div class="empty">Nessun modulo <span class="mono">${esc(modId)}</span> in questo server.</div>
@@ -375,13 +402,16 @@ function vModuleDetail(modId) {
     .filter((f) => f.placeholder)
     .map((f) => `<div><b>${esc(f.label)}</b><span>${esc(f.placeholder)}</span></div>`));
   const errs = Array.isArray(m.errors) ? m.errors.length : 0;
+  const isExtra = EXTRA_MODULES.some((x) => x.id === modId);
   $('#view').innerHTML =
     `<div class="mod-detail-bar">
        <button class="btn btn-sm" data-back>← Moduli</button>
        <span class="ico">${esc(m.icon || '🧩')}</span>
        <h1>${esc(m.title || m.id)}</h1>
        ${m.locked ? '<span class="badge">🔒 sistema</span>' : modBadge(m)}
-       <label class="switch" title="on/off"><input type="checkbox" data-toggle-detail${m.enabled ? ' checked' : ''} ${m.locked ? ' disabled' : ''}><span class="tr"></span></label>
+       ${isExtra
+         ? '<span class="badge">⚙️ config</span>'
+         : `<label class="switch" title="on/off"><input type="checkbox" data-toggle-detail${m.enabled ? ' checked' : ''} ${m.locked ? ' disabled' : ''}><span class="tr"></span></label>`}
      </div>
      <p class="sub">Stato: <b>${m.enabled ? 'attivo' : 'spento'}</b> · protezione: <b>${m.isolated ? 'isolato 🛡️' : 'ok'}</b> · errori: <b>${errs}</b> · v${esc(m.version || '?')} · ${esc(m.commands ?? 0)} comandi</p>
      <div class="defaults-box"><h4>💡 Default e suggerimenti</h4>${tips.map((t) => `<div>• ${esc(t)}</div>`).join('')}${defaults.join('')}</div>
@@ -421,6 +451,12 @@ function configCardHTML(s, mods) {
   if (s.custom === 'autoresponder') inner += customAutoresponder(cur);
   if (s.custom === 'commands') inner += customCommands(cur);
   if (s.custom === 'rewards') inner += customRewards(cur);
+  if (s.custom === 'warns') inner += customWarns();
+  if (s.custom === 'reactionroles') inner += customRR();
+  if (s.custom === 'shop') inner += customShop();
+  if (s.custom === 'youtube') inner += customYT();
+  if (s.custom === 'birthdays') inner += customBday();
+  if (s.custom === 'perms') inner += customPerms();
   if (!inner) inner = '<div class="empty">Nessun campo: si gestisce da Discord o pannello dedicato.</div>';
   return `<div class="form-card"><h3>${esc(s.icon || '⚙️')} ${esc(s.title)}</h3><p class="fdesc">${esc(s.description || '')}</p>${inner}</div>`;
 }
@@ -547,6 +583,96 @@ function customRewards() {
     </div>`;
 }
 
+function customWarns() {
+  const list = ((S.detail.lists || {}).warnRules) || [];
+  const rows = list.map((t) => `<tr><td><b>${t.warns}</b> warn</td><td class="mono">${esc(t.action)}${t.action === 'timeout' ? ` ${t.minutes}m` : ''}</td>
+    <td><button class="icon-btn danger" data-wn-del="${t.warns}">🗑️</button></td></tr>`).join('');
+  return `<div class="row-flex" style="margin:.6rem 0"><span class="badge">${list.length} regole</span></div>
+    <table class="tbl"><thead><tr><th>Soglia</th><th>Azione</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="3" class="empty">Nessuna regola.</td></tr>'}</tbody></table>
+    <div class="row-flex" style="margin-top:.7rem">
+      <input type="number" id="wnWarns" min="2" max="20" placeholder="Warn" style="max-width:7rem">
+      <select id="wnAction"><option value="timeout">timeout</option><option value="kick">kick</option><option value="ban">ban</option></select>
+      <input type="number" id="wnMinutes" min="1" max="40320" placeholder="Minuti" style="max-width:8rem">
+      <button class="btn btn-primary btn-sm" id="wnAdd">➕ Aggiungi</button>
+    </div>`;
+}
+
+function customRR() {
+  const panel = ((S.detail.lists || {}).reactionRoles) || {};
+  const opts = Array.isArray(panel.options) ? panel.options : [];
+  const rows = opts.map((o) => `<tr><td>${esc(o.emoji || '')}</td><td>${esc(o.label || o.roleId)}</td><td class="mono">&lt;@&amp;${esc(o.roleId)}&gt;</td>
+    <td><button class="icon-btn danger" data-rr-del="${esc(o.roleId)}">🗑️</button></td></tr>`).join('');
+  const roles = (S.meta.roles || []).filter((r) => !r.managed && r.id !== S.gid);
+  const channels = (S.meta.channels || []).filter((c) => c.type === 0 || c.type === 'GUILD_TEXT' || c.type == null);
+  const sel = (id, val, list, none) => `<select id="${id}" class="grow">${none ? '<option value="">— nessuno —</option>' : ''}${list.map((x) => `<option value="${esc(x.id)}"${String(val) === String(x.id) ? ' selected' : ''}>${esc(x.name || x.id)}</option>`).join('')}</select>`;
+  return `<div class="row-flex" style="margin:.6rem 0"><span class="badge">${opts.length} opzioni</span></div>
+    <div class="row-flex"><span style="min-width:9rem">Canale</span>${sel('rrChannel', panel.channelId, channels.map((c) => ({ id: c.id, name: '#' + (c.name || c.id) })), true)}</div>
+    <div class="row-flex"><span style="min-width:9rem">ID messaggio</span><input type="text" id="rrMessage" class="grow" placeholder="ID messaggio del pannello" maxlength="32" value="${esc(panel.messageId || '')}"></div>
+    <div class="row-flex"><span style="min-width:9rem">Titolo</span><input type="text" id="rrTitle" class="grow" placeholder="Scegli i tuoi ruoli" maxlength="100" value="${esc(panel.title || '')}"></div>
+    <div class="row-flex"><span style="min-width:9rem">Descrizione</span><input type="text" id="rrDesc" class="grow" placeholder="Reagisci / usa il menu" maxlength="1000" value="${esc(panel.description || '')}"></div>
+    <div class="row-flex"><button class="btn btn-primary btn-sm" id="rrSave">💾 Salva pannello</button></div>
+    <table class="tbl" style="margin-top:.7rem"><thead><tr><th>Emoji</th><th>Etichetta</th><th>Ruolo</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="empty">Nessuna opzione.</td></tr>'}</tbody></table>
+    <div class="row-flex" style="margin-top:.7rem">
+      <select id="rrRole" class="grow">${roles.map((r) => `<option value="${esc(r.id)}">@${esc(r.name)}</option>`).join('')}</select>
+      <input type="text" id="rrLabel" class="grow" placeholder="Etichetta" maxlength="100">
+      <input type="text" id="rrEmoji" placeholder="Emoji" maxlength="50" style="max-width:7rem">
+      <button class="btn btn-primary btn-sm" id="rrAdd">➕ Aggiungi</button>
+    </div>`;
+}
+
+function customShop() {
+  const list = ((S.detail.lists || {}).shop) || [];
+  const rows = list.map((t) => `<tr><td class="mono">&lt;@&amp;${esc(t.roleId)}&gt;</td><td><b>${t.price}</b> 🪙</td>
+    <td><button class="icon-btn danger" data-sh-del="${esc(t.roleId)}">🗑️</button></td></tr>`).join('');
+  const roles = (S.meta.roles || []).filter((r) => !r.managed && r.id !== S.gid);
+  return `<div class="row-flex" style="margin:.6rem 0"><span class="badge">${list.length} articoli</span></div>
+    <table class="tbl"><thead><tr><th>Ruolo</th><th>Prezzo</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="3" class="empty">Negozio vuoto.</td></tr>'}</tbody></table>
+    <div class="row-flex" style="margin-top:.7rem">
+      <select id="shRole" class="grow">${roles.map((r) => `<option value="${esc(r.id)}">@${esc(r.name)}</option>`).join('')}</select>
+      <input type="number" id="shPrice" min="1" placeholder="Prezzo 🪙" style="max-width:9rem">
+      <button class="btn btn-primary btn-sm" id="shAdd">➕ Aggiungi</button>
+    </div>`;
+}
+
+function customYT() {
+  const list = ((S.detail.lists || {}).youtube) || [];
+  const rows = list.map((t) => `<tr><td class="mono">${esc(t.channelId)}</td><td class="mono">&lt;#${esc(t.announceId)}&gt;</td>
+    <td><button class="icon-btn danger" data-yt-del="${esc(t.channelId)}">🗑️</button></td></tr>`).join('');
+  const channels = (S.meta.channels || []).filter((c) => c.type === 0 || c.type === 'GUILD_TEXT' || c.type == null);
+  return `<div class="row-flex" style="margin:.6rem 0"><span class="badge">${list.length}/10 feed</span></div>
+    <table class="tbl"><thead><tr><th>Canale YT</th><th>Annunci in</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="3" class="empty">Nessun feed.</td></tr>'}</tbody></table>
+    <div class="row-flex" style="margin-top:.7rem">
+      <input type="text" id="ytChannel" class="grow" placeholder="ID canale (UC…) o URL" maxlength="120">
+      <select id="ytAnnounce" class="grow">${channels.map((c) => `<option value="${esc(c.id)}">#${esc(c.name || c.id)}</option>`).join('')}</select>
+      <button class="btn btn-primary btn-sm" id="ytAdd">➕ Aggiungi</button>
+    </div>`;
+}
+
+function customBday() {
+  const channels = (S.meta.channels || []).filter((c) => c.type === 0 || c.type === 'GUILD_TEXT' || c.type == null);
+  return `<div class="row-flex">
+      <span style="min-width:9rem">Canale annunci</span>
+      <select id="bdChannel" class="grow"><option value="">— nessuno —</option>${channels.map((c) => `<option value="${esc(c.id)}">#${esc(c.name || c.id)}</option>`).join('')}</select>
+      <button class="btn btn-primary btn-sm" id="bdSave">💾 Salva</button>
+    </div>
+    <p class="help">Le date si salvano con /compleanno su Discord.</p>`;
+}
+
+function customPerms() {
+  const obj = ((S.detail.lists || {}).perms) || {};
+  const keys = Object.keys(obj);
+  const rows = keys.map((k) => `<tr><td class="mono">/${esc(k)}</td><td>${(obj[k].roleIds || []).map((r) => `<span class="mono">&lt;@&amp;${esc(r)}&gt;</span>`).join(' ')}</td>
+    <td><button class="icon-btn danger" data-pm-del="${esc(k)}">🗑️</button></td></tr>`).join('');
+  const roles = (S.meta.roles || []).filter((r) => !r.managed && r.id !== S.gid);
+  return `<div class="row-flex" style="margin:.6rem 0"><span class="badge">${keys.length} comandi limitati</span></div>
+    <table class="tbl"><thead><tr><th>Comando</th><th>Ruoli</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="3" class="empty">Tutti i comandi liberi.</td></tr>'}</tbody></table>
+    <div class="row-flex" style="margin-top:.7rem">
+      <input type="text" id="pmCmd" placeholder="nome comando" maxlength="32" style="max-width:12rem">
+      <select id="pmRoles" multiple size="5" class="grow">${roles.map((r) => `<option value="${esc(r.id)}">@${esc(r.name)}</option>`).join('')}</select>
+      <button class="btn btn-primary btn-sm" id="pmAdd">➕ Limita</button>
+    </div>`;
+}
+
 function wireLists() {
   const reload = async () => { try { S.detail = await Api.detail(S.gid); } catch (e) { apiErr(e); } vConfigKeep(); };
   const arAdd = $('#arAdd');
@@ -585,6 +711,89 @@ function wireLists() {
   document.querySelectorAll('[data-rw-del]').forEach((b) => {
     b.onclick = async () => {
       try { await Api.saveModule(S.gid, 'rewards', { action: 'remove', level: Number(b.dataset.rwDel) }); toast('Ricompensa rimossa.', 'ok'); await reload(); }
+      catch (e) { apiErr(e); }
+    };
+  });
+  const wnAdd = $('#wnAdd');
+  if (wnAdd) wnAdd.onclick = async () => {
+    const warns = Number($('#wnWarns').value), ruleAction = $('#wnAction').value, minutes = Number($('#wnMinutes').value);
+    if (!warns) return toast('Soglia warn obbligatoria.', 'err');
+    try { await Api.saveModule(S.gid, 'warns', { action: 'add', warns, ruleAction, minutes }); toast('Regola aggiunta ✅', 'ok'); await reload(); }
+    catch (e) { apiErr(e); }
+  };
+  document.querySelectorAll('[data-wn-del]').forEach((b) => {
+    b.onclick = async () => {
+      try { await Api.saveModule(S.gid, 'warns', { action: 'remove', warns: Number(b.dataset.wnDel) }); toast('Regola rimossa.', 'ok'); await reload(); }
+      catch (e) { apiErr(e); }
+    };
+  });
+  const rrSave = $('#rrSave');
+  if (rrSave) rrSave.onclick = async () => {
+    try {
+      await Api.saveModule(S.gid, 'reactionroles', {
+        action: 'panel', channelId: $('#rrChannel').value || null, messageId: $('#rrMessage').value.trim() || null,
+        title: $('#rrTitle').value.trim(), description: $('#rrDesc').value.trim(),
+      });
+      toast('Pannello salvato ✅', 'ok'); await reload();
+    } catch (e) { apiErr(e); }
+  };
+  const rrAdd = $('#rrAdd');
+  if (rrAdd) rrAdd.onclick = async () => {
+    const roleId = $('#rrRole').value;
+    if (!roleId) return toast('Scegli un ruolo.', 'err');
+    try {
+      await Api.saveModule(S.gid, 'reactionroles', { action: 'add', roleId, label: $('#rrLabel').value.trim(), emoji: $('#rrEmoji').value.trim() });
+      toast('Opzione aggiunta ✅', 'ok'); await reload();
+    } catch (e) { apiErr(e); }
+  };
+  document.querySelectorAll('[data-rr-del]').forEach((b) => {
+    b.onclick = async () => {
+      try { await Api.saveModule(S.gid, 'reactionroles', { action: 'remove', roleId: b.dataset.rrDel }); toast('Opzione rimossa.', 'ok'); await reload(); }
+      catch (e) { apiErr(e); }
+    };
+  });
+  const shAdd = $('#shAdd');
+  if (shAdd) shAdd.onclick = async () => {
+    const roleId = $('#shRole').value, price = Number($('#shPrice').value);
+    if (!roleId || !price) return toast('Ruolo e prezzo obbligatori.', 'err');
+    try { await Api.saveModule(S.gid, 'shop', { action: 'add', roleId, price }); toast('Articolo aggiunto ✅', 'ok'); await reload(); }
+    catch (e) { apiErr(e); }
+  };
+  document.querySelectorAll('[data-sh-del]').forEach((b) => {
+    b.onclick = async () => {
+      try { await Api.saveModule(S.gid, 'shop', { action: 'remove', roleId: b.dataset.shDel }); toast('Articolo rimosso.', 'ok'); await reload(); }
+      catch (e) { apiErr(e); }
+    };
+  });
+  const ytAdd = $('#ytAdd');
+  if (ytAdd) ytAdd.onclick = async () => {
+    const channelId = $('#ytChannel').value.trim(), announceId = $('#ytAnnounce').value;
+    if (!channelId || !announceId) return toast('Canale YT e canale annunci obbligatori.', 'err');
+    try { await Api.saveModule(S.gid, 'youtube', { action: 'add', channelId, announceId }); toast('Feed aggiunto ✅', 'ok'); await reload(); }
+    catch (e) { apiErr(e); }
+  };
+  document.querySelectorAll('[data-yt-del]').forEach((b) => {
+    b.onclick = async () => {
+      try { await Api.saveModule(S.gid, 'youtube', { action: 'remove', channelId: b.dataset.ytDel }); toast('Feed rimosso.', 'ok'); await reload(); }
+      catch (e) { apiErr(e); }
+    };
+  });
+  const bdSave = $('#bdSave');
+  if (bdSave) bdSave.onclick = async () => {
+    try { await Api.saveModule(S.gid, 'birthdays', { action: 'set', channelId: $('#bdChannel').value || null }); toast('Canale compleanni salvato ✅', 'ok'); await reload(); }
+    catch (e) { apiErr(e); }
+  };
+  const pmAdd = $('#pmAdd');
+  if (pmAdd) pmAdd.onclick = async () => {
+    const command = $('#pmCmd').value.trim();
+    const roleIds = [...$('#pmRoles').selectedOptions].map((o) => o.value);
+    if (!command || !roleIds.length) return toast('Comando e almeno un ruolo obbligatori.', 'err');
+    try { await Api.saveModule(S.gid, 'perms', { action: 'set', command, roleIds }); toast('Permessi impostati ✅', 'ok'); await reload(); }
+    catch (e) { apiErr(e); }
+  };
+  document.querySelectorAll('[data-pm-del]').forEach((b) => {
+    b.onclick = async () => {
+      try { await Api.saveModule(S.gid, 'perms', { action: 'clear', command: b.dataset.pmDel }); toast('Permessi rimossi.', 'ok'); await reload(); }
       catch (e) { apiErr(e); }
     };
   });

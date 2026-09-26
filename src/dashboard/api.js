@@ -60,7 +60,12 @@ const MODULE_FIELDS = {
   autoresponder: {},
   commands: {},
   rewards: {},
-  // Controller feature on/off: gestito ad-hoc (handleController), mai generico.
+  warns: {},
+  reactionroles: {},
+  shop: {},
+  youtube: {},
+  birthdays: {},
+  perms: {},  // Controller feature on/off: gestito ad-hoc (handleController), mai generico.
   controller: {},
 };
 
@@ -801,6 +806,16 @@ function createApiRouter(client) {
       try { ccList = customCommands ? customCommands.list(gid) : []; } catch { ccList = []; }
       let rwList = [];
       try { rwList = levelRewards ? levelRewards.listRewards(gid) : []; } catch { rwList = []; }
+      let warnRules = [];
+      try { const w = safeRequire('../database/warnings'); warnRules = w ? w.getWarnActions(gid) : []; } catch { warnRules = []; }
+      let rrPanel = null;
+      try { const r = safeRequire('../database/reactionRoles'); rrPanel = r ? r.getPanel(gid) : null; } catch { rrPanel = null; }
+      let shopItems = [];
+      try { const s = safeRequire('../database/shop'); shopItems = s ? s.listItems(gid) : []; } catch { shopItems = []; }
+      let ytFeeds = [];
+      try { const y = safeRequire('../database/youtube'); ytFeeds = y ? y.getFeeds(gid) : []; } catch { ytFeeds = []; }
+      let permRules = {};
+      try { const p = safeRequire('../database/customPerms'); permRules = p ? p.getAll(gid) : {}; } catch { permRules = {}; }
 
       // DB/cache parziali: normalizza prima di comporre la risposta (mai 500, mai chiavi sparite).
       if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) cfg = {};
@@ -855,6 +870,11 @@ function createApiRouter(client) {
         autoresponder: Array.isArray(arList) ? arList.slice(0, 50) : [],
         customCommands: Array.isArray(ccList) ? ccList.slice(0, 20) : [],
         levelRewards: Array.isArray(rwList) ? rwList : [],
+        warnRules: Array.isArray(warnRules) ? warnRules : [],
+        reactionRoles: rrPanel && typeof rrPanel === 'object' ? rrPanel : null,
+        shop: Array.isArray(shopItems) ? shopItems : [],
+        youtube: Array.isArray(ytFeeds) ? ytFeeds : [],
+        perms: permRules && typeof permRules === 'object' ? permRules : {},
       };
       // Hook moduli extra (require-safe: se il file manca, comportamento identico a oggi).
       try {
@@ -963,6 +983,18 @@ function createApiRouter(client) {
         ],
       },
       {
+        module: 'warns', title: 'Warnazioni', icon: '⚠️', section: 'Moderazione',
+        description: 'Azioni automatiche a soglia warn. Usa il pannello sotto (salvataggio istantaneo).',
+        fields: [],
+        custom: 'warns',
+      },
+      {
+        module: 'perms', title: 'Permessi comandi', icon: '🔐', section: 'Moderazione',
+        description: 'Limita i comandi slash a ruoli specifici. Usa il pannello sotto.',
+        fields: [],
+        custom: 'perms',
+      },
+      {
         module: 'levels', title: 'Livelli XP', icon: '⭐', section: 'Livelli',
         description: 'XP da messaggi e vocali + ricompense per livello (gestite sotto).',
         fields: [
@@ -992,6 +1024,30 @@ function createApiRouter(client) {
           { key: 'lobbyChannelId', label: 'Canale lobby', type: 'channel' },
           { key: 'categoryId', label: 'Categoria stanze', type: 'channel' },
         ],
+      },
+      {
+        module: 'reactionroles', title: 'Reaction roles', icon: '🎨', section: 'Community',
+        description: 'Pannello ruoli con emoji. Usa il pannello sotto (salvataggio istantaneo).',
+        fields: [],
+        custom: 'reactionroles',
+      },
+      {
+        module: 'shop', title: 'Negozio ruoli', icon: '🛒', section: 'Community',
+        description: 'Ruoli in vendita con le monete del server. Usa il pannello sotto.',
+        fields: [],
+        custom: 'shop',
+      },
+      {
+        module: 'youtube', title: 'Notifiche YouTube', icon: '📺', section: 'Community',
+        description: 'Annuncia i nuovi video (RSS gratis). Usa il pannello sotto.',
+        fields: [],
+        custom: 'youtube',
+      },
+      {
+        module: 'birthdays', title: 'Compleanni', icon: '🎂', section: 'Community',
+        description: 'Canale annunci compleanni (le date si salvano da Discord con /compleanno).',
+        fields: [],
+        custom: 'birthdays',
       },
       {
         module: 'ai', title: 'AI', icon: '🤖', section: 'AI & Extra',
@@ -1068,6 +1124,12 @@ function createApiRouter(client) {
       if (mod === 'autoresponder') return handleAutoresponder(gid, req, res);
       if (mod === 'commands') return handleCustomCommands(gid, req, res);
       if (mod === 'rewards') return handleRewards(gid, gl, req, res);
+      if (mod === 'warns') return handleWarns(gid, req, res);
+      if (mod === 'reactionroles') return handleReactionRoles(gid, gl, req, res);
+      if (mod === 'shop') return handleShop(gid, gl, req, res);
+      if (mod === 'youtube') return handleYoutube(gid, gl, req, res);
+      if (mod === 'birthdays') return handleBirthdays(gid, gl, req, res);
+      if (mod === 'perms') return handlePerms(gid, gl, req, res);
       if (mod === 'controller') return handleController(gid, req, res);
 
       const spec = Object.prototype.hasOwnProperty.call(MODULE_FIELDS, mod) ? MODULE_FIELDS[mod] : undefined;
@@ -1222,6 +1284,186 @@ function createApiRouter(client) {
     } catch (e) {
       return res.status(400).json({ errore: e && e.message ? e.message : 'Toggle fallito.' });
     }
+  }
+
+  /** Ruolo valido del server (non bot, non @everyone). Ritorna role o stringa errore. */
+  function requireGuildRole(gl, gid, roleId, forWhat) {
+    if (!isSnowflake(roleId)) return `${forWhat}: ruolo non valido.`;
+    const cache = gl && gl.roles && gl.roles.cache ? gl.roles.cache : null;
+    const role = cache ? cache.get(roleId) : null;
+    if (!role) return `${forWhat}: ruolo non trovato in questo server: ricarica la pagina.`;
+    if (role.managed) return `${forWhat}: i ruoli dei bot non si possono usare.`;
+    if (role.id === gid) return `${forWhat}: il ruolo @everyone non si può usare.`;
+    return role;
+  }
+
+  function handleWarns(gid, req, res) {
+    const warnings = safeRequire('../database/warnings');
+    if (!warnings) return res.status(501).json({ errore: 'Modulo warn non disponibile.' });
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const action = body.action;
+    const list = () => warnings.getWarnActions(gid);
+    if (action === 'add') {
+      const warns = Math.floor(Number(body.warns));
+      const ruleAction = String(body.ruleAction || '').toLowerCase().trim();
+      if (!Number.isFinite(warns) || warns < 2 || warns > 20) {
+        return res.status(400).json({ errore: 'Soglia non valida (2-20 warn).' });
+      }
+      if (!['timeout', 'kick', 'ban'].includes(ruleAction)) {
+        return res.status(400).json({ errore: 'Azione non valida (timeout/kick/ban).' });
+      }
+      const minutes = ruleAction === 'timeout' ? Math.min(Math.max(Math.floor(Number(body.minutes)) || 10, 1), 40320) : 0;
+      try {
+        const rules = list().filter((r) => r.warns !== warns);
+        rules.push({ warns, action: ruleAction, minutes });
+        warnings.setWarnActions(gid, rules);
+        return res.json(sanitizeForJson({ ok: true, module: 'warns', list: list() }));
+      } catch (e) {
+        return res.status(400).json({ errore: e.message || 'Regola non valida.' });
+      }
+    }
+    if (action === 'remove') {
+      const warns = Math.floor(Number(body.warns));
+      try {
+        warnings.setWarnActions(gid, list().filter((r) => r.warns !== warns));
+        return res.json(sanitizeForJson({ ok: true, module: 'warns', list: list() }));
+      } catch (e) {
+        return res.status(400).json({ errore: e.message || 'Serve almeno una regola.' });
+      }
+    }
+    return res.status(400).json({ errore: 'Action non valida (add/remove).' });
+  }
+
+  function handleReactionRoles(gid, gl, req, res) {
+    const rr = safeRequire('../database/reactionRoles');
+    if (!rr) return res.status(501).json({ errore: 'Modulo reaction roles non disponibile.' });
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const action = body.action;
+    const out = () => sanitizeForJson({ ok: true, module: 'reactionroles', panel: rr.getPanel(gid) });
+    if (action === 'panel') {
+      const patch = {};
+      for (const k of ['channelId', 'messageId']) {
+        if (body[k] === undefined) continue;
+        if (body[k] === null || body[k] === '') { patch[k] = null; continue; }
+        if (!isSnowflake(body[k])) return res.status(400).json({ errore: `ID non valido per ${k}.` });
+        patch[k] = body[k];
+      }
+      for (const k of ['title', 'description']) {
+        if (body[k] !== undefined) patch[k] = String(body[k] || '').slice(0, k === 'title' ? 100 : 1000);
+      }
+      try {
+        rr.setPanel(gid, patch);
+        const r = out(); r.panel = rr.getPanel(gid); return res.json(r);
+      } catch (e) {
+        return res.status(400).json({ errore: e.message || 'Pannello non valido.' });
+      }
+    }
+    if (action === 'add') {
+      const bad = requireGuildRole(gl, gid, body.roleId, 'Opzione');
+      if (typeof bad === 'string') return res.status(400).json({ errore: bad });
+      const r = rr.addOption(gid, { roleId: body.roleId, label: body.label, emoji: body.emoji });
+      if (r.invalid) return res.status(400).json({ errore: 'Opzione non valida.' });
+      if (r.full) return res.status(400).json({ errore: 'Pannello pieno.' });
+      return res.json(sanitizeForJson({ ok: true, module: 'reactionroles', updated: r.updated, panel: r.panel }));
+    }
+    if (action === 'remove') {
+      rr.removeOption(gid, body.roleId);
+      return res.json(out());
+    }
+    return res.status(400).json({ errore: 'Action non valida (panel/add/remove).' });
+  }
+
+  function handleShop(gid, gl, req, res) {
+    const shop = safeRequire('../database/shop');
+    if (!shop) return res.status(501).json({ errore: 'Modulo negozio non disponibile.' });
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const action = body.action;
+    const out = () => sanitizeForJson({ ok: true, module: 'shop', list: shop.listItems(gid) });
+    if (action === 'add') {
+      const bad = requireGuildRole(gl, gid, body.roleId, 'Articolo');
+      if (typeof bad === 'string') return res.status(400).json({ errore: bad });
+      try {
+        shop.setItem(gid, body.roleId, body.price);
+        return res.json(out());
+      } catch (e) {
+        return res.status(400).json({ errore: e.message || 'Prezzo non valido (intero >= 1).' });
+      }
+    }
+    if (action === 'remove') {
+      shop.removeItem(gid, body.roleId);
+      return res.json(out());
+    }
+    return res.status(400).json({ errore: 'Action non valida (add/remove).' });
+  }
+
+  async function handleYoutube(gid, gl, req, res) {
+    const yt = safeRequire('../database/youtube');
+    if (!yt) return res.status(501).json({ errore: 'Modulo YouTube non disponibile.' });
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const action = body.action;
+    const out = () => sanitizeForJson({ ok: true, module: 'youtube', list: yt.getFeeds(gid) });
+    if (action === 'add') {
+      if (!isSnowflake(body.announceId)) return res.status(400).json({ errore: 'Canale annunci non valido.' });
+      try {
+        const r = await resolveChannel(gl, body.announceId);
+        if (r.invalid || r.missing) return res.status(400).json({ errore: 'Canale annunci non trovato in questo server.' });
+        const added = yt.addFeed(gid, body.channelId, body.announceId);
+        const r2 = out(); if (added && added.dup) r2.dup = true; return res.json(r2);
+      } catch (e) {
+        return res.status(400).json({ errore: e.message || 'Feed non valido.' });
+      }
+    }
+    if (action === 'remove') {
+      try { yt.removeFeed(gid, body.channelId); } catch {}
+      return res.json(out());
+    }
+    return res.status(400).json({ errore: 'Action non valida (add/remove).' });
+  }
+
+  async function handleBirthdays(gid, gl, req, res) {
+    const bd = safeRequire('../database/birthdays');
+    if (!bd) return res.status(501).json({ errore: 'Modulo compleanni non disponibile.' });
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    if (body.action && body.action !== 'set') return res.status(400).json({ errore: 'Action non valida (set).' });
+    const v = body.channelId === undefined || body.channelId === '' ? null : body.channelId;
+    if (v !== null) {
+      if (!isSnowflake(v)) return res.status(400).json({ errore: 'Canale non valido.' });
+      const r = await resolveChannel(gl, v);
+      if (r.invalid || r.missing) return res.status(400).json({ errore: 'Canale non trovato in questo server.' });
+    }
+    try {
+      const channelId = bd.setChannel(gid, v);
+      return res.json(sanitizeForJson({ ok: true, module: 'birthdays', channelId }));
+    } catch (e) {
+      return res.status(400).json({ errore: e.message || 'Canale non valido.' });
+    }
+  }
+
+  function handlePerms(gid, gl, req, res) {
+    const cp = safeRequire('../database/customPerms');
+    if (!cp) return res.status(501).json({ errore: 'Modulo permessi non disponibile.' });
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const action = body.action;
+    const out = () => sanitizeForJson({ ok: true, module: 'perms', list: cp.getAll(gid) });
+    if (action === 'set') {
+      const ids = Array.isArray(body.roleIds) ? body.roleIds : [];
+      if (!ids.length) return res.status(400).json({ errore: 'Seleziona almeno un ruolo.' });
+      const r = resolveRoles(gl, ids);
+      if (r.invalid) return res.status(400).json({ errore: 'ID ruolo non valido.' });
+      if (r.missing) return res.status(400).json({ errore: 'Un ruolo selezionato non esiste più: ricarica la pagina.' });
+      if (r.managed) return res.status(400).json({ errore: 'I ruoli dei bot non si possono usare.' });
+      try {
+        cp.setCommandRoles(gid, body.command, r.roles);
+        return res.json(out());
+      } catch (e) {
+        return res.status(400).json({ errore: e.message || 'Comando non valido.' });
+      }
+    }
+    if (action === 'clear') {
+      try { cp.clearCommandRoles(gid, body.command); } catch {}
+      return res.json(out());
+    }
+    return res.status(400).json({ errore: 'Action non valida (set/clear).' });
   }
 
   function handleRewards(gid, guild, req, res) {
