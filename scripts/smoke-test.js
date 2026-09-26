@@ -1816,6 +1816,7 @@ try {
       /^\/api\/guilds\/[^/]+\/modules\/[^/]+\/?$/, // PUT modules/:mod
       /^\/api\/guilds\/[^/]+\/perms\/?$/, // PUT perms
       /^\/api\/guilds\/[^/]+\/audit\/?$/, // registro modifiche (sola lettura)
+      /^\/api\/guilds\/[^/]+\/diag\/?$/, // diagnostica (sola lettura)
     ];
     // Spoglia commenti block + line (i commenti citano gli endpoint).
     const perFile = [];
@@ -1837,11 +1838,12 @@ try {
     }
     let checked = 0;
     for (const { file, ln } of lines) {
-      // Literal su singola riga (niente backtick multilinea: solo ' e ").
+      // Literal su singola riga: '..."..."', '...' e `...` (i backtick con
+      // ${...} vengono normalizzati a :p sotto).
       const lits = [];
-      const qRe = /"([^"\n]*)"|'([^'\n]*)'/g;
+      const qRe = /"([^"\n]*)"|'([^'\n]*)'|`([^`\n]*)`/g;
       let q;
-      while ((q = qRe.exec(ln)) !== null) lits.push(q[1] !== undefined ? q[1] : q[2]);
+      while ((q = qRe.exec(ln)) !== null) lits.push(q[1] !== undefined ? q[1] : (q[2] !== undefined ? q[2] : q[3]));
       const apiLits = lits.filter((s) => s.includes('/api/') || /^(\/(meta|schema|modules|perms|guilds))/.test(s));
       if (!apiLits.length) continue;
       let template;

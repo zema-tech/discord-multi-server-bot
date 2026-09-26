@@ -12,6 +12,7 @@ const NAV = [
   ['config', '⚙️', 'Configurazione'],
   ['permessi', '🔐', 'Permessi'],
   ['audit', '🧾', 'Audit'],
+  ['diag', '🩺', 'Diagnostica'],
 ];
 
 const $ = (s, r) => (r || document).querySelector(s);
@@ -37,6 +38,26 @@ function apiErr(e) {
   return false;
 }
 
+/* Icona guild (immagine o iniziale) + avatar utente + empty illustrati. */
+function guildIcon(g, size) {
+  const s = size || 40;
+  const name = (g && g.name) || '?';
+  if (g && typeof g.icon === 'string' && /^https?:\/\//.test(g.icon)) {
+    return `<img class="gicon" width="${s}" height="${s}" src="${esc(g.icon)}" alt="" loading="lazy" onerror="this.outerHTML=${esc(`<span class='gicon ginit' style='width:${s}px;height:${s}px'>${esc(name[0].toUpperCase())}</span>`)}">`;
+  }
+  return `<span class="gicon ginit" style="width:${s}px;height:${s}px;font-size:${Math.round(s * 0.42)}px">${esc(name[0].toUpperCase())}</span>`;
+}
+
+function emptyArt(msg, hint) {
+  return `<div class="empty"><div class="empty-art" aria-hidden="true">
+    <svg width="72" height="72" viewBox="0 0 72 72" fill="none">
+      <circle cx="36" cy="36" r="30" stroke="var(--accent)" stroke-width="2" stroke-dasharray="6 5" opacity="0.7"/>
+      <circle cx="36" cy="36" r="18" stroke="var(--border)" stroke-width="2"/>
+      <circle cx="36" cy="36" r="5" fill="var(--accent)"/>
+      <path d="M36 6v8M36 58v8M6 36h8M58 36h8" stroke="var(--text-dim)" stroke-width="2" stroke-linecap="round"/>
+    </svg></div><p>${msg}</p>${hint ? `<p style="font-size:.82rem;">${hint}</p>` : ''}</div>`;
+}
+
 function destroyCharts() {
   for (const c of S.charts) { try { c.destroy(); } catch (e) {} }
   S.charts = [];
@@ -50,7 +71,12 @@ async function boot() {
   try {
     S.me = await Api.me();
     const mb = $('#meBox');
-    if (mb && S.me) mb.textContent = '@' + (S.me.username || '?');
+    if (mb && S.me) {
+      const av = S.me.avatarUrl
+        ? `<img src="${esc(S.me.avatarUrl)}" alt="" width="26" height="26" style="border-radius:50%;vertical-align:-7px;margin-right:.4rem;">`
+        : '🧑‍🚀 ';
+      mb.innerHTML = `${av}@${esc(S.me.username || '?')}`;
+    }
   } catch (e) { return apiErr(e); }
   try {
     const g = await Api.guilds();
@@ -59,9 +85,11 @@ async function boot() {
   const hashGid = (location.hash.match(/gid=([0-9]+)/) || [])[1];
   const manageable = S.guilds.filter((x) => x && (x.canManage || x.botPresent));
   const pick = S.guilds.find((x) => x && x.id === hashGid) || manageable[0] || S.guilds[0];
-  renderGuildSel();
+  renderGuildPick();
   if (!pick) {
-    $('#view').innerHTML = '<div class="empty">Nessun server gestibile. Invita il bot e torna qui.</div>';
+    $('#view').innerHTML = topbar('👋 Benvenuto', 'Nessun server trovato') +
+      emptyArt('Nessun server gestibile.',
+        'Il bot deve stare nei tuoi server E tu devi poterli gestire. <a href="/login">Riaccedi</a> o invita il bot, poi <button class="icon-btn" onclick="location.reload()">🔄 ricarica</button>');
     return;
   }
   await selectGuild(pick.id);
@@ -69,13 +97,39 @@ async function boot() {
   document.addEventListener('keydown', cmdkKeys);
 }
 
-function renderGuildSel() {
-  const sel = $('#guildSel');
-  sel.innerHTML = S.guilds.map((g) =>
-    `<option value="${esc(g.id)}"${g.id === S.gid ? ' selected' : ''}>${esc(g.name || g.id)}${g.botPresent ? '' : ' (bot assente)'}</option>`
-  ).join('');
-  sel.onchange = () => selectGuild(sel.value);
+/* Picker server con icone (niente <select>: si vedono i server). */
+function renderGuildPick() {
+  const box = $('#guildPick');
+  if (!box) return;
+  const cur = S.guilds.find((g) => g.id === S.gid) || {};
+  box.innerHTML = `
+    <button class="gpick-btn" id="gpickBtn" aria-haspopup="true">
+      ${guildIcon(cur, 34)}
+      <span class="gpick-name">${esc(cur.name || 'Server…')}</span>
+      <span class="gpick-chev">▾</span>
+    </button>
+    <div class="gpick-list" id="gpickList" hidden>
+      ${S.guilds.map((g) => `
+        <button class="gpick-item${g.id === S.gid ? ' sel' : ''}" data-gpick="${esc(g.id)}">
+          ${guildIcon(g, 32)}
+          <span class="gpick-item-tx"><b>${esc(g.name || g.id)}</b>
+          <small>${g.botPresent ? (g.memberCount != null ? `👥 ${g.memberCount}` : 'bot dentro ✅') : 'bot assente ⚠️'}</small></span>
+          ${g.inviteUrl && !g.botPresent ? `<a class="icon-btn" href="${esc(g.inviteUrl)}" target="_blank" rel="noopener" data-stop="1">＋ invita</a>` : ''}
+        </button>`).join('') || '<div class="empty">Nessun server.</div>'}
+    </div>`;
+  const btn = $('#gpickBtn'), list = $('#gpickList');
+  btn.onclick = (e) => { e.stopPropagation(); list.hidden = !list.hidden; };
+  document.addEventListener('click', () => { try { list.hidden = true; } catch (e) {} }, { once: true });
+  box.querySelectorAll('[data-gpick]').forEach((el) => {
+    el.onclick = (e) => {
+      if (e.target.closest('[data-stop]')) return;
+      list.hidden = true;
+      if (el.dataset.gpick !== S.gid) selectGuild(el.dataset.gpick);
+    };
+  });
 }
+
+function renderGuildSel() { renderGuildPick(); }
 
 async function selectGuild(gid) {
   S.gid = gid;
@@ -97,7 +151,14 @@ async function loadGuild() {
     S.detail = detail;
     S.schema = Array.isArray(schema) ? schema : [];
     S.meta = meta || { channels: [], roles: [] };
-  } catch (e) { return apiErr(e); }
+  } catch (e) {
+    const retried = apiErr(e);
+    if (retried) return;
+    v.innerHTML = topbar('😵 Caricamento fallito', 'Il server non risponde come dovrebbe') +
+      emptyArt('Non riesco a leggere questo server.',
+        'Controlla la <a href="#" onclick="go(\'diag\');return false;">Diagnostica</a> o <button class="icon-btn" onclick="location.reload()">🔄 riprova</button>');
+    return;
+  }
   renderNav();
   onHash();
 }
@@ -106,7 +167,7 @@ function onHash() {
   const r = (location.hash.match(/view=([a-z]+)/) || [])[1];
   S.route = NAV.some((n) => n[0] === r) ? r : 'panoramica';
   renderNav();
-  ({ panoramica: vOverview, moduli: vModules, config: vConfig, permessi: vPerms, audit: vAudit })[S.route]();
+  ({ panoramica: vOverview, moduli: vModules, config: vConfig, permessi: vPerms, audit: vAudit, diag: vDiag })[S.route]();
 }
 
 function renderNav() {
@@ -139,7 +200,13 @@ function vOverview() {
   const on = ctl.filter((m) => m.enabled && !m.isolated).length;
   const iso = ctl.filter((m) => m.isolated).length;
   const tickets = st.tickets || {};
+  const g = (d.guild) || {};
   $('#view').innerHTML = topbar(`📊 ${esc(guildName())}`, 'Stato live dal Commander') + `
+    <div class="guild-hero">
+      ${guildIcon(g, 64)}
+      <div><h2>${esc(g.name || guildName())}</h2>
+      <div class="sub mono">${esc(g.id || S.gid || '')} · 👥 ${c.members ?? '—'} membri · #${c.channels ?? '—'} canali · 👑 ${c.roles ?? '—'} ruoli</div></div>
+    </div>
     <div class="stats">
       <div class="stat"><b>${c.members ?? '—'}</b><span>membri</span></div>
       <div class="stat ok"><b>${on}/${ctl.length || '—'}</b><span>moduli attivi</span></div>
@@ -495,6 +562,36 @@ function vAudit() {
         <td><span class="badge">${esc(e.module || '?')}</span></td><td class="mono">${esc(e.actor || '?')}</td>
         <td class="mono" style="font-size:.78rem;">${esc(Object.keys(e.keys || {}).join(', '))}</td></tr>`).join('') + `</tbody></table></div>`
       : '<div class="empty">Nessun evento registrato.</div>');
+  }).catch((e) => apiErr(e));
+}
+
+/* ---------------- DIAGNOSTICA ---------------- */
+
+function vDiag() {
+  $('#view').innerHTML = topbar('🩺 Diagnostica', 'Perché qualcosa non carica? Risposta qui sotto') + '<div class="skel"></div>';
+  Api.diag(S.gid).then((dg) => {
+    const ok = (v) => v
+      ? '<span class="badge on">ok</span>'
+      : '<span class="badge err">KO</span>';
+    const dbRows = Object.entries(dg.dbOk || {}).map(([k, v]) =>
+      `<tr><td class="mono">${esc(k)}</td><td>${ok(v)}</td></tr>`).join('');
+    const tips = [];
+    if (!dg.tokenOk) tips.push('🔑 Token Discord non valido: il bot non legge canali/ruoli via REST.');
+    if (!dg.guildsOk) tips.push('👥 Roster assente: il bot non ha ancora scritto la presenza (avvia prima il bot).');
+    if (!dg.botPresent) tips.push('🤖 Bot non nel server: invitalo per gestire moduli e config.');
+    if (!dg.canManage) tips.push('👑 Non hai Gestisci Server qui: le modifiche sono bloccate.');
+    $('#view').innerHTML = topbar('🩺 Diagnostica', 'I semafori dicono tutto') +
+      (tips.length
+        ? `<div class="form-card"><h3>🛠️ Da sistemare</h3>${tips.map((t) => `<p style="margin:.4rem 0;">${t}</p>`).join('')}</div>`
+        : `<div class="form-card"><h3>✅ Tutto verde</h3><p style="color:var(--text-secondary);margin:.2rem 0;">Se qualcosa non carica comunque, ricarica o riaccedi.</p></div>`) +
+      `<div class="grid-3" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));display:grid;gap:1rem;margin-bottom:1.2rem;">
+        <div class="card"><h3>Connessione</h3><p>Token: ${ok(dg.tokenOk)} · Roster: ${ok(dg.guildsOk)}</p></div>
+        <div class="card"><h3>Server</h3><p>Bot dentro: ${ok(dg.botPresent)} · Gestisci: ${ok(dg.canManage)}</p></div>
+        <div class="card"><h3>Conteggi</h3><p class="mono" style="font-size:.85rem;">👥 ${dg.counts?.members ?? '—'} · #${dg.counts?.channels ?? '—'} · 👑 ${dg.counts?.roles ?? '—'}</p></div>
+      </div>
+      <div class="form-card"><h3>🗄️ Moduli database</h3>
+        <table class="tbl"><thead><tr><th>Modulo</th><th>Stato</th></tr></thead><tbody>${dbRows || '<tr><td colspan="2">—</td></tr>'}</tbody></table>
+      </div>`;
   }).catch((e) => apiErr(e));
 }
 

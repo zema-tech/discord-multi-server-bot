@@ -37,6 +37,7 @@ const Api = (() => {
     detail: (gid) => get(`/api/guilds/${gid}`),
     schema: (gid) => get(`/api/guilds/${gid}/schema`),
     audit: (gid) => get(`/api/guilds/${gid}/audit`),
+    diag: (gid) => get(`/api/guilds/${gid}/diag`),
     saveModule: (gid, mod, patch) => put(`/api/guilds/${gid}/modules/${mod}`, patch),
     toggle: (gid, id, enabled) => put(`/api/guilds/${gid}/modules/controller`, { id, enabled }),
     perms: (gid, body) => put(`/api/guilds/${gid}/perms`, body),
