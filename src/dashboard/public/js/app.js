@@ -98,6 +98,22 @@ function needsSetup(modId) {
   }
   return false;
 }
+/** Icona modulo: mai testo in chiaro. Gli id del registry usano slug stile
+ *  Lucide (cpu, ticket, shield…): mappati a una emoji singola. Se è già
+ *  un'emoji valida la tiene, altrimenti fallback neutro. */
+const ICON_EMOJI = {
+  cpu: '🤖', message: '💬', users: '👥', terminal: '⌨️', cart: '🛒',
+  star: '⭐', shield: '🛡️', mic: '🎤', check: '✅', server: '🖥️',
+  ticket: '🎫', sliders: '🎚️', grid: '🧩',
+};
+
+function modIcon(m) {
+  const raw = String((m && m.icon) || '');
+  if (ICON_EMOJI[raw]) return ICON_EMOJI[raw];
+  if (raw && !/^[a-z-]+$/.test(raw) && [...raw].length <= 4) return raw;
+  return '🧩';
+}
+
 /** Tips brevi per modulo (stile MEE6/Peak: cosa fare prima). */
 const MOD_TIPS = {
   ai: ['Attiva solo i sotto-servizi che usi (menzioni, ticket, fun).', 'Scrivi il prompt di sistema in italiano, max 2000 caratteri.', 'Con Risposta menzioni attiva, limita i canali per evitare spam.'],
@@ -392,8 +408,8 @@ function vModules() {
     `<div class="mod-grid">` + ctl.map((m) => `
       <div class="mod${m.enabled && !m.isolated ? '' : ' off'}" data-open="${esc(m.id)}" title="Apri dettaglio" tabindex="0" role="button" aria-label="Configura ${esc(m.title || m.id)}">
         <div class="mod-head">
-          <span class="ico">${esc(m.icon || '🧩')}</span>
-          <div><h3>${esc(m.title || m.id)}</h3><span class="ver mono">v${esc(m.version || '?')} · ${esc(m.commands ?? 0)} cmd</span></div>
+          <span class="ico" aria-hidden="true">${modIcon(m)}</span>
+          <div><h3>${esc(m.title || m.id)}</h3><span class="ver mono">${esc(m.commands ?? 0)} comandi</span></div>
         </div>
         <p class="desc">${esc(m.description || '')}</p>
         ${miniStatusHTML(m.id)}
@@ -474,7 +490,7 @@ function vModuleDetail(modId) {
   $('#view').innerHTML =
     `<div class="mod-detail-bar">
        <button class="btn btn-sm" data-back>← Moduli</button>
-       <span class="ico">${esc(m.icon || '🧩')}</span>
+       <span class="ico" aria-hidden="true">${modIcon(m)}</span>
        <h1>${esc(m.title || m.id)}</h1>
        ${m.locked ? '<span class="badge">🔒 sistema</span>' : modBadge(m)}
        <label class="switch" title="on/off"><input type="checkbox" data-toggle-detail${m.enabled ? ' checked' : ''} ${m.locked ? ' disabled' : ''}><span class="tr"></span></label>

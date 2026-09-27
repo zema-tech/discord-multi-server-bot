@@ -447,7 +447,7 @@ canvas.chart { max-height: 260px; }
 .mod[data-open] { cursor: pointer; }
 .mod[data-open]:hover { border-color: var(--accent); transform: translateY(-2px); }
 .mod[data-open]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.mod-head .ico { font-size: 2.5rem; line-height: 1; }
+.mod-head .ico { font-size: 30px; line-height: 1; flex: none; }
 .mod p.desc {
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   overflow: hidden; min-height: 2.5em;
