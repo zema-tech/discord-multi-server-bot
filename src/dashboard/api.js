@@ -55,6 +55,9 @@ const MODULE_FIELDS = {
   tickets: { logChannelId: 'channel', maxPerUser: 'number', autoCloseDays: 'number', panelChannelId: 'channel', categoryId: 'channel', supportRoleIds: 'roles', autoDeleteDays: 'number' },
   tempvoice: { lobbyChannelId: 'channel', categoryId: 'channel' },
   ai: { mentionReply: 'bool', automodAI: 'bool', ticketAI: 'bool', funAI: 'bool', systemPrompt: 'text', mentionChannels: 'channels' },
+  economy: { dailyAmount: 'number', workPct: 'number', slotsMax: 'number' },
+  music: { defaultVolume: 'number' },
+  birthdays: { channelId: 'channel' },
   logging: { logChannelId: 'channel' },
   // Moduli "lista": validati ad-hoc nel PUT (action-based), mai con checkType.
   autoresponder: {},
@@ -129,6 +132,7 @@ function resolveRoles(guild, ids) {
       const NUMBER_RANGES = {
         maxMentions: [1, 20], maxPerUser: [1, 20], autoCloseDays: [0, 365], autoDeleteDays: [0, 90],
         maxCapsPercent: [10, 100], threshold: [1, 100], delaySeconds: [0, 3600],
+        dailyAmount: [100, 5000], workPct: [10, 500], slotsMax: [100, 100000], defaultVolume: [0, 100],
       };
 // aiConfig tronca systemPrompt a MAX_SYSTEM_PROMPT=2000: stesso tetto qui.
 const TEXT_LIMITS = {
@@ -862,6 +866,9 @@ function createApiRouter(client) {
         tempvoice: tv,
         ai,
         logging: { logChannelId: cfg.logChannelId ?? null },
+        economy: (() => { try { const e = safeRequire('../database/economy'); return e ? e.getTuning(gid) : {}; } catch { return {}; } })(),
+        music: (() => { try { const m = safeRequire('../database/music'); return m ? m.getConfig(gid) : {}; } catch { return {}; } })(),
+        birthdays: (() => { try { const b = safeRequire('../database/birthdays'); return { channelId: b ? b.getChannel(gid) : null }; } catch { return { channelId: null }; } })(),
       };
       const lists = {
         autoresponder: Array.isArray(arList) ? arList.slice(0, 50) : [],
@@ -1007,6 +1014,29 @@ function createApiRouter(client) {
         fields: [
           { key: 'lobbyChannelId', label: 'Canale lobby', type: 'channel', help: 'Chi entra qui riceve una vocale privata.' },
           { key: 'categoryId', label: 'Categoria stanze', type: 'channel', help: 'Dove nascono le vocali temporanee.' },
+        ],
+      },
+      {
+        module: 'economy', title: 'Economia', icon: '🪙', section: 'Economia',
+        description: 'Tuning guadagni: i comandi /daily /work /slots leggono questi valori.',
+        fields: [
+          { key: 'dailyAmount', label: 'Ricompensa /daily', type: 'number', help: 'Base giornaliera in monete (100-5000, + bonus streak).' },
+          { key: 'workPct', label: 'Guadagni /work (%)', type: 'number', help: 'Percentuale sui guadagni base dei lavoretti (10-500).' },
+          { key: 'slotsMax', label: 'Puntata max slot', type: 'number', help: 'Tetto puntata /slots in monete (100-100000).' },
+        ],
+      },
+      {
+        module: 'music', title: 'Musica', icon: '🎵', section: 'Musica',
+        description: 'Volume applicato a ogni avvio di /musica play.',
+        fields: [
+          { key: 'defaultVolume', label: 'Volume default (%)', type: 'number', help: '0-100, applicato a ogni play (modificabile poi con /musica volume).' },
+        ],
+      },
+      {
+        module: 'birthdays', title: 'Compleanni', icon: '🎂', section: 'Community',
+        description: 'Canale annunci compleanni (le date si salvano con /compleanno).',
+        fields: [
+          { key: 'channelId', label: 'Canale annunci', type: 'channel', help: 'Senza canale, nessun annuncio automatico.' },
         ],
       },
       {

@@ -186,6 +186,7 @@ const EXTRA_SCHEMA = [
     section: 'Moderazione',
     description: 'Pannello self-service per i ruoli. Le voci del menu e la ' +
       'pubblicazione si gestiscono con /reactionroles nel server.',
+    custom: 'rrOptions',
     fields: [
       {
         key: 'channelId',

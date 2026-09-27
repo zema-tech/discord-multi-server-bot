@@ -24,8 +24,8 @@ const DETAIL_SCHEMA = {
   autoresponder: ['autoresponder'],
   autorole: ['autorole'],
   customCommands: ['commands'],
-  economy: ['shop'],
-  fun: ['confessioni'],
+  economy: ['economy', 'shop'],
+  fun: ['confessioni', 'birthdays'],
   levels: ['levels', 'rewards'],
   moderation: ['automod', 'lockdown'],
   music: [],
@@ -34,7 +34,13 @@ const DETAIL_SCHEMA = {
   system: ['general', 'welcome'],
   tempvoice: ['tempvoice'],
   tickets: ['tickets'],
-  utility: ['general'],
+  utility: [],
+};
+
+/** Messaggio onesto quando non c'è niente da configurare (mai vuoto muto). */
+const EMPTY_HINTS = {
+  music: 'La musica si comanda da Discord con /musica (play, volume, skip, stop). Niente da configurare qui.',
+  utility: 'Setup e preferenze si fanno in Discord con /setup, /wizard, /config e /lingua.',
 };
 
 /** Canali obbligatori per modulo schema: se almeno uno è vuoto -> badge "Da configurare". */
@@ -44,6 +50,7 @@ const REQUIRED_CHANNELS = {
   tempvoice: ['lobbyChannelId'],
   starboard: ['channelId'],
   reactionRoles: ['channelId'],
+  birthdays: ['channelId'],
 };
 
 /** Mini-status per voce schema: [chiave, etichetta]. ✓ se valorizzato. */
@@ -59,6 +66,7 @@ const STATUS_CHECKS = {
   starboard: [['channelId', 'canale']],
   confessioni: [['channelId', 'canale']],
   reactionRoles: [['channelId', 'canale']],
+  birthdays: [['channelId', 'canale']],
 };
 
 function isSet(v) {
@@ -127,6 +135,9 @@ const MOD_TIPS = {
   customCommands: ['I comandi !nome usano {user} {server} {count}; max 20.', 'Con la matita modifichi la risposta senza ricreare il comando.'],
   system: ['Lingua e log stanno in Generale; benvenuto e addii hanno variabili {user} {server} {count}.'],
   fun: ['Le confessioni sono anonime con cooldown anti-abuso.'],
+  economy: ['dailyAmount = base /daily (streak aggiunge bonus).', 'workPct scala tutti i lavoretti; slotsMax è il tetto puntata.'],
+  music: ['Volume applicato a ogni play; poi si cambia con /musica volume.'],
+  birthdays: ['Le date si salvano con /compleanno; qui solo il canale annunci.'],
 };
 const GENERIC_TIPS = [
   'Attiva il modulo con lo switch: spento, la config resta in bozza.',
@@ -498,7 +509,7 @@ function vModuleDetail(modId) {
      </div>
      <p class="sub">Stato: <b>${m.enabled ? 'attivo' : 'spento'}</b> · protezione: <b>${m.isolated ? 'isolato 🛡️' : 'ok'}</b> · errori: <b>${errs}</b> · v${esc(m.version || '?')} · ${esc(m.commands ?? 0)} comandi</p>
      <div class="defaults-box"><h4>💡 Default e suggerimenti</h4>${tips.map((t) => `<div>• ${esc(t)}</div>`).join('')}${defaults.join('')}</div>
-     <div class="mod-detail-grid">${cards || '<div class="empty">Nessun campo: si gestisce da Discord.</div>'}</div>`;
+     <div class="mod-detail-grid">${cards || `<div class="empty">${esc(EMPTY_HINTS[modId] || 'Nessun campo: si gestisce da Discord.')}</div>`}</div>`;
   wireBack();
   const tgl = document.querySelector('[data-toggle-detail]');
   if (tgl) {
@@ -535,6 +546,9 @@ function configCardHTML(s, mods) {
   if (s.custom === 'autoresponder') inner += customAutoresponder(cur);
   if (s.custom === 'commands') inner += customCommands(cur);
   if (s.custom === 'rewards') inner += customRewards(cur);
+  if (s.custom === 'shop') inner += customShop();
+  if (s.custom === 'rrOptions') inner += customRROptions();
+  if (s.custom === 'lockdown') inner += customLockdown();
   if (!inner) inner = '<div class="empty">Nessun campo: si gestisce da Discord o pannello dedicato.</div>';
   return `<div class="form-card" data-module="${esc(s.module)}"><h3>${esc(s.icon || '⚙️')} ${esc(s.title)}</h3><p class="fdesc">${esc(s.description || '')}</p>${inner}</div>`;
 }
@@ -712,6 +726,47 @@ function customRewards() {
     </div>`;
 }
 
+function customShop() {
+  const list = ((S.detail.lists || {}).shop) || [];
+  const rows = list.map((t) => `<tr><td class="mono">&lt;@&amp;${esc(t.roleId)}&gt;</td><td><b>${t.price}</b> 🪙</td>
+    <td><button class="icon-btn danger" data-sh-del="${esc(t.roleId)}">🗑️</button></td></tr>`).join('');
+  const roles = (S.meta.roles || []).filter((r) => !r.managed && r.id !== S.gid);
+  return `<div class="row-flex" style="margin:.6rem 0"><span class="badge">${list.length} articoli</span></div>
+    <table class="tbl"><thead><tr><th>Ruolo</th><th>Prezzo</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="3" class="empty">Negozio vuoto: si compra con /shop.</td></tr>'}</tbody></table>
+    <div class="row-flex" style="margin-top:.7rem">
+      <select id="shRole" class="grow">${roles.map((r) => `<option value="${esc(r.id)}">@${esc(r.name)}</option>`).join('')}</select>
+      <input type="number" id="shPrice" min="1" max="10000000" placeholder="Prezzo 🪙" style="max-width:9rem">
+      <button class="btn btn-primary btn-sm" id="shAdd">➕ Aggiungi</button>
+    </div>`;
+}
+
+function customRROptions() {
+  const list = ((S.detail.lists || {}).rrOptions) || [];
+  const rows = list.map((o) => `<tr><td>${esc(o.emoji || '')}</td><td>${esc(o.label || o.roleId)}</td><td class="mono">&lt;@&amp;${esc(o.roleId)}&gt;</td>
+    <td><button class="icon-btn danger" data-rro-del="${esc(o.roleId)}">🗑️</button></td></tr>`).join('');
+  const roles = (S.meta.roles || []).filter((r) => !r.managed && r.id !== S.gid);
+  return `<div class="row-flex" style="margin:.6rem 0"><span class="badge">${list.length} opzioni</span></div>
+    <table class="tbl"><thead><tr><th>Emoji</th><th>Etichetta</th><th>Ruolo</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="empty">Nessuna opzione: la pubblicazione resta da /reactionroles.</td></tr>'}</tbody></table>
+    <div class="row-flex" style="margin-top:.7rem">
+      <select id="rroRole" class="grow">${roles.map((r) => `<option value="${esc(r.id)}">@${esc(r.name)}</option>`).join('')}</select>
+      <input type="text" id="rroLabel" class="grow" placeholder="Etichetta" maxlength="100">
+      <input type="text" id="rroEmoji" placeholder="Emoji" maxlength="50" style="max-width:7rem">
+      <button class="btn btn-primary btn-sm" id="rroAdd">➕ Aggiungi</button>
+    </div>`;
+}
+
+function customLockdown() {
+  const st = ((S.detail.modules || {}).lockdown) || {};
+  if (!st.active) return '<div class="empty">Nessun lockdown attivo. Si attiva solo con /lockdown on nel server.</div>';
+  return `<table class="tbl"><tbody>
+    <tr><td><b>Stato</b></td><td>🔒 ATTIVO su ${st.channelCount ?? '?'} canali</td></tr>
+    ${st.motivo ? `<tr><td><b>Motivo</b></td><td>${esc(st.motivo)}</td></tr>` : ''}
+    ${st.byTag ? `<tr><td><b>Di</b></td><td>${esc(st.byTag)}</td></tr>` : ''}
+    ${st.at ? `<tr><td><b>Dal</b></td><td class="mono">${esc(st.at)}</td></tr>` : ''}
+    </tbody></table>
+    <p class="help">Sola lettura: per disattivarlo usa /lockdown off nel server.</p>`;
+}
+
 function wireLists() {
   const reload = async () => { try { S.detail = await Api.detail(S.gid); } catch (e) { apiErr(e); } vConfigKeep(); };
   const arAdd = $('#arAdd');
@@ -768,6 +823,34 @@ function wireLists() {
   document.querySelectorAll('[data-rw-del]').forEach((b) => {
     b.onclick = async () => {
       try { await Api.saveModule(S.gid, 'rewards', { action: 'remove', level: Number(b.dataset.rwDel) }); toast('Ricompensa rimossa.', 'ok'); await reload(); }
+      catch (e) { apiErr(e); }
+    };
+  });
+  const shAdd = $('#shAdd');
+  if (shAdd) shAdd.onclick = async () => {
+    const roleId = $('#shRole').value, price = Number($('#shPrice').value);
+    if (!roleId || !price) return toast('Ruolo e prezzo obbligatori.', 'err');
+    try { await Api.saveModule(S.gid, 'shop', { action: 'set', roleId, price }); toast('Articolo aggiunto ✅', 'ok'); await reload(); }
+    catch (e) { apiErr(e); }
+  };
+  document.querySelectorAll('[data-sh-del]').forEach((b) => {
+    b.onclick = async () => {
+      try { await Api.saveModule(S.gid, 'shop', { action: 'remove', roleId: b.dataset.shDel }); toast('Articolo rimosso.', 'ok'); await reload(); }
+      catch (e) { apiErr(e); }
+    };
+  });
+  const rroAdd = $('#rroAdd');
+  if (rroAdd) rroAdd.onclick = async () => {
+    const roleId = $('#rroRole').value;
+    if (!roleId) return toast('Scegli un ruolo.', 'err');
+    try {
+      await Api.saveModule(S.gid, 'reactionRoles', { action: 'add-option', roleId, label: $('#rroLabel').value.trim(), emoji: $('#rroEmoji').value.trim() });
+      toast('Opzione aggiunta ✅', 'ok'); await reload();
+    } catch (e) { apiErr(e); }
+  };
+  document.querySelectorAll('[data-rro-del]').forEach((b) => {
+    b.onclick = async () => {
+      try { await Api.saveModule(S.gid, 'reactionRoles', { action: 'remove-option', roleId: b.dataset.rroDel }); toast('Opzione rimossa.', 'ok'); await reload(); }
       catch (e) { apiErr(e); }
     };
   });
