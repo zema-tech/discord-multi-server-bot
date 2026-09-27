@@ -14,21 +14,90 @@ const NAV = [
   ['diag', '🩺', 'Diagnostica'],
 ];
 
-/** Modulo controller -> voci schema mostrate nel dettaglio (extra inclusi). */
+/** Modulo controller -> voci schema mostrate nel dettaglio (extra inclusi).
+ *  Tutti gli id del controller mappati: economy->shop, utility->general,
+ *  reactionRoles->reactionRoles, moderation include lockdown (read-only).
+ *  Solo music resta senza schema: zero chiavi reali (si usa da /musica).
+ *  'logging' non ha card propria: è lo stesso logChannelId di Generale. */
 const DETAIL_SCHEMA = {
   ai: ['ai'],
   autoresponder: ['autoresponder'],
   autorole: ['autorole'],
   customCommands: ['commands'],
-  levels: ['levels', 'rewards'],
-  tickets: ['tickets'],
-  tempvoice: ['tempvoice'],
-  starboard: ['starboard'],
-  moderation: ['automod'],
-  system: ['general', 'welcome', 'logging'],
+  economy: ['shop'],
   fun: ['confessioni'],
+  levels: ['levels', 'rewards'],
+  moderation: ['automod', 'lockdown'],
+  music: [],
+  reactionRoles: ['reactionRoles'],
+  starboard: ['starboard'],
+  system: ['general', 'welcome'],
+  tempvoice: ['tempvoice'],
+  tickets: ['tickets'],
+  utility: ['general'],
 };
 
+/** Canali obbligatori per modulo schema: se almeno uno è vuoto -> badge "Da configurare". */
+const REQUIRED_CHANNELS = {
+  tickets: ['panelChannelId'],
+  welcome: ['welcomeChannelId'],
+  tempvoice: ['lobbyChannelId'],
+  starboard: ['channelId'],
+  reactionRoles: ['channelId'],
+};
+
+/** Mini-status per voce schema: [chiave, etichetta]. ✓ se valorizzato. */
+const STATUS_CHECKS = {
+  general: [['logChannelId', 'log'], ['suggestChannelId', 'idee']],
+  welcome: [['welcomeChannelId', 'benvenuto'], ['goodbyeChannelId', 'addii']],
+  automod: [['enabled', 'filtri']],
+  autorole: [['roleIds', 'ruoli']],
+  levels: [['levelupChannelId', 'annunci']],
+  tickets: [['logChannelId', 'log'], ['panelChannelId', 'pannello'], ['categoryId', 'cat.']],
+  tempvoice: [['lobbyChannelId', 'lobby'], ['categoryId', 'cat.']],
+  ai: [['systemPrompt', 'prompt']],
+  starboard: [['channelId', 'canale']],
+  confessioni: [['channelId', 'canale']],
+  reactionRoles: [['channelId', 'canale']],
+};
+
+function isSet(v) {
+  if (v === null || v === undefined || v === '' || v === false) return false;
+  if (Array.isArray(v)) return v.length > 0;
+  return true;
+}
+
+/** Riga mini-status per la card controller (tutte le voci schema mappate). */
+function miniStatusHTML(modId) {
+  const ids = DETAIL_SCHEMA[modId] || [];
+  const mods = (S.detail && S.detail.modules) || {};
+  const lists = (S.detail && S.detail.lists) || {};
+  const parts = [];
+  for (const sid of ids) {
+    for (const [key, label] of STATUS_CHECKS[sid] || []) {
+      const ok = isSet(mods[sid] && mods[sid][key]);
+      parts.push(`<span class="${ok ? 'ok' : 'no'}">${esc(label)} ${ok ? '✓' : '✗'}</span>`);
+    }
+  }
+  if (modId === 'autoresponder') parts.push(`<span class="ok">${(lists.autoresponder || []).length} trigger</span>`);
+  if (modId === 'customCommands') parts.push(`<span class="ok">${(lists.customCommands || []).length} comandi</span>`);
+  if (modId === 'levels') parts.push(`<span class="ok">${(lists.levelRewards || []).length} premi</span>`);
+  if (modId === 'economy') parts.push(`<span class="ok">${(lists.shop || []).length} articoli</span>`);
+  if (!parts.length) return '';
+  return `<div class="mini-status">${parts.join(' · ')}</div>`;
+}
+
+/** true se al modulo manca almeno un canale obbligatorio. */
+function needsSetup(modId) {
+  const ids = DETAIL_SCHEMA[modId] || [];
+  const mods = (S.detail && S.detail.modules) || {};
+  for (const sid of ids) {
+    for (const key of REQUIRED_CHANNELS[sid] || []) {
+      if (!isSet(mods[sid] && mods[sid][key])) return true;
+    }
+  }
+  return false;
+}
 /** Tips brevi per modulo (stile MEE6/Peak: cosa fare prima). */
 const MOD_TIPS = {
   ai: ['Attiva solo i sotto-servizi che usi (menzioni, ticket, fun).', 'Scrivi il prompt di sistema in italiano, max 2000 caratteri.', 'Con Risposta menzioni attiva, limita i canali per evitare spam.'],
@@ -321,21 +390,27 @@ function vModules() {
   const ctl = Array.isArray(S.detail.controller) ? S.detail.controller : [];
   $('#view').innerHTML = topbar('🧩 Moduli', `${ctl.length} moduli · click sulla card per configurare, switch per on/off`) +
     `<div class="mod-grid">` + ctl.map((m) => `
-      <div class="mod${m.enabled && !m.isolated ? '' : ' off'}" data-open="${esc(m.id)}" title="Apri dettaglio">
+      <div class="mod${m.enabled && !m.isolated ? '' : ' off'}" data-open="${esc(m.id)}" title="Apri dettaglio" tabindex="0" role="button" aria-label="Configura ${esc(m.title || m.id)}">
         <div class="mod-head">
           <span class="ico">${esc(m.icon || '🧩')}</span>
           <div><h3>${esc(m.title || m.id)}</h3><span class="ver mono">v${esc(m.version || '?')} · ${esc(m.commands ?? 0)} cmd</span></div>
         </div>
         <p class="desc">${esc(m.description || '')}</p>
+        ${miniStatusHTML(m.id)}
         <div class="mod-foot">
           <label class="switch" title="on/off"><input type="checkbox" data-toggle="${esc(m.id)}"${m.enabled ? ' checked' : ''} ${m.locked ? ' disabled' : ''}><span class="tr"></span></label>
           ${m.locked ? '<span class="badge">🔒 sistema</span>' : modBadge(m)}
+          ${m.enabled && !m.isolated && !m.locked && needsSetup(m.id) ? '<span class="badge setup">⚙️ da configurare</span>' : ''}
         </div>
       </div>`).join('') + `</div>`;
   document.querySelectorAll('[data-open]').forEach((card) => {
+    const open = () => { location.hash = `gid=${S.gid}&view=moduli&mod=${encodeURIComponent(card.dataset.open)}`; };
     card.onclick = (e) => {
       if (e.target.closest('label.switch, input, button, a')) return; // switch non apre il dettaglio
-      location.hash = `gid=${S.gid}&view=moduli&mod=${encodeURIComponent(card.dataset.open)}`;
+      open();
+    };
+    card.onkeydown = (e) => {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target === card) { e.preventDefault(); open(); }
     };
   });
   document.querySelectorAll('[data-toggle]').forEach((t) => {
@@ -363,7 +438,28 @@ function vModuleDetail(modId) {
     $('#view').innerHTML = topbar('Modulo non trovato', '') +
       `<div class="empty">Nessun modulo <span class="mono">${esc(modId)}</span> in questo server.</div>
        <button class="btn btn-sm" data-back>← Indietro ai moduli</button>`;
-    wireBack();
+  wireBack();
+  const saveAll = document.querySelector('[data-save-all]');
+  if (saveAll) {
+    saveAll.onclick = async () => {
+      const cards = [...document.querySelectorAll('.form-card[data-module]')]
+        .filter((c) => c.querySelector('[data-fkey]'));
+      if (!cards.length) return toast('Niente da salvare qui.', 'err');
+      saveAll.disabled = true;
+      let ok = 0, fail = 0;
+      for (const card of cards) {
+        try {
+          await Api.saveModule(S.gid, card.dataset.module, collectFields(card));
+          ok++;
+        } catch (e) { fail++; apiErr(e); }
+      }
+      saveAll.disabled = false;
+      if (ok) toast(`Salvato ${ok} modulo${ok > 1 ? 'i' : ''} ✅`, 'ok');
+      if (!fail) {
+        try { S.detail = await Api.detail(S.gid); vModuleDetail(S.selectedMod); } catch {}
+      }
+    };
+  }
     return;
   }
   const schemaIds = DETAIL_SCHEMA[modId] || [];
@@ -382,6 +478,7 @@ function vModuleDetail(modId) {
        <h1>${esc(m.title || m.id)}</h1>
        ${m.locked ? '<span class="badge">🔒 sistema</span>' : modBadge(m)}
        <label class="switch" title="on/off"><input type="checkbox" data-toggle-detail${m.enabled ? ' checked' : ''} ${m.locked ? ' disabled' : ''}><span class="tr"></span></label>
+       <button class="btn btn-primary btn-sm" data-save-all>💾 Salva</button>
      </div>
      <p class="sub">Stato: <b>${m.enabled ? 'attivo' : 'spento'}</b> · protezione: <b>${m.isolated ? 'isolato 🛡️' : 'ok'}</b> · errori: <b>${errs}</b> · v${esc(m.version || '?')} · ${esc(m.commands ?? 0)} comandi</p>
      <div class="defaults-box"><h4>💡 Default e suggerimenti</h4>${tips.map((t) => `<div>• ${esc(t)}</div>`).join('')}${defaults.join('')}</div>
@@ -415,14 +512,27 @@ function configCardHTML(s, mods) {
   const cur = (mods[s.module] && typeof mods[s.module] === 'object') ? mods[s.module] : {};
   let inner = '';
   if (Array.isArray(s.fields) && s.fields.length) {
-    inner = s.fields.map((f) => fieldInput(s.module, f, cur[f.key])).join('') +
-      `<button class="btn btn-primary btn-sm" data-save="${esc(s.module)}">💾 Salva ${esc(s.title)}</button>`;
+    inner = `<fieldset class="fldset"><legend>${esc(s.title)}</legend>` +
+      s.fields.map((f) => fieldInput(s.module, f, cur[f.key])).join('') +
+      `<button class="btn btn-primary btn-sm" data-save="${esc(s.module)}">💾 Salva ${esc(s.title)}</button></fieldset>`;
   }
   if (s.custom === 'autoresponder') inner += customAutoresponder(cur);
   if (s.custom === 'commands') inner += customCommands(cur);
   if (s.custom === 'rewards') inner += customRewards(cur);
   if (!inner) inner = '<div class="empty">Nessun campo: si gestisce da Discord o pannello dedicato.</div>';
-  return `<div class="form-card"><h3>${esc(s.icon || '⚙️')} ${esc(s.title)}</h3><p class="fdesc">${esc(s.description || '')}</p>${inner}</div>`;
+  return `<div class="form-card" data-module="${esc(s.module)}"><h3>${esc(s.icon || '⚙️')} ${esc(s.title)}</h3><p class="fdesc">${esc(s.description || '')}</p>${inner}</div>`;
+}
+
+/** Anteprima live stile Discord per i messaggi con {user} {server} {count}. */
+function messagePreviewInner(text) {
+  const rendered = esc(String(text || 'Anteprima messaggio…'))
+    .replaceAll('{user}', '@utente').replaceAll('{username}', 'utente')
+    .replaceAll('{server}', esc(guildName())).replaceAll('{count}', '128');
+  return `<span class="lp-bot">B</span><div><b>Multi-Server Bot</b> <span>oggi</span><p>${rendered}</p></div>`;
+}
+
+function messagePreview(text) {
+  return `<div class="live-preview">${messagePreviewInner(text)}</div>`;
 }
 
 async function refreshController() {
@@ -443,30 +553,43 @@ function fieldInput(mod, f, cur) {
   const name = `f_${mod}_${f.key}`;
   const help = f.help ? `<div class="help">${esc(f.help)}</div>` : '';
   const ph = f.placeholder ? ` placeholder="${esc(f.placeholder)}"` : '';
+  // Select con ricerca quando le opzioni sono tante (>8), altrimenti ordinate.
+  const filterBox = (count) => count > 8
+    ? `<input type="search" class="filter" data-filter-for="${esc(name)}" placeholder="🔍 Cerca…" autocomplete="off">`
+    : '';
+  const optList = (items, fmt) => [...items]
+    .sort((a, b) => String(fmt(a).label).localeCompare(String(fmt(b).label), 'it'))
+    .map((x) => { const o = fmt(x); return `<option value="${esc(o.value)}"${o.sel ? ' selected' : ''}>${esc(o.label)}</option>`; })
+    .join('');
   switch (f.type) {
     case 'bool':
       return `<label class="check-row"><input type="checkbox" data-fkey="${esc(f.key)}"${val ? ' checked' : ''}> ${esc(f.label)}${help}</label>`;
     case 'number':
       return `<div class="field"><label>${esc(f.label)}</label><input type="number" data-fkey="${esc(f.key)}" value="${esc(val)}">${help}</div>`;
-    case 'text':
-      return `<div class="field"><label>${esc(f.label)}</label>` +
-        (f.multiline ? `<textarea data-fkey="${esc(f.key)}"${ph}>${esc(val)}</textarea>` : `<input type="text" data-fkey="${esc(f.key)}" value="${esc(val)}"${ph}>`) + `${help}</div>`;
+    case 'text': {
+      const hasVars = /{(user|username|server|count)}/.test(String(f.placeholder || '')) || /Message|Messaggio|messaggio/.test(f.label);
+      const ta = f.multiline
+        ? `<textarea data-fkey="${esc(f.key)}" data-preview="${hasVars ? '1' : ''}"${ph}>${esc(val)}</textarea>`
+        : `<input type="text" data-fkey="${esc(f.key)}" value="${esc(val)}"${ph}>`;
+      return `<div class="field"><label>${esc(f.label)}</label>${ta}${help}` +
+        (hasVars && f.multiline ? `<div class="live-preview" data-preview-box>${messagePreview(val)}</div>` : '') + `</div>`;
+    }
     case 'channel': {
       const chs = (S.meta.channels || []).filter((c) => c.type === 0 || c.type === 'GUILD_TEXT' || c.type == null);
-      const opts = `<option value="">— nessuno —</option>` + chs.map((c) => `<option value="${esc(c.id)}"${String(val) === String(c.id) ? ' selected' : ''}>#${esc(c.name || c.id)}</option>`).join('');
-      return `<div class="field"><label>${esc(f.label)}</label><select data-fkey="${esc(f.key)}">${opts}</select>${help}</div>`;
+      const opts = `<option value="">— nessuno —</option>` + optList(chs, (c) => ({ value: c.id, label: '#' + (c.name || c.id), sel: String(val) === String(c.id) }));
+      return `<div class="field"><label>${esc(f.label)}</label>${filterBox(chs.length)}<select id="${esc(name)}" data-fkey="${esc(f.key)}">${opts}</select>${help}</div>`;
     }
     case 'roles': {
       const roles = (S.meta.roles || []).filter((r) => !r.managed && r.id !== S.gid);
       const curArr = Array.isArray(val) ? val.map(String) : [];
-      const opts = roles.map((r) => `<option value="${esc(r.id)}"${curArr.includes(String(r.id)) ? ' selected' : ''}>@${esc(r.name)}</option>`).join('');
-      return `<div class="field"><label>${esc(f.label)}</label><select multiple size="5" data-fkey="${esc(f.key)}">${opts}</select>${help}</div>`;
+      const opts = optList(roles, (r) => ({ value: r.id, label: '@' + r.name, sel: curArr.includes(String(r.id)) }));
+      return `<div class="field"><label>${esc(f.label)}</label>${filterBox(roles.length)}<select id="${esc(name)}" multiple size="5" data-fkey="${esc(f.key)}">${opts}</select>${help}</div>`;
     }
     case 'channels': {
       const chs = (S.meta.channels || []).filter((c) => c.type === 0 || c.type === 'GUILD_TEXT' || c.type == null);
       const curArr = Array.isArray(val) ? val.map(String) : [];
-      const opts = chs.map((c) => `<option value="${esc(c.id)}"${curArr.includes(String(c.id)) ? ' selected' : ''}>#${esc(c.name || c.id)}</option>`).join('');
-      return `<div class="field"><label>${esc(f.label)}</label><select multiple size="5" data-fkey="${esc(f.key)}">${opts}</select>${help}</div>`;
+      const opts = optList(chs, (c) => ({ value: c.id, label: '#' + (c.name || c.id), sel: curArr.includes(String(c.id)) }));
+      return `<div class="field"><label>${esc(f.label)}</label>${filterBox(chs.length)}<select id="${esc(name)}" multiple size="5" data-fkey="${esc(f.key)}">${opts}</select>${help}</div>`;
     }
     case 'lang':
       return `<div class="field"><label>${esc(f.label)}</label><select data-fkey="${esc(f.key)}">
@@ -508,6 +631,23 @@ function wireConfig() {
         S.detail = d;
       } catch (e) { apiErr(e); } finally { b.disabled = false; }
     };
+  });
+  // Filtro live per le select lunghe (canali/ruoli cercabili).
+  document.querySelectorAll('[data-filter-for]').forEach((inp) => {
+    const sel = document.getElementById(inp.dataset.filterFor);
+    if (!sel) return;
+    inp.oninput = () => {
+      const q = inp.value.toLowerCase();
+      for (const o of sel.options) {
+        o.hidden = q !== '' && !o.text.toLowerCase().includes(q) && !o.selected;
+      }
+    };
+  });
+  // Preview live per i messaggi con variabili.
+  document.querySelectorAll('textarea[data-preview="1"]').forEach((ta) => {
+    const box = ta.closest('.field') ? ta.closest('.field').querySelector('[data-preview-box]') : null;
+    if (!box) return;
+    ta.oninput = () => { box.innerHTML = messagePreviewInner(ta.value); };
   });
   wireLists();
 }
