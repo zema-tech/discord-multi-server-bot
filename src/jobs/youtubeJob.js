@@ -51,6 +51,11 @@ async function checkOnce(client, fetchFn = globalThis.fetch) {
     if (typeof gid !== 'string' || gid.startsWith('__')) continue;
     const feeds = db[gid] && Array.isArray(db[gid].feeds) ? db[gid].feeds : [];
     if (!feeds.length) continue;
+    // Modulo disattivato = job salta il server (toggle da /modulo o dashboard).
+    try {
+      const gate = require('../modules/commander').canRun(gid, 'youtube');
+      if (gate && gate.ok === false) continue;
+    } catch {}
     const guild = await client.guilds.fetch(gid).catch(() => null);
     if (!guild) continue;
     for (const feed of feeds) {

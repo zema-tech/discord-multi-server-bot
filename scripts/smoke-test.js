@@ -2416,7 +2416,7 @@ try {
   }
   const registry = require(path.join(ROOT, 'src', 'modules', 'registry.js'));
   registry.reload();
-  if (registry.list().length !== 15) fail(`lumi: registry dovrebbe avere 15 moduli, ha ${registry.list().length}`);
+  if (registry.list().length !== 16) fail(`lumi: registry dovrebbe avere 16 moduli, ha ${registry.list().length}`);
   if (!registry.list().every((m) => /^\d+\.\d+\.\d+$/.test(m.version || ''))) {
     fail('lumi: ogni modulo deve dichiarare version semver via defineModule');
   }

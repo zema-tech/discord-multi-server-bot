@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
-const { getUser, addBalance, updateUser } = require('../../database/economy');
+const { getUser, addBalance, updateUser, getTuning } = require('../../database/economy');
 
 // theme.js con fallback inline se il require fallisse.
 let COLORS = { gold: 0xffd700, error: 0xed4245 };
@@ -53,7 +53,13 @@ module.exports = {
       .setThumbnail(target.displayAvatarURL())
       .setTimestamp(), interaction);
 
-    const success = Math.random() < 0.45;
+    // Chance dal tuning server (dashboard > Economia, default 45%).
+    let chancePct = 45;
+    try {
+      const t = getTuning(gid);
+      if (t && Number.isFinite(t.robChancePct)) chancePct = t.robChancePct;
+    } catch {}
+    const success = Math.random() * 100 < chancePct;
     if (!success) {
       // Multa mai negativa/NaN: con saldo corrotto vale 0, mai un accredito
       const fine = Math.max(0, Math.min(150, Number.isFinite(thief.balance) ? thief.balance : 0));

@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
-const { getRep, getLastGiven, canGive, giveRep, getLeaderboard, COOLDOWN } = require('../../database/rep');
+const { getRep, getLastGiven, canGive, giveRep, getLeaderboard, getCooldown } = require('../../database/rep');
 
 // theme.js con fallback inline se il require fallisse.
 let COLORS = { gold: 0xffd700, warn: 0xfee75c, success: 0x57f287 };
@@ -57,7 +57,7 @@ module.exports = {
       }
       const now = Date.now();
       if (!canGive(guildId, giverId, target.id, now)) {
-        const next = Math.floor((getLastGiven(guildId, giverId, target.id) + COOLDOWN) / 1000);
+        const next = Math.floor((getLastGiven(guildId, giverId, target.id) + getCooldown(guildId)) / 1000);
         return safeReply(interaction, { content: `⏳ Potrai ridare rep a ${target.tag} <t:${next}:R>`, flags: MessageFlags.Ephemeral });
       }
       const updated = giveRep(guildId, giverId, target.id, now);

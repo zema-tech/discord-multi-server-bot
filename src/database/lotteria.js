@@ -75,4 +75,14 @@ function resetLottery(guildId) {
   return persist(guildId, defaultState());
 }
 
-module.exports = { TICKET_PRICE, THRESHOLD, getState, addTickets, totalTickets, resetLottery, validCount };
+/** Prezzo biglietto persistito (dashboard > Economia). Lancia su input non valido. */
+function setTicketPrice(guildId, price) {
+  if (!guildId) throw new Error('guildId mancante.');
+  const n = Math.floor(Number(price));
+  if (!Number.isInteger(n) || n < 1) throw new Error('Prezzo non valido (intero >= 1).');
+  const state = getState(guildId);
+  state.ticketPrice = Math.min(n, 100000);
+  return persist(guildId, state);
+}
+
+module.exports = { TICKET_PRICE, THRESHOLD, getState, addTickets, totalTickets, resetLottery, setTicketPrice, validCount };

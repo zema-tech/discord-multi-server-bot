@@ -55,7 +55,7 @@ const MODULE_FIELDS = {
   tickets: { logChannelId: 'channel', maxPerUser: 'number', autoCloseDays: 'number', panelChannelId: 'channel', categoryId: 'channel', supportRoleIds: 'roles', autoDeleteDays: 'number' },
   tempvoice: { lobbyChannelId: 'channel', categoryId: 'channel' },
   ai: { mentionReply: 'bool', automodAI: 'bool', ticketAI: 'bool', funAI: 'bool', systemPrompt: 'text', mentionChannels: 'channels' },
-  economy: { dailyAmount: 'number', workPct: 'number', slotsMax: 'number' },
+  economy: { dailyAmount: 'number', workPct: 'number', slotsMax: 'number', lottoPrice: 'number', repCooldownH: 'number', robChancePct: 'number' },
   music: { defaultVolume: 'number' },
   birthdays: { channelId: 'channel' },
   logging: { logChannelId: 'channel' },
@@ -63,6 +63,8 @@ const MODULE_FIELDS = {
   autoresponder: {},
   commands: {},
   rewards: {},
+  warns: {},
+  youtube: {},
   // Controller feature on/off: gestito ad-hoc (handleController), mai generico.
   controller: {},
 };
@@ -132,7 +134,8 @@ function resolveRoles(guild, ids) {
       const NUMBER_RANGES = {
         maxMentions: [1, 20], maxPerUser: [1, 20], autoCloseDays: [0, 365], autoDeleteDays: [0, 90],
         maxCapsPercent: [10, 100], threshold: [1, 100], delaySeconds: [0, 3600],
-        dailyAmount: [100, 5000], workPct: [10, 500], slotsMax: [100, 100000], defaultVolume: [0, 100],
+        dailyAmount: [100, 5000], workPct: [10, 500], slotsMax: [100, 100000],
+        lottoPrice: [10, 10000], repCooldownH: [1, 72], robChancePct: [5, 95], defaultVolume: [0, 100],
       };
 // aiConfig tronca systemPrompt a MAX_SYSTEM_PROMPT=2000: stesso tetto qui.
 const TEXT_LIMITS = {
@@ -874,6 +877,8 @@ function createApiRouter(client) {
         autoresponder: Array.isArray(arList) ? arList.slice(0, 50) : [],
         customCommands: Array.isArray(ccList) ? ccList.slice(0, 20) : [],
         levelRewards: Array.isArray(rwList) ? rwList : [],
+        warnRules: (() => { try { const w = safeRequire('../database/warnings'); return w ? w.getWarnActions(gid) : []; } catch { return []; } })(),
+        youtube: (() => { try { const y = safeRequire('../database/youtube'); return y ? y.getFeeds(gid).slice(0, 10) : []; } catch { return []; } })(),
       };
       // Hook moduli extra (require-safe: se il file manca, comportamento identico a oggi).
       try {
@@ -982,6 +987,12 @@ function createApiRouter(client) {
         ],
       },
       {
+        module: 'warns', title: 'Warnazioni', icon: '⚠️', section: 'Moderazione',
+        description: 'Azioni automatiche a soglia warn (stesse regole di /warnazioni).',
+        fields: [],
+        custom: 'warns',
+      },
+      {
         module: 'levels', title: 'Livelli XP', icon: '⭐', section: 'Livelli',
         description: 'XP da messaggi e vocali + ricompense per livello (gestite sotto).',
         fields: [
@@ -1018,11 +1029,14 @@ function createApiRouter(client) {
       },
       {
         module: 'economy', title: 'Economia', icon: '🪙', section: 'Economia',
-        description: 'Tuning guadagni: i comandi /daily /work /slots leggono questi valori.',
+        description: 'Tuning guadagni: i comandi leggono questi valori.',
         fields: [
           { key: 'dailyAmount', label: 'Ricompensa /daily', type: 'number', help: 'Base giornaliera in monete (100-5000, + bonus streak).' },
           { key: 'workPct', label: 'Guadagni /work (%)', type: 'number', help: 'Percentuale sui guadagni base dei lavoretti (10-500).' },
-          { key: 'slotsMax', label: 'Puntata max slot', type: 'number', help: 'Tetto puntata /slots in monete (100-100000).' },
+          { key: 'slotsMax', label: 'Puntata max /slots', type: 'number', help: 'Tetto puntata in monete (100-100000).' },
+          { key: 'lottoPrice', label: 'Prezzo biglietto lotteria', type: 'number', help: 'Costo per biglietto /lotteria (10-10000). Sincronizza il piatto.' },
+          { key: 'repCooldownH', label: 'Cooldown rep (ore)', type: 'number', help: 'Ore tra una rep e l\u2019altra dallo stesso utente (1-72).' },
+          { key: 'robChancePct', label: 'Successo /rob (%)', type: 'number', help: 'Probabilità di furto riuscito (5-95).' },
         ],
       },
       {
@@ -1038,6 +1052,12 @@ function createApiRouter(client) {
         fields: [
           { key: 'channelId', label: 'Canale annunci', type: 'channel', help: 'Senza canale, nessun annuncio automatico.' },
         ],
+      },
+      {
+        module: 'youtube', title: 'Notifiche YouTube', icon: '📺', section: 'Community',
+        description: 'Annuncia i nuovi video via RSS gratis (max 10 feed).',
+        fields: [],
+        custom: 'youtube',
       },
       {
         module: 'ai', title: 'AI', icon: '🤖', section: 'AI & Extra',
@@ -1115,6 +1135,8 @@ function createApiRouter(client) {
       if (mod === 'autoresponder') return handleAutoresponder(gid, req, res);
       if (mod === 'commands') return handleCustomCommands(gid, req, res);
       if (mod === 'rewards') return handleRewards(gid, gl, req, res);
+      if (mod === 'warns') return handleWarns(gid, req, res);
+      if (mod === 'youtube') return handleYoutube(gid, gl, req, res);
       if (mod === 'controller') return handleController(gid, req, res);
 
       const spec = Object.prototype.hasOwnProperty.call(MODULE_FIELDS, mod) ? MODULE_FIELDS[mod] : undefined;
@@ -1269,6 +1291,67 @@ function createApiRouter(client) {
     } catch (e) {
       return res.status(400).json({ errore: e && e.message ? e.message : 'Toggle fallito.' });
     }
+  }
+
+  function handleWarns(gid, req, res) {
+    const warnings = safeRequire('../database/warnings');
+    if (!warnings) return res.status(501).json({ errore: 'Modulo warn non disponibile.' });
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const action = body.action;
+    const list = () => warnings.getWarnActions(gid);
+    if (action === 'add') {
+      const warns = Math.floor(Number(body.warns));
+      const ruleAction = String(body.ruleAction || '').toLowerCase().trim();
+      if (!Number.isFinite(warns) || warns < 2 || warns > 20) {
+        return res.status(400).json({ errore: 'Soglia non valida (2-20 warn).' });
+      }
+      if (!['timeout', 'kick', 'ban'].includes(ruleAction)) {
+        return res.status(400).json({ errore: 'Azione non valida (timeout/kick/ban).' });
+      }
+      const minutes = ruleAction === 'timeout' ? Math.min(Math.max(Math.floor(Number(body.minutes)) || 10, 1), 40320) : 0;
+      try {
+        const rules = list().filter((r) => r.warns !== warns);
+        rules.push({ warns, action: ruleAction, minutes });
+        warnings.setWarnActions(gid, rules);
+        return res.json(sanitizeForJson({ ok: true, module: 'warns', list: list() }));
+      } catch (e) {
+        return res.status(400).json({ errore: e.message || 'Regola non valida.' });
+      }
+    }
+    if (action === 'remove') {
+      const warns = Math.floor(Number(body.warns));
+      try {
+        warnings.setWarnActions(gid, list().filter((r) => r.warns !== warns));
+        return res.json(sanitizeForJson({ ok: true, module: 'warns', list: list() }));
+      } catch (e) {
+        return res.status(400).json({ errore: e.message || 'Serve almeno una regola.' });
+      }
+    }
+    return res.status(400).json({ errore: 'Action non valida (add/remove).' });
+  }
+
+  async function handleYoutube(gid, gl, req, res) {
+    const yt = safeRequire('../database/youtube');
+    if (!yt) return res.status(501).json({ errore: 'Modulo YouTube non disponibile.' });
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const action = body.action;
+    const out = () => sanitizeForJson({ ok: true, module: 'youtube', list: yt.getFeeds(gid) });
+    if (action === 'add') {
+      if (!isSnowflake(body.announceId)) return res.status(400).json({ errore: 'Canale annunci non valido.' });
+      const r = await resolveChannel(gl, body.announceId);
+      if (r.invalid || r.missing) return res.status(400).json({ errore: 'Canale annunci non trovato in questo server.' });
+      try {
+        const added = yt.addFeed(gid, body.channelId, body.announceId);
+        const r2 = out(); if (added && added.dup) r2.dup = true; return res.json(r2);
+      } catch (e) {
+        return res.status(400).json({ errore: e.message || 'Feed non valido.' });
+      }
+    }
+    if (action === 'remove') {
+      try { yt.removeFeed(gid, body.channelId); } catch {}
+      return res.json(out());
+    }
+    return res.status(400).json({ errore: 'Action non valida (add/remove).' });
   }
 
   function handleRewards(gid, guild, req, res) {

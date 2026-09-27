@@ -5,9 +5,11 @@ const TUNING_FILE = dbFile('economyTuning');
 
 const DEFAULTS = { balance: 0, bank: 0, lastDaily: 0, lastWork: 0, lastSlots: 0, lastRob: 0 };
 
-// Tuning server (letto dai comandi daily/work/slots, modificabile da dashboard):
-// dailyAmount = ricompensa base /daily, workPct = % guadagni /work, slotsMax = puntata max.
-const DEFAULT_TUNING = { dailyAmount: 500, workPct: 100, slotsMax: 10000 };
+// Tuning server (letto dai comandi daily/work/slots/lotteria/rep/rob, modificabile da dashboard):
+// dailyAmount = ricompensa base /daily, workPct = % guadagni /work, slotsMax = puntata max,
+// lottoPrice = prezzo biglietto lotteria, repCooldownH = ore tra rep dallo stesso giver,
+// robChancePct = % successo /rob.
+const DEFAULT_TUNING = { dailyAmount: 500, workPct: 100, slotsMax: 10000, lottoPrice: 100, repCooldownH: 24, robChancePct: 45 };
 
 function clampInt(v, min, max, fb) {
   const n = Math.floor(Number(v));
@@ -23,6 +25,9 @@ function getTuning(guildId) {
       dailyAmount: clampInt(raw.dailyAmount, 100, 5000, DEFAULT_TUNING.dailyAmount),
       workPct: clampInt(raw.workPct, 10, 500, DEFAULT_TUNING.workPct),
       slotsMax: clampInt(raw.slotsMax, 100, 100000, DEFAULT_TUNING.slotsMax),
+      lottoPrice: clampInt(raw.lottoPrice, 10, 10000, DEFAULT_TUNING.lottoPrice),
+      repCooldownH: clampInt(raw.repCooldownH, 1, 72, DEFAULT_TUNING.repCooldownH),
+      robChancePct: clampInt(raw.robChancePct, 5, 95, DEFAULT_TUNING.robChancePct),
     };
   } catch {
     return { ...DEFAULT_TUNING };
@@ -37,9 +42,19 @@ function setTuning(guildId, patch = {}) {
   if (safe.dailyAmount !== undefined) next.dailyAmount = clampInt(safe.dailyAmount, 100, 5000, next.dailyAmount);
   if (safe.workPct !== undefined) next.workPct = clampInt(safe.workPct, 10, 500, next.workPct);
   if (safe.slotsMax !== undefined) next.slotsMax = clampInt(safe.slotsMax, 100, 100000, next.slotsMax);
+  if (safe.lottoPrice !== undefined) next.lottoPrice = clampInt(safe.lottoPrice, 10, 10000, next.lottoPrice);
+  if (safe.repCooldownH !== undefined) next.repCooldownH = clampInt(safe.repCooldownH, 1, 72, next.repCooldownH);
+  if (safe.robChancePct !== undefined) next.robChancePct = clampInt(safe.robChancePct, 5, 95, next.robChancePct);
   const db = load(TUNING_FILE);
   db[guildId] = next;
   save(TUNING_FILE, db);
+  // Sincronizza il prezzo persistito della lotteria (la dashboard salva qui, il bot legge lì).
+  try {
+    const lotteria = require('./lotteria');
+    if (lotteria && typeof lotteria.setTicketPrice === 'function' && safe.lottoPrice !== undefined) {
+      lotteria.setTicketPrice(guildId, next.lottoPrice);
+    }
+  } catch {}
   return { ...next };
 }
 

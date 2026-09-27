@@ -27,14 +27,15 @@ const DETAIL_SCHEMA = {
   economy: ['economy', 'shop'],
   fun: ['confessioni', 'birthdays'],
   levels: ['levels', 'rewards'],
-  moderation: ['automod', 'lockdown'],
-  music: [],
+  moderation: ['automod', 'lockdown', 'warns'],
+  music: ['music'],
   reactionRoles: ['reactionRoles'],
   starboard: ['starboard'],
   system: ['general', 'welcome'],
   tempvoice: ['tempvoice'],
   tickets: ['tickets'],
   utility: [],
+  youtube: ['youtube'],
 };
 
 /** Messaggio onesto quando non c'è niente da configurare (mai vuoto muto). */
@@ -91,6 +92,8 @@ function miniStatusHTML(modId) {
   if (modId === 'customCommands') parts.push(`<span class="ok">${(lists.customCommands || []).length} comandi</span>`);
   if (modId === 'levels') parts.push(`<span class="ok">${(lists.levelRewards || []).length} premi</span>`);
   if (modId === 'economy') parts.push(`<span class="ok">${(lists.shop || []).length} articoli</span>`);
+  if (modId === 'moderation') parts.push(`<span class="ok">${(lists.warnRules || []).length} regole warn</span>`);
+  if (modId === 'youtube') parts.push(`<span class="ok">${(lists.youtube || []).length}/10 feed</span>`);
   if (!parts.length) return '';
   return `<div class="mini-status">${parts.join(' · ')}</div>`;
 }
@@ -112,7 +115,7 @@ function needsSetup(modId) {
 const ICON_EMOJI = {
   cpu: '🤖', message: '💬', users: '👥', terminal: '⌨️', cart: '🛒',
   star: '⭐', shield: '🛡️', mic: '🎤', check: '✅', server: '🖥️',
-  ticket: '🎫', sliders: '🎚️', grid: '🧩',
+  ticket: '🎫', sliders: '🎚️', tv: '📺', grid: '🧩',
 };
 
 function modIcon(m) {
@@ -129,14 +132,15 @@ const MOD_TIPS = {
   tickets: ['Imposta canale log + canale pannello + categoria prima di aprire ticket.', 'Auto-chiusura 0 = mai (solo manuale); auto-cancellazione pulisce i chiusi.'],
   tempvoice: ['Serve una lobby vocale + una categoria: senza, le stanze non nascono.'],
   starboard: ['Soglia alta = bacheca selettiva; emoji singola e riconoscibile.'],
-  moderation: ['Parti con anti-spam + anti-invite, aggiungi il resto dopo.'],
+  moderation: ['Parti con anti-spam + anti-invite, aggiungi il resto dopo.', 'Warnazioni: parti da 3 warn → timeout 10 min.'],
   levels: ['Annunci level-up nello stesso canale se non scegli un canale.'],
   autorole: ['Mai ruoli dei bot; un ritardo di qualche secondo evita i raid.'],
   customCommands: ['I comandi !nome usano {user} {server} {count}; max 20.', 'Con la matita modifichi la risposta senza ricreare il comando.'],
   system: ['Lingua e log stanno in Generale; benvenuto e addii hanno variabili {user} {server} {count}.'],
   fun: ['Le confessioni sono anonime con cooldown anti-abuso.'],
-  economy: ['dailyAmount = base /daily (streak aggiunge bonus).', 'workPct scala tutti i lavoretti; slotsMax è il tetto puntata.'],
+  economy: ['dailyAmount = base /daily (streak aggiunge bonus).', 'workPct scala tutti i lavoretti; lottoPrice sincronizza il piatto.'],
   music: ['Volume applicato a ogni play; poi si cambia con /musica volume.'],
+  youtube: ['Max 10 feed; disattivare il modulo ferma solo le notifiche, i feed restano.'],
   birthdays: ['Le date si salvano con /compleanno; qui solo il canale annunci.'],
 };
 const GENERIC_TIPS = [
@@ -549,6 +553,8 @@ function configCardHTML(s, mods) {
   if (s.custom === 'shop') inner += customShop();
   if (s.custom === 'rrOptions') inner += customRROptions();
   if (s.custom === 'lockdown') inner += customLockdown();
+  if (s.custom === 'warns') inner += customWarns();
+  if (s.custom === 'youtube') inner += customYT();
   if (!inner) inner = '<div class="empty">Nessun campo: si gestisce da Discord o pannello dedicato.</div>';
   return `<div class="form-card" data-module="${esc(s.module)}"><h3>${esc(s.icon || '⚙️')} ${esc(s.title)}</h3><p class="fdesc">${esc(s.description || '')}</p>${inner}</div>`;
 }
@@ -726,8 +732,7 @@ function customRewards() {
     </div>`;
 }
 
-function customShop() {
-  const list = ((S.detail.lists || {}).shop) || [];
+function customShop() {  const list = ((S.detail.lists || {}).shop) || [];
   const rows = list.map((t) => `<tr><td class="mono">&lt;@&amp;${esc(t.roleId)}&gt;</td><td><b>${t.price}</b> 🪙</td>
     <td><button class="icon-btn danger" data-sh-del="${esc(t.roleId)}">🗑️</button></td></tr>`).join('');
   const roles = (S.meta.roles || []).filter((r) => !r.managed && r.id !== S.gid);
@@ -765,6 +770,34 @@ function customLockdown() {
     ${st.at ? `<tr><td><b>Dal</b></td><td class="mono">${esc(st.at)}</td></tr>` : ''}
     </tbody></table>
     <p class="help">Sola lettura: per disattivarlo usa /lockdown off nel server.</p>`;
+}
+
+function customWarns() {
+  const list = ((S.detail.lists || {}).warnRules) || [];
+  const rows = list.map((t) => `<tr><td><b>${t.warns}</b> warn</td><td class="mono">${esc(t.action)}${t.action === 'timeout' ? ` ${t.minutes}m` : ''}</td>
+    <td><button class="icon-btn danger" data-wn-del="${t.warns}">🗑️</button></td></tr>`).join('');
+  return `<div class="row-flex" style="margin:.6rem 0"><span class="badge">${list.length} regole</span></div>
+    <table class="tbl"><thead><tr><th>Soglia</th><th>Azione</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="3" class="empty">Nessuna regola: stesse di /warnazioni.</td></tr>'}</tbody></table>
+    <div class="row-flex" style="margin-top:.7rem">
+      <input type="number" id="wnWarns" min="2" max="20" placeholder="Warn" style="max-width:7rem">
+      <select id="wnAction"><option value="timeout">timeout</option><option value="kick">kick</option><option value="ban">ban</option></select>
+      <input type="number" id="wnMinutes" min="1" max="40320" placeholder="Minuti" style="max-width:8rem">
+      <button class="btn btn-primary btn-sm" id="wnAdd">➕ Aggiungi</button>
+    </div>`;
+}
+
+function customYT() {
+  const list = ((S.detail.lists || {}).youtube) || [];
+  const rows = list.map((t) => `<tr><td class="mono">${esc(t.channelId)}</td><td class="mono">&lt;#${esc(t.announceId)}&gt;</td>
+    <td><button class="icon-btn danger" data-yt-del="${esc(t.channelId)}">🗑️</button></td></tr>`).join('');
+  const channels = (S.meta.channels || []).filter((c) => c.type === 0 || c.type === 'GUILD_TEXT' || c.type == null);
+  return `<div class="row-flex" style="margin:.6rem 0"><span class="badge">${list.length}/10 feed</span></div>
+    <table class="tbl"><thead><tr><th>Canale YT</th><th>Annunci in</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="3" class="empty">Nessun feed.</td></tr>'}</tbody></table>
+    <div class="row-flex" style="margin-top:.7rem">
+      <input type="text" id="ytChannel" class="grow" placeholder="ID canale (UC…) o URL" maxlength="120">
+      <select id="ytAnnounce" class="grow">${channels.map((c) => `<option value="${esc(c.id)}">#${esc(c.name || c.id)}</option>`).join('')}</select>
+      <button class="btn btn-primary btn-sm" id="ytAdd">➕ Aggiungi</button>
+    </div>`;
 }
 
 function wireLists() {
@@ -851,6 +884,32 @@ function wireLists() {
   document.querySelectorAll('[data-rro-del]').forEach((b) => {
     b.onclick = async () => {
       try { await Api.saveModule(S.gid, 'reactionRoles', { action: 'remove-option', roleId: b.dataset.rroDel }); toast('Opzione rimossa.', 'ok'); await reload(); }
+      catch (e) { apiErr(e); }
+    };
+  });
+  const wnAdd = $('#wnAdd');
+  if (wnAdd) wnAdd.onclick = async () => {
+    const warns = Number($('#wnWarns').value), ruleAction = $('#wnAction').value, minutes = Number($('#wnMinutes').value);
+    if (!warns) return toast('Soglia warn obbligatoria.', 'err');
+    try { await Api.saveModule(S.gid, 'warns', { action: 'add', warns, ruleAction, minutes }); toast('Regola aggiunta ✅', 'ok'); await reload(); }
+    catch (e) { apiErr(e); }
+  };
+  document.querySelectorAll('[data-wn-del]').forEach((b) => {
+    b.onclick = async () => {
+      try { await Api.saveModule(S.gid, 'warns', { action: 'remove', warns: Number(b.dataset.wnDel) }); toast('Regola rimossa.', 'ok'); await reload(); }
+      catch (e) { apiErr(e); }
+    };
+  });
+  const ytAdd = $('#ytAdd');
+  if (ytAdd) ytAdd.onclick = async () => {
+    const channelId = $('#ytChannel').value.trim(), announceId = $('#ytAnnounce').value;
+    if (!channelId || !announceId) return toast('Canale YT e canale annunci obbligatori.', 'err');
+    try { await Api.saveModule(S.gid, 'youtube', { action: 'add', channelId, announceId }); toast('Feed aggiunto ✅', 'ok'); await reload(); }
+    catch (e) { apiErr(e); }
+  };
+  document.querySelectorAll('[data-yt-del]').forEach((b) => {
+    b.onclick = async () => {
+      try { await Api.saveModule(S.gid, 'youtube', { action: 'remove', channelId: b.dataset.ytDel }); toast('Feed rimosso.', 'ok'); await reload(); }
       catch (e) { apiErr(e); }
     };
   });

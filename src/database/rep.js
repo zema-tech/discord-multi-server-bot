@@ -2,7 +2,19 @@ const { load, save, dbFile } = require('./jsonDb');
 
 const FILE = dbFile('rep');
 
-const COOLDOWN = 24 * 3600 * 1000; // 24h per giver
+const COOLDOWN = 24 * 3600 * 1000; // default 24h per giver (configurabile: tuning repCooldownH)
+
+/** Cooldown ms per giver (tuning server, default 24h). Mai lancia. */
+function getCooldown(guildId) {
+  try {
+    const eco = require('./economy');
+    if (eco && typeof eco.getTuning === 'function') {
+      const t = eco.getTuning(guildId);
+      if (t && Number.isFinite(t.repCooldownH)) return t.repCooldownH * 3600 * 1000;
+    }
+  } catch {}
+  return COOLDOWN;
+}
 
 function num(v, fallback = 0) {
   return Number.isFinite(v) && v >= 0 ? v : fallback;
@@ -35,7 +47,7 @@ function getLastGiven(guildId, giverId, receiverId) {
 
 function canGive(guildId, giverId, receiverId, now = Date.now()) {
   const last = getLastGiven(guildId, giverId, receiverId);
-  return now - last >= COOLDOWN;
+  return now - last >= getCooldown(guildId);
 }
 
 // Assegna +1 rep. Presuppone i controlli (self/bot/cooldown) fatti dal comando.
@@ -63,4 +75,4 @@ function getLeaderboard(guildId, limit = 10) {
     .slice(0, safeLimit);
 }
 
-module.exports = { getRep, getLastGiven, canGive, giveRep, getLeaderboard, COOLDOWN };
+module.exports = { getRep, getLastGiven, canGive, giveRep, getLeaderboard, getCooldown, COOLDOWN };
