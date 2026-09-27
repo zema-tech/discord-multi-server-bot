@@ -347,6 +347,20 @@ function updateModuleConfig(guildId, mod, patch) {
       if (typeof aiConfig.updateConfig === 'function') return aiConfig.updateConfig(guildId, p);
       throw dispatchError(501, 'Modulo AI senza API di scrittura.');
     }
+    case 'economy': {
+      const economy = needDb('../database/economy', 500, 'Modulo economy non disponibile.');
+      if (typeof economy.setTuning !== 'function') throw dispatchError(501, 'Tuning economy non disponibile.');
+      return { tuning: economy.setTuning(guildId, p) };
+    }
+    case 'music': {
+      const music = needDb('../database/music', 501, 'Modulo musica non ancora disponibile.');
+      return music.setConfig(guildId, p);
+    }
+    case 'birthdays': {
+      const birthdays = needDb('../database/birthdays', 501, 'Modulo compleanni non ancora disponibile.');
+      if (p.channelId === undefined) throw dispatchError(400, 'channelId mancante.');
+      return { channelId: birthdays.setChannel(guildId, p.channelId) };
+    }
     default:
       throw dispatchError(400, `Modulo sconosciuto: ${mod}.`);
   }
