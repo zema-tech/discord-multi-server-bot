@@ -13,7 +13,9 @@
  *   writeExtra(gid, mod, patch, guild) -> updated; lancia {status:400,message}
  *     su input invalido; ritorna null se mod non gestito.
  *
- * MODULI MAPPATI (5):
+ * MODULI MAPPATI (3 + 2 rimossi perché duplicati del base):
+ *   (ticketsPlus e aiPlus rimossi: panelChannelId/categoryId/supportRoleIds e
+ *   mentionChannels vivono nei moduli base tickets/ai con UI migliore.)
  *   1. ticketsPlus    <- database/tickets.js (DEFAULT_CONFIG reale:
  *                        panelChannelId, categoryId, supportRoleIds;
  *                        maxPerUser 1..20 e autoCloseDays 0..365 restano nel
@@ -177,52 +179,6 @@ function strOrNull(v, max) {
 // EXTRA_SCHEMA
 // ---------------------------------------------------------------------------
 const EXTRA_SCHEMA = [
-  {
-    module: 'ticketsPlus',
-    title: 'Ticket avanzati',
-    icon: '🎫',
-    section: 'Ticket & Vocali',
-    description: 'Pannello ticket, categoria di creazione e ruoli staff. ' +
-      'Log, max per utente e auto-chiusura restano nel modulo base Ticket.',
-    fields: [
-      {
-        key: 'panelChannelId',
-        label: 'Canale pannello ticket',
-        type: 'channel',
-        help: 'Dove viene pubblicato il pannello con i pulsanti di apertura.',
-      },
-      {
-        key: 'categoryId',
-        label: 'Categoria nuovi ticket',
-        type: 'channel',
-        help: 'Categoria dove il bot crea i canali ticket.',
-      },
-      {
-        key: 'supportRoleIds',
-        label: 'Ruoli staff ticket',
-        type: 'roles',
-        help: 'Max 10 ruoli (esclusi quelli dei bot). Possono vedere e gestire i ticket.',
-      },
-    ],
-  },
-  {
-    module: 'aiPlus',
-    title: 'AI menzioni',
-    icon: '🤖',
-    section: 'AI & Extra',
-    description: 'In quali canali il bot risponde quando viene menzionato. ' +
-      'Interruttori AI e prompt restano nel modulo base AI.',
-    fields: [
-      {
-        key: 'mentionChannels',
-        label: 'Canali risposta alle menzioni',
-        type: 'text',
-        placeholder: '123456789012345678, 234567890123456789',
-        help: 'ID dei canali (max 5) separati da virgola; lista vuota = nessun canale. ' +
-          'Funziona solo con "Risposta alle menzioni" attiva nel modulo AI.',
-      },
-    ],
-  },
   {
     module: 'reactionRoles',
     title: 'Reaction roles',
