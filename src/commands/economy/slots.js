@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
-const { getUser, addBalance, updateUser } = require('../../database/economy');
+const { getUser, addBalance, updateUser, getTuning, DEFAULT_TUNING } = require('../../database/economy');
 
 // theme.js con fallback inline: mai crash se il require fallisce.
 let _T = null;
@@ -27,6 +27,15 @@ module.exports = {
     // Difesa: option required + min/max lato Discord, ma mock/test possono passare NaN/null.
     if (!Number.isInteger(bet) || bet < 10 || bet > 10000)
       return interaction.reply({ content: '❌ Puntata non valida: usa un intero tra 10 e 10.000 🪙.', flags: MessageFlags.Ephemeral });
+    // Tetto dal tuning server (dashboard > Economia, default 10.000).
+    let slotsMax = DEFAULT_TUNING.slotsMax;
+    try {
+      const t = getTuning(interaction.guild.id);
+      if (t && Number.isFinite(t.slotsMax)) slotsMax = t.slotsMax;
+    } catch {}
+    if (bet > slotsMax) {
+      return interaction.reply({ content: `❌ Puntata oltre il tetto del server (**${slotsMax}** 🪙).`, flags: MessageFlags.Ephemeral });
+    }
     const data = getUser(interaction.guild.id, interaction.user.id);
     const saldo = Number.isFinite(data.balance) ? data.balance : 0;
     if (!Number.isFinite(data.balance) || data.balance < bet)

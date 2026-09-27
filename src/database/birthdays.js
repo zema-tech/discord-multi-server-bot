@@ -81,4 +81,14 @@ function birthdaysOn(guildId, date = new Date()) {
   return listBirthdays(guildId).filter((b) => b.md === key);
 }
 
-module.exports = { parseDay, setBirthday, removeBirthday, getBirthday, listBirthdays, setChannel, birthdaysOn };
+/** Canale annunci (null = non impostato). Mai lancia. */
+function getChannel(guildId) {
+  try {
+    const { g } = guildData(guildId);
+    return (g && typeof g.channelId === 'string' && g.channelId) ? g.channelId : null;
+  } catch {
+    return null;
+  }
+}
+
+module.exports = { parseDay, setBirthday, removeBirthday, getBirthday, listBirthdays, setChannel, getChannel, birthdaysOn };

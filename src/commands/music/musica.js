@@ -247,6 +247,16 @@ module.exports = {
         });
       } catch {}
       const queue = res.queue ?? getQueue(player, interaction.guild.id);
+      // Volume default dal tuning server (dashboard > Musica, default 100).
+      try {
+        const { getConfig } = require('../../database/music');
+        const v = getConfig(interaction.guild.id).defaultVolume;
+        if (Number.isFinite(v) && queue && queue.node && typeof queue.node.setVolume === 'function') {
+          queue.node.setVolume(v);
+        }
+      } catch {
+        // volume opzionale: mai rompere il play
+      }
       // Parte un brano: cancella un eventuale timer di auto-leave pendente.
       try {
         cancelAutoLeave(queue ?? interaction.guild.id);

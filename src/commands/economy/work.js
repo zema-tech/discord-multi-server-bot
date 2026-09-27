@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
-const { getUser, updateUser } = require('../../database/economy');
+const { getUser, updateUser, getTuning } = require('../../database/economy');
 
 // theme.js con fallback inline: mai crash se il require fallisce.
 let _T = null;
@@ -42,7 +42,12 @@ module.exports = {
     }
 
     const job = jobs[Math.floor(Math.random() * jobs.length)];
-    const earned = Math.floor(Math.random() * (job.max - job.min + 1)) + job.min;
+    let earned = Math.floor(Math.random() * (job.max - job.min + 1)) + job.min;
+    // Moltiplicatore dal tuning server (dashboard > Economia, default 100%).
+    try {
+      const t = getTuning(interaction.guild.id);
+      if (t && Number.isFinite(t.workPct)) earned = Math.max(1, Math.floor((earned * t.workPct) / 100));
+    } catch {}
     // Base sanificata: con saldo corrotto (NaN) il nuovo saldo diventerebbe NaN.
     const base = Number.isFinite(userData.balance) ? userData.balance : 0;
     const newBalance = base + earned;

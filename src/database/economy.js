@@ -1,8 +1,47 @@
 const { load, save, dbFile } = require('./jsonDb');
 
 const FILE = dbFile('economy');
+const TUNING_FILE = dbFile('economyTuning');
 
 const DEFAULTS = { balance: 0, bank: 0, lastDaily: 0, lastWork: 0, lastSlots: 0, lastRob: 0 };
+
+// Tuning server (letto dai comandi daily/work/slots, modificabile da dashboard):
+// dailyAmount = ricompensa base /daily, workPct = % guadagni /work, slotsMax = puntata max.
+const DEFAULT_TUNING = { dailyAmount: 500, workPct: 100, slotsMax: 10000 };
+
+function clampInt(v, min, max, fb) {
+  const n = Math.floor(Number(v));
+  return Number.isFinite(n) ? Math.min(Math.max(n, min), max) : fb;
+}
+
+/** Config tuning del server (merge + sanitize, mai lancia). */
+function getTuning(guildId) {
+  try {
+    const db = load(TUNING_FILE);
+    const raw = (guildId && db[guildId] && typeof db[guildId] === 'object') ? db[guildId] : {};
+    return {
+      dailyAmount: clampInt(raw.dailyAmount, 100, 5000, DEFAULT_TUNING.dailyAmount),
+      workPct: clampInt(raw.workPct, 10, 500, DEFAULT_TUNING.workPct),
+      slotsMax: clampInt(raw.slotsMax, 100, 100000, DEFAULT_TUNING.slotsMax),
+    };
+  } catch {
+    return { ...DEFAULT_TUNING };
+  }
+}
+
+/** Aggiorna il tuning (patch parziale, chiavi note). Lancia su guild mancante. */
+function setTuning(guildId, patch = {}) {
+  if (!guildId) throw new Error('guildId mancante.');
+  const safe = patch && typeof patch === 'object' && !Array.isArray(patch) ? patch : {};
+  const next = { ...getTuning(guildId) };
+  if (safe.dailyAmount !== undefined) next.dailyAmount = clampInt(safe.dailyAmount, 100, 5000, next.dailyAmount);
+  if (safe.workPct !== undefined) next.workPct = clampInt(safe.workPct, 10, 500, next.workPct);
+  if (safe.slotsMax !== undefined) next.slotsMax = clampInt(safe.slotsMax, 100, 100000, next.slotsMax);
+  const db = load(TUNING_FILE);
+  db[guildId] = next;
+  save(TUNING_FILE, db);
+  return { ...next };
+}
 
 // Numero finito >= 0, altrimenti fallback. Evita NaN/stringhe/infiniti nei saldi.
 function num(v, fallback = 0) {
@@ -66,4 +105,4 @@ function getLeaderboard(guildId, limit = 10) {
     .slice(0, Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 10);
 }
 
-module.exports = { getUser, updateUser, addBalance, getLeaderboard };
+module.exports = { getUser, updateUser, addBalance, getLeaderboard, getTuning, setTuning, DEFAULT_TUNING };

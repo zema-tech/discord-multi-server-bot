@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
-const { getUser, updateUser } = require('../../database/economy');
+const { getUser, updateUser, getTuning, DEFAULT_TUNING } = require('../../database/economy');
 
 let theme = null;
 try {
@@ -83,7 +83,13 @@ module.exports = {
     const prevStreak = Number.isFinite(data.dailyStreak) ? Math.min(Math.max(0, Math.floor(data.dailyStreak)), 10000) : 0;
     const streak = now - lastDaily <= 2 * COOLDOWN ? prevStreak + 1 : 1;
     const bonus = Math.min((streak - 1) * 50, 500);
-    const reward = DAILY_AMOUNT + bonus;
+    // Ricompensa base dal tuning server (dashboard > Economia, default 500).
+    let dailyAmount = DAILY_AMOUNT;
+    try {
+      const t = getTuning(interaction.guild.id);
+      if (t && Number.isFinite(t.dailyAmount)) dailyAmount = t.dailyAmount;
+    } catch {}
+    const reward = dailyAmount + bonus;
     const base = Number.isFinite(data.balance) ? data.balance : 0;
     // RED Bank-style: interessi sui depositi — 2% del salvadanaio, max 500.
     const banked = Number.isFinite(data.bank) ? Math.max(0, data.bank) : 0;
