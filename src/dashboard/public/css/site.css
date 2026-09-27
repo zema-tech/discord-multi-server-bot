@@ -492,3 +492,22 @@ input.filter { margin-bottom: 0.4rem; font-size: 0.85rem; padding: 0.45rem 0.7re
   .mod-detail-bar h1 { font-size: 1.2rem; }
   .mod-detail-bar [data-save-all] { margin-left: 0; width: 100%; justify-content: center; }
 }
+
+/* ---- Nav moduli stile MEE6: categorie + righe ---- */
+.mod-cat { margin-bottom: 1.6rem; }
+.mod-cat > h2 { font-family: var(--font-display); font-size: 1.05rem; margin: 0 0 0.7rem; color: var(--text-primary); }
+.mod-row {
+  display: flex; align-items: center; gap: 1rem;
+  min-height: 0; margin-bottom: 0.6rem;
+}
+.mod-row .ico { font-size: 30px; line-height: 1; flex: none; }
+.mod-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+.mod-row-main .mod-head { align-items: baseline; }
+.mod-row .mod-foot { margin-top: 0; flex: none; }
+.mod-row p.desc { flex: none; min-height: 0; }
+.mod-row .mini-status { margin-top: 0.1rem; }
+
+@media (max-width: 640px) {
+  .mod-row { flex-wrap: wrap; }
+  .mod-row .mod-foot { width: 100%; justify-content: flex-end; }
+}

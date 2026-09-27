@@ -125,6 +125,18 @@ function modIcon(m) {
   return '🧩';
 }
 
+/** Nav moduli stile MEE6: categorie con solo voci reali (id controller esistenti).
+ *  Niente voci premium copiate (Twitch/TikTok/Instagram/Web3/NFT/Monetize):
+ *  ogni voce apre il dettaglio con form reali o messaggio onesto. */
+const NAV_CATS = [
+  { id: 'essentials', icon: '🛡️', title: 'Essentials', items: ['moderation', 'tickets', 'autorole'] },
+  { id: 'server', icon: '🏰', title: 'Server', items: ['levels', 'starboard', 'tempvoice', 'reactionRoles'] },
+  { id: 'utilities', icon: '🧰', title: 'Utilities', items: ['customCommands', 'autoresponder', 'youtube', 'utility'] },
+  { id: 'fun', icon: '🎉', title: 'Fun', items: ['fun', 'economy', 'music'] },
+  { id: 'ai', icon: '🤖', title: 'AI', items: ['ai'] },
+  { id: 'settings', icon: '⚙️', title: 'Settings', items: ['system'] },
+];
+
 /** Tips brevi per modulo (stile MEE6/Peak: cosa fare prima). */
 const MOD_TIPS = {
   ai: ['Attiva solo i sotto-servizi che usi (menzioni, ticket, fun).', 'Scrivi il prompt di sistema in italiano, max 2000 caratteri.', 'Con Risposta menzioni attiva, limita i canali per evitare spam.'],
@@ -419,21 +431,33 @@ function modBadge(m) {
 function vModules() {
   S.selectedMod = null;
   const ctl = Array.isArray(S.detail.controller) ? S.detail.controller : [];
-  $('#view').innerHTML = topbar('🧩 Moduli', `${ctl.length} moduli · click sulla card per configurare, switch per on/off`) +
-    `<div class="mod-grid">` + ctl.map((m) => `
-      <div class="mod${m.enabled && !m.isolated ? '' : ' off'}" data-open="${esc(m.id)}" title="Apri dettaglio" tabindex="0" role="button" aria-label="Configura ${esc(m.title || m.id)}">
-        <div class="mod-head">
-          <span class="ico" aria-hidden="true">${modIcon(m)}</span>
-          <div><h3>${esc(m.title || m.id)}</h3><span class="ver mono">${esc(m.commands ?? 0)} comandi</span></div>
+  const byId = {};
+  for (const m of ctl) if (m && m.id) byId[m.id] = m;
+  const row = (m) => `
+      <div class="mod mod-row${m.enabled && !m.isolated ? '' : ' off'}" data-open="${esc(m.id)}" title="Apri dettaglio" tabindex="0" role="button" aria-label="Configura ${esc(m.title || m.id)}">
+        <span class="ico" aria-hidden="true">${modIcon(m)}</span>
+        <div class="mod-row-main">
+          <div class="mod-head">
+            <div><h3>${esc(m.title || m.id)}</h3><span class="ver mono">${esc(m.commands ?? 0)} comandi</span></div>
+          </div>
+          <p class="desc">${esc(m.description || '')}</p>
+          ${miniStatusHTML(m.id)}
         </div>
-        <p class="desc">${esc(m.description || '')}</p>
-        ${miniStatusHTML(m.id)}
         <div class="mod-foot">
           <label class="switch" title="on/off"><input type="checkbox" data-toggle="${esc(m.id)}"${m.enabled ? ' checked' : ''} ${m.locked ? ' disabled' : ''}><span class="tr"></span></label>
           ${m.locked ? '<span class="badge">🔒 sistema</span>' : modBadge(m)}
           ${m.enabled && !m.isolated && !m.locked && needsSetup(m.id) ? '<span class="badge setup">⚙️ da configurare</span>' : ''}
         </div>
-      </div>`).join('') + `</div>`;
+      </div>`;
+  const cats = NAV_CATS.map((c) => {
+    const items = c.items.map((id) => byId[id]).filter(Boolean);
+    if (!items.length) return '';
+    return `<section class="mod-cat"><h2>${esc(c.icon)} ${esc(c.title)}</h2>` +
+      items.map(row).join('') + `</section>`;
+  }).join('');
+  const orphans = ctl.filter((m) => !NAV_CATS.some((c) => c.items.includes(m.id)));
+  $('#view').innerHTML = topbar('🧩 Moduli', `${ctl.length} moduli · click sulla riga per configurare, switch per on/off`) +
+    cats + (orphans.length ? `<section class="mod-cat"><h2>📦 Altri</h2>` + orphans.map(row).join('') + `</section>` : '');
   document.querySelectorAll('[data-open]').forEach((card) => {
     const open = () => { location.hash = `gid=${S.gid}&view=moduli&mod=${encodeURIComponent(card.dataset.open)}`; };
     card.onclick = (e) => {
