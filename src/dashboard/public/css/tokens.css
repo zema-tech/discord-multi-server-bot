@@ -41,21 +41,29 @@
   --ice-200: #c9eaf0;
   --ice-300: #a8d8c9;
   --frost-500: #5ab0d0;
+  --abyss-950: #12272b;
+  --lagoon-900: #1a3438;
+  --teal-850: #214448;
+  --teal-800: #2a545a;
+  --teal-700: #2f6169;
+  --steel-600: #3d6b74;
+  --sky-300: #7fd4e8;
+  --wave-500: #3e8fe5;
   --font-display: "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif;
   --font-body: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", monospace;
 }
 
-/* ---- SEMANTIC (tema foresta elfica: verdi + azzurro ghiaccio) ---- */
+/* ---- SEMANTIC (tema laguna: teal/blu + verde foglia + azzurro) ---- */
 :root {
-  --bg-primary: var(--bark-950);
-  --bg-secondary: var(--boot-900);
-  --surface: var(--moss-900);
-  --surface-2: var(--pants-800);
-  --surface-3: var(--moss-700);
-  --border: var(--olive-700);
+  --bg-primary: var(--abyss-950);
+  --bg-secondary: var(--lagoon-900);
+  --surface: var(--teal-850);
+  --surface-2: var(--teal-800);
+  --surface-3: var(--teal-700);
+  --border: var(--steel-600);
   --text-primary: var(--tunic-50);
-  --text-secondary: var(--moss-100);
+  --text-secondary: var(--ice-200);
   --text-dim: var(--wing-500);
   --accent: var(--leaf-500);
   --accent-soft: var(--moss-700);
@@ -63,7 +71,7 @@
   --ok: var(--leaf-500);
   --warn: var(--sand-300);
   --bad: var(--ember-500);
-  --info: var(--frost-500);
+  --info: var(--sky-300);
   --radius-s: 8px;
   --radius-m: 14px;
   --radius-l: 22px;
@@ -80,9 +88,9 @@
   --btn-text: #1c2614;
   --card-bg: var(--surface);
   --card-border: var(--border);
-  --input-bg: var(--boot-900);
-  --input-border: var(--olive-700);
-  --nav-bg: rgba(42, 52, 31, 0.85);
+  --input-bg: var(--lagoon-900);
+  --input-border: var(--steel-600);
+  --nav-bg: rgba(18, 39, 43, 0.85);
   --toggle-on: var(--leaf-500);
-  --toggle-off: var(--olive-700);
+  --toggle-off: var(--steel-600);
 }

@@ -107,8 +107,9 @@ a { color: var(--accent-soft); }
   inset: -20% -10% auto;
   height: 70%;
   background:
-    radial-gradient(600px 300px at 20% 30%, rgba(107, 175, 78, 0.35), transparent 70%),
-    radial-gradient(500px 260px at 80% 20%, rgba(90, 176, 208, 0.18), transparent 70%);
+    radial-gradient(600px 300px at 20% 30%, rgba(107, 175, 78, 0.28), transparent 70%),
+    radial-gradient(700px 340px at 80% 20%, rgba(90, 176, 208, 0.22), transparent 70%),
+    radial-gradient(500px 300px at 50% 100%, rgba(62, 143, 229, 0.14), transparent 70%);
   pointer-events: none;
 }
 .eyebrow {
@@ -546,7 +547,7 @@ input.filter { margin-bottom: 0.4rem; font-size: 0.85rem; padding: 0.45rem 0.7re
 .plug-tile {
   width: 64px; height: 64px; border-radius: 16px; flex: none;
   display: flex; align-items: center; justify-content: center; font-size: 34px;
-  background: rgba(107, 175, 78, 0.20);
+  background: rgba(90, 176, 208, 0.16);
   border: 1px solid var(--card-border);
 }
 .plug-badges { display: flex; gap: 0.4rem; align-items: center; }
@@ -580,3 +581,7 @@ input.filter { margin-bottom: 0.4rem; font-size: 0.85rem; padding: 0.45rem 0.7re
   background: rgba(0, 0, 0, 0.55); color: #fff; cursor: pointer; font-size: 0.9rem;
 }
 .promo-x:hover { background: rgba(0, 0, 0, 0.8); }
+
+/* ---- Link azzurri su fondo laguna ---- */
+#view a:not(.btn) { color: var(--info); }
+#view a:not(.btn):hover { filter: brightness(1.15); }
