@@ -3,7 +3,7 @@
 
 const S = {
   me: null, guilds: [], gid: null, detail: null, schema: [], meta: { channels: [], roles: [] },
-  route: 'panoramica', charts: [], selectedMod: null,
+  route: 'panoramica', charts: [], selectedMod: null, explicit: false,
 };
 
 const NAV = [
@@ -17,27 +17,6 @@ const NAV = [
 /** Modulo controller -> voci schema mostrate nel dettaglio (extra inclusi).
  *  Tutti gli id del controller mappati: economy->shop, utility->general,
  *  reactionRoles->reactionRoles, moderation include lockdown (read-only).
- *  Solo music resta senza schema: zero chiavi reali (si usa da /musica).
- *  'logging' non ha card propria: è lo stesso logChannelId di Generale. */
-const DETAIL_SCHEMA = {
-  ai: ['ai'],
-  autoresponder: ['autoresponder'],
-  autorole: ['autorole'],
-  customCommands: ['commands'],
-  economy: ['economy', 'shop'],
-  fun: ['confessioni', 'birthdays'],
-  levels: ['levels', 'rewards'],
-  moderation: ['automod', 'lockdown', 'warns'],
-  music: ['music'],
-  reactionRoles: ['reactionRoles'],
-  starboard: ['starboard'],
-  system: ['general', 'welcome'],
-  tempvoice: ['tempvoice'],
-  tickets: ['tickets'],
-  utility: [],
-  youtube: ['youtube'],
-};
-
 /** Messaggio onesto quando non c'è niente da configurare (mai vuoto muto). */
 const EMPTY_HINTS = {
   music: 'La musica si comanda da Discord con /musica (play, volume, skip, stop). Niente da configurare qui.',
@@ -54,60 +33,40 @@ const REQUIRED_CHANNELS = {
   birthdays: ['channelId'],
 };
 
-/** Mini-status per voce schema: [chiave, etichetta]. ✓ se valorizzato. */
-const STATUS_CHECKS = {
-  general: [['logChannelId', 'log'], ['suggestChannelId', 'idee']],
-  welcome: [['welcomeChannelId', 'benvenuto'], ['goodbyeChannelId', 'addii']],
-  automod: [['enabled', 'filtri']],
-  autorole: [['roleIds', 'ruoli']],
-  levels: [['levelupChannelId', 'annunci']],
-  tickets: [['logChannelId', 'log'], ['panelChannelId', 'pannello'], ['categoryId', 'cat.']],
-  tempvoice: [['lobbyChannelId', 'lobby'], ['categoryId', 'cat.']],
-  ai: [['systemPrompt', 'prompt']],
-  starboard: [['channelId', 'canale']],
-  confessioni: [['channelId', 'canale']],
-  reactionRoles: [['channelId', 'canale']],
-  birthdays: [['channelId', 'canale']],
-};
-
 function isSet(v) {
   if (v === null || v === undefined || v === '' || v === false) return false;
   if (Array.isArray(v)) return v.length > 0;
   return true;
 }
 
-/** Riga mini-status per la card controller (tutte le voci schema mappate). */
-function miniStatusHTML(modId) {
-  const ids = DETAIL_SCHEMA[modId] || [];
-  const mods = (S.detail && S.detail.modules) || {};
-  const lists = (S.detail && S.detail.lists) || {};
-  const parts = [];
-  for (const sid of ids) {
-    for (const [key, label] of STATUS_CHECKS[sid] || []) {
-      const ok = isSet(mods[sid] && mods[sid][key]);
-      parts.push(`<span class="${ok ? 'ok' : 'no'}">${esc(label)} ${ok ? '✓' : '✗'}</span>`);
-    }
-  }
-  if (modId === 'autoresponder') parts.push(`<span class="ok">${(lists.autoresponder || []).length} trigger</span>`);
-  if (modId === 'customCommands') parts.push(`<span class="ok">${(lists.customCommands || []).length} comandi</span>`);
-  if (modId === 'levels') parts.push(`<span class="ok">${(lists.levelRewards || []).length} premi</span>`);
-  if (modId === 'economy') parts.push(`<span class="ok">${(lists.shop || []).length} articoli</span>`);
-  if (modId === 'moderation') parts.push(`<span class="ok">${(lists.warnRules || []).length} regole warn</span>`);
-  if (modId === 'youtube') parts.push(`<span class="ok">${(lists.youtube || []).length}/10 feed</span>`);
-  if (!parts.length) return '';
-  return `<div class="mini-status">${parts.join(' · ')}</div>`;
+/** Voce controller dai dati live (per toggle/stato). */
+function ctlEntry(ctrl) {
+  const ctl = Array.isArray(S.detail.controller) ? S.detail.controller : [];
+  return (ctrl.find((x) => x && x.id === ctrl)) || null;
 }
 
-/** true se al modulo manca almeno un canale obbligatorio. */
-function needsSetup(modId) {
-  const ids = DETAIL_SCHEMA[modId] || [];
+/** true se alla voce manca almeno un canale obbligatorio. */
+function itemNeedsSetup(it) {
   const mods = (S.detail && S.detail.modules) || {};
-  for (const sid of ids) {
+  for (const sid of it.schemas) {
     for (const key of REQUIRED_CHANNELS[sid] || []) {
       if (!isSet(mods[sid] && mods[sid][key])) return true;
     }
   }
   return false;
+}
+
+/** Badge stato per la riga sidebar: dot on/off + "da configurare". */
+function itemBadgeHTML(it) {
+  const m = it.ctrl ? ctlEntry(it.ctrl) : null;
+  if (!m) return '<span class="badge">⚙️ config</span>';
+  const dot = (m.enabled && !m.isolated)
+    ? '<span class="dot on" title="attivo"></span>'
+    : '<span class="dot off" title="spento"></span>';
+  const setup = (m.enabled && !m.isolated && !m.locked && itemNeedsSetup(it))
+    ? '<span class="badge setup" title="manca un canale obbligatorio">⚙️</span>' : '';
+  const lock = m.locked ? '<span class="badge">🔒</span>' : '';
+  return `${dot}${lock}${setup}`;
 }
 /** Icona modulo: mai testo in chiaro. Gli id del registry usano slug stile
  *  Lucide (cpu, ticket, shield…): mappati a una emoji singola. Se è già
@@ -125,17 +84,53 @@ function modIcon(m) {
   return '🧩';
 }
 
-/** Nav moduli stile MEE6: categorie con solo voci reali (id controller esistenti).
- *  Niente voci premium copiate (Twitch/TikTok/Instagram/Web3/NFT/Monetize):
- *  ogni voce apre il dettaglio con form reali o messaggio onesto. */
-const NAV_CATS = [
-  { id: 'essentials', icon: '🛡️', title: 'Essentials', items: ['moderation', 'tickets', 'autorole'] },
-  { id: 'server', icon: '🏰', title: 'Server', items: ['levels', 'starboard', 'tempvoice', 'reactionRoles'] },
-  { id: 'utilities', icon: '🧰', title: 'Utilities', items: ['customCommands', 'autoresponder', 'youtube', 'utility'] },
-  { id: 'fun', icon: '🎉', title: 'Fun', items: ['fun', 'economy', 'music'] },
-  { id: 'ai', icon: '🤖', title: 'AI', items: ['ai'] },
-  { id: 'settings', icon: '⚙️', title: 'Settings', items: ['system'] },
+/** Sidebar moduli stile MEE6: categorie con sole voci reali (mai premium copiato:
+ *  niente Twitch/TikTok/Instagram/Bluesky/Kick/Web3/NFT/Monetize/MEE6 AI).
+ *  Voce = { id, icon, label, ctrl? (id controller per toggle/stato), schemas: [...] }.
+ *  Senza ctrl: niente switch, solo form (es. Welcome) o messaggio onesto. */
+const SIDEBAR = [
+  { id: 'essentials', title: 'Essentials', items: [
+    { id: 'welcome', icon: '👋', label: 'Welcome & Goodbye', schemas: ['welcome'] },
+    { id: 'reactionRoles', icon: '🎨', label: 'Reaction Roles', ctrl: 'reactionRoles', schemas: ['reactionRoles'] },
+    { id: 'moderation', icon: '🛡️', label: 'Moderator', ctrl: 'moderation', schemas: ['automod', 'lockdown', 'warns'] },
+    { id: 'levels', icon: '⭐', label: 'Levels', ctrl: 'levels', schemas: ['levels', 'rewards'] },
+    { id: 'starboard', icon: '🌟', label: 'Starboard', ctrl: 'starboard', schemas: ['starboard'] },
+  ] },
+  { id: 'server', title: 'Server management', items: [
+    { id: 'customCommands', icon: '⌨️', label: 'Custom Commands', ctrl: 'customCommands', schemas: ['commands'] },
+    { id: 'autoresponder', icon: '💬', label: 'Autoresponder', ctrl: 'autoresponder', schemas: ['autoresponder'] },
+    { id: 'tickets', icon: '🎫', label: 'Ticketing', ctrl: 'tickets', schemas: ['tickets'] },
+    { id: 'tempvoice', icon: '🔊', label: 'Temporary Channels', ctrl: 'tempvoice', schemas: ['tempvoice'] },
+    { id: 'autorole', icon: '🎭', label: 'Autorole', ctrl: 'autorole', schemas: ['autorole'] },
+  ] },
+  { id: 'utilities', title: 'Utilities', items: [
+    { id: 'statchannels', icon: '📊', label: 'Statistics Channels', schemas: ['statchannels'] },
+    { id: 'birthdays', icon: '🎂', label: 'Compleanni', schemas: ['birthdays'] },
+    { id: 'youtube', icon: '📺', label: 'YouTube RSS', ctrl: 'youtube', schemas: ['youtube'] },
+    { id: 'utility', icon: '🧰', label: 'Utility', ctrl: 'utility', schemas: [] },
+  ] },
+  { id: 'fun', title: 'Fun', items: [
+    { id: 'economy', icon: '🪙', label: 'Economy', ctrl: 'economy', schemas: ['economy', 'shop'] },
+    { id: 'fun', icon: '🎉', label: 'Fun / Confessioni', ctrl: 'fun', schemas: ['confessioni'] },
+    { id: 'music', icon: '🎵', label: 'Musica', ctrl: 'music', schemas: ['music'] },
+  ] },
+  { id: 'ai', title: 'AI', items: [
+    { id: 'ai', icon: '🤖', label: 'AI', ctrl: 'ai', schemas: ['ai'] },
+  ] },
+  { id: 'settings', title: 'Settings', items: [
+    { id: 'system', icon: '⚙️', label: 'General / System', ctrl: 'system', schemas: ['general'] },
+  ] },
 ];
+
+/** Voce sidebar per id voce o id controller legacy (hash mod=...). */
+function sideItem(id) {
+  for (const c of SIDEBAR) {
+    for (const it of c.items) {
+      if (it.id === id || it.ctrl === id) return it;
+    }
+  }
+  return null;
+}
 
 /** Tips brevi per modulo (stile MEE6/Peak: cosa fare prima). */
 const MOD_TIPS = {
@@ -314,9 +309,18 @@ function onHash() {
   let r = (h.match(/view=([a-z]+)/) || [])[1];
   if (r === 'config') r = 'moduli'; // voce rimossa: Configurazione vive nel dettaglio modulo
   S.route = NAV.some((n) => n[0] === r) ? r : 'panoramica';
-  S.selectedMod = S.route === 'moduli' ? ((h.match(/mod=([A-Za-z0-9-]+)/) || [])[1] || null) : null;
+  if (S.route === 'moduli') {
+    // Nuovo: item=voce sidebar. Legacy: mod=id controller.
+    const raw = ((h.match(/item=([A-Za-z0-9-]+)/) || [])[1] ||
+      (h.match(/mod=([A-Za-z0-9-]+)/) || [])[1] || null);
+    const found = raw ? sideItem(raw) : null;
+    S.selectedMod = found ? found.id : null;
+    S.explicit = Boolean(found);
+  } else {
+    S.selectedMod = null;
+  }
   renderNav();
-  if (S.route === 'moduli' && S.selectedMod) return vModuleDetail(S.selectedMod);
+  if (S.route === 'moduli') return vModules();
   ({ panoramica: vOverview, moduli: vModules, permessi: vPerms, audit: vAudit, diag: vDiag })[S.route]();
 }
 
@@ -429,75 +433,87 @@ function modBadge(m) {
 }
 
 function vModules() {
-  S.selectedMod = null;
-  const ctl = Array.isArray(S.detail.controller) ? S.detail.controller : [];
-  const byId = {};
-  for (const m of ctl) if (m && m.id) byId[m.id] = m;
-  const row = (m) => `
-      <div class="mod mod-row${m.enabled && !m.isolated ? '' : ' off'}" data-open="${esc(m.id)}" title="Apri dettaglio" tabindex="0" role="button" aria-label="Configura ${esc(m.title || m.id)}">
-        <span class="ico" aria-hidden="true">${modIcon(m)}</span>
-        <div class="mod-row-main">
-          <div class="mod-head">
-            <div><h3>${esc(m.title || m.id)}</h3><span class="ver mono">${esc(m.commands ?? 0)} comandi</span></div>
-          </div>
-          <p class="desc">${esc(m.description || '')}</p>
-          ${miniStatusHTML(m.id)}
-        </div>
-        <div class="mod-foot">
-          <label class="switch" title="on/off"><input type="checkbox" data-toggle="${esc(m.id)}"${m.enabled ? ' checked' : ''} ${m.locked ? ' disabled' : ''}><span class="tr"></span></label>
-          ${m.locked ? '<span class="badge">🔒 sistema</span>' : modBadge(m)}
-          ${m.enabled && !m.isolated && !m.locked && needsSetup(m.id) ? '<span class="badge setup">⚙️ da configurare</span>' : ''}
-        </div>
-      </div>`;
-  const cats = NAV_CATS.map((c) => {
-    const items = c.items.map((id) => byId[id]).filter(Boolean);
-    if (!items.length) return '';
-    return `<section class="mod-cat"><h2>${esc(c.icon)} ${esc(c.title)}</h2>` +
-      items.map(row).join('') + `</section>`;
+  const sel = sideItem(S.selectedMod) || SIDEBAR[0].items[0];
+  const side = SIDEBAR.map((c) => {
+    const rows = c.items.map((it) => {
+      const active = sel && sel.id === it.id;
+      return `<button class="side-item${active ? ' active' : ''}" data-side="${esc(it.id)}">` +
+        `<span class="ico" aria-hidden="true">${esc(it.icon)}</span>` +
+        `<span class="lbl">${esc(it.label)}</span>${itemBadgeHTML(it)}</button>`;
+    }).join('');
+    const open = sel && c.items.some((it) => it.id === sel.id);
+    return `<details class="side-cat"${open ? ' open' : ''}><summary>${esc(c.title)}</summary>${rows}</details>`;
   }).join('');
-  const orphans = ctl.filter((m) => !NAV_CATS.some((c) => c.items.includes(m.id)));
-  $('#view').innerHTML = topbar('🧩 Moduli', `${ctl.length} moduli · click sulla riga per configurare, switch per on/off`) +
-    cats + (orphans.length ? `<section class="mod-cat"><h2>📦 Altri</h2>` + orphans.map(row).join('') + `</section>` : '');
-  document.querySelectorAll('[data-open]').forEach((card) => {
-    const open = () => { location.hash = `gid=${S.gid}&view=moduli&mod=${encodeURIComponent(card.dataset.open)}`; };
-    card.onclick = (e) => {
-      if (e.target.closest('label.switch, input, button, a')) return; // switch non apre il dettaglio
-      open();
-    };
-    card.onkeydown = (e) => {
-      if ((e.key === 'Enter' || e.key === ' ') && e.target === card) { e.preventDefault(); open(); }
-    };
+  $('#view').innerHTML = topbar('🧩 Moduli', 'Seleziona una voce: toggle + form reali, niente finto.') +
+    `<div class="mod-layout${S.explicit ? ' sel' : ''}"><aside class="mod-side">${side}</aside>` +
+    `<div class="mod-main" id="modMain"></div></div>`;
+  document.querySelectorAll('[data-side]').forEach((b) => {
+    b.onclick = () => { location.hash = `gid=${S.gid}&view=moduli&item=${encodeURIComponent(b.dataset.side)}`; };
   });
-  document.querySelectorAll('[data-toggle]').forEach((t) => {
-    t.onchange = async () => {
-      const id = t.dataset.toggle;
-      t.disabled = true;
-      try {
-        const r = await Api.toggle(S.gid, id, t.checked);
-        toast(`${id} ${t.checked ? 'attivato ✅' : 'disattivato ⏸️'}`, 'ok');
-        await refreshController();
-      } catch (e) {
-        t.checked = !t.checked;
-        apiErr(e);
-      } finally { t.disabled = false; }
-    };
-  });
+  if (sel) renderItemDetail(sel);
+  else document.getElementById('modMain').innerHTML = '<div class="empty">← Seleziona una voce dalla lista.</div>';
 }
 
-/** Dettaglio modulo: stato + switch + default/tips + form schema. */
-function vModuleDetail(modId) {
-  S.selectedMod = modId;
-  const ctl = Array.isArray(S.detail.controller) ? S.detail.controller : [];
-  const m = ctl.find((x) => x && x.id === modId);
-  if (!m) {
-    $('#view').innerHTML = topbar('Modulo non trovato', '') +
-      `<div class="empty">Nessun modulo <span class="mono">${esc(modId)}</span> in questo server.</div>
-       <button class="btn btn-sm" data-back>← Indietro ai moduli</button>`;
+/** Dettaglio voce sidebar: riusa toggle + form esistenti (fieldInput, wireConfig, Salva). */
+function vModuleDetail(itemId) {
+  const it = sideItem(itemId);
+  if (!it) {
+    $('#view').innerHTML = topbar('Voce non trovata', '') +
+      `<div class="empty">Nessuna voce <span class="mono">${esc(itemId)}</span>.</div>`;
+    return;
+  }
+  S.selectedMod = it.id;
+  renderItemDetail(it);
+}
+
+/** Render dettaglio nel pannello destro (o a tutto schermo su mobile). */
+function renderItemDetail(it) {
+  const host = document.getElementById('modMain');
+  if (!host) return;
+  const m = it.ctrl ? ctlEntry(it.ctrl) : null;
+  const mods = (S.detail && S.detail.modules) || {};
+  const entries = S.schema.filter((s) => it.schemas.includes(s.module));
+  const cards = entries.map((s) => configCardHTML(s, mods)).join('');
+  const tips = [...(MOD_TIPS[it.ctrl || it.id] || []), ...GENERIC_TIPS];
+  const defaults = entries.flatMap((s) => (Array.isArray(s.fields) ? s.fields : [])
+    .filter((f) => f.placeholder)
+    .map((f) => `<div><b>${esc(f.label)}</b><span>${esc(f.placeholder)}</span></div>`));
+  const errs = m && Array.isArray(m.errors) ? m.errors.length : 0;
+  const status = m
+    ? `<p class="sub">Stato: <b>${m.enabled ? 'attivo' : 'spento'}</b> · protezione: <b>${m.isolated ? 'isolato 🛡️' : 'ok'}</b> · errori: <b>${errs}</b> · v${esc(m.version || '?')} · ${esc(m.commands ?? 0)} comandi</p>`
+    : `<p class="sub">Voce di configurazione (senza on/off).</p>`;
+  host.innerHTML =
+    `<div class="mod-detail-bar">
+       <button class="btn btn-sm only-mobile" data-back>← Lista</button>
+       <span class="ico" aria-hidden="true">${esc(it.icon)}</span>
+       <h1>${esc(it.label)}</h1>
+       ${m ? (m.locked ? '<span class="badge">🔒 sistema</span>' : modBadge(m)) : '<span class="badge">⚙️ config</span>'}
+       ${m && !m.locked ? `<label class="switch" title="on/off"><input type="checkbox" data-toggle-detail data-ctrl="${esc(m.id)}"${m.enabled ? ' checked' : ''}><span class="tr"></span></label>` : ''}
+       <button class="btn btn-primary btn-sm" data-save-all>💾 Salva</button>
+     </div>
+     ${status}
+     <div class="defaults-box"><h4>💡 Default e suggerimenti</h4>${tips.map((t) => `<div>• ${esc(t)}</div>`).join('')}${defaults.join('')}</div>
+     <div class="mod-detail-grid">${cards || `<div class="empty">${esc(EMPTY_HINTS[it.id] || EMPTY_HINTS[(m && m.id)] || 'Nessun campo: si gestisce da Discord.')}</div>`}</div>`;
   wireBack();
-  const saveAll = document.querySelector('[data-save-all]');
+  const tgl = host.querySelector('[data-toggle-detail]');
+  if (tgl) {
+    tgl.onchange = async () => {
+      const cid = tgl.dataset.ctrl;
+      tgl.disabled = true;
+      try {
+        await Api.toggle(S.gid, cid, tgl.checked);
+        toast(`${cid} ${tgl.checked ? 'attivato ✅' : 'disattivato ⏸️'}`, 'ok');
+        await refreshController();
+      } catch (e) {
+        tgl.checked = !tgl.checked;
+        apiErr(e);
+      } finally { tgl.disabled = false; }
+    };
+  }
+  const saveAll = host.querySelector('[data-save-all]');
   if (saveAll) {
     saveAll.onclick = async () => {
-      const cards = [...document.querySelectorAll('.form-card[data-module]')]
+      const cards = [...host.querySelectorAll('.form-card[data-module]')]
         .filter((c) => c.querySelector('[data-fkey]'));
       if (!cards.length) return toast('Niente da salvare qui.', 'err');
       saveAll.disabled = true;
@@ -511,46 +527,8 @@ function vModuleDetail(modId) {
       saveAll.disabled = false;
       if (ok) toast(`Salvato ${ok} modulo${ok > 1 ? 'i' : ''} ✅`, 'ok');
       if (!fail) {
-        try { S.detail = await Api.detail(S.gid); vModuleDetail(S.selectedMod); } catch {}
+        try { S.detail = await Api.detail(S.gid); vModules(); } catch {}
       }
-    };
-  }
-    return;
-  }
-  const schemaIds = DETAIL_SCHEMA[modId] || [];
-  const entries = S.schema.filter((s) => schemaIds.includes(s.module));
-  const mods = (S.detail && S.detail.modules) || {};
-  const cards = entries.map((s) => configCardHTML(s, mods)).join('');
-  const tips = [...(MOD_TIPS[modId] || []), ...GENERIC_TIPS];
-  const defaults = entries.flatMap((s) => (Array.isArray(s.fields) ? s.fields : [])
-    .filter((f) => f.placeholder)
-    .map((f) => `<div><b>${esc(f.label)}</b><span>${esc(f.placeholder)}</span></div>`));
-  const errs = Array.isArray(m.errors) ? m.errors.length : 0;
-  $('#view').innerHTML =
-    `<div class="mod-detail-bar">
-       <button class="btn btn-sm" data-back>← Moduli</button>
-       <span class="ico" aria-hidden="true">${modIcon(m)}</span>
-       <h1>${esc(m.title || m.id)}</h1>
-       ${m.locked ? '<span class="badge">🔒 sistema</span>' : modBadge(m)}
-       <label class="switch" title="on/off"><input type="checkbox" data-toggle-detail${m.enabled ? ' checked' : ''} ${m.locked ? ' disabled' : ''}><span class="tr"></span></label>
-       <button class="btn btn-primary btn-sm" data-save-all>💾 Salva</button>
-     </div>
-     <p class="sub">Stato: <b>${m.enabled ? 'attivo' : 'spento'}</b> · protezione: <b>${m.isolated ? 'isolato 🛡️' : 'ok'}</b> · errori: <b>${errs}</b> · v${esc(m.version || '?')} · ${esc(m.commands ?? 0)} comandi</p>
-     <div class="defaults-box"><h4>💡 Default e suggerimenti</h4>${tips.map((t) => `<div>• ${esc(t)}</div>`).join('')}${defaults.join('')}</div>
-     <div class="mod-detail-grid">${cards || `<div class="empty">${esc(EMPTY_HINTS[modId] || 'Nessun campo: si gestisce da Discord.')}</div>`}</div>`;
-  wireBack();
-  const tgl = document.querySelector('[data-toggle-detail]');
-  if (tgl) {
-    tgl.onchange = async () => {
-      tgl.disabled = true;
-      try {
-        await Api.toggle(S.gid, m.id, tgl.checked);
-        toast(`${m.id} ${tgl.checked ? 'attivato ✅' : 'disattivato ⏸️'}`, 'ok');
-        await refreshController();
-      } catch (e) {
-        tgl.checked = !tgl.checked;
-        apiErr(e);
-      } finally { tgl.disabled = false; }
     };
   }
   wireConfig();
@@ -558,7 +536,7 @@ function vModuleDetail(modId) {
 
 function wireBack() {
   document.querySelectorAll('[data-back]').forEach((b) => {
-    b.onclick = () => { location.hash = `gid=${S.gid}&view=moduli`; };
+    b.onclick = () => { S.selectedMod = null; S.explicit = false; location.hash = `gid=${S.gid}&view=moduli`; };
   });
 }
 
@@ -599,10 +577,7 @@ async function refreshController() {
   try {
     const d = await Api.detail(S.gid);
     S.detail = d;
-    if (S.route === 'moduli') {
-      if (S.selectedMod) vModuleDetail(S.selectedMod);
-      else vModules();
-    }
+    if (S.route === 'moduli') vModules();
   } catch (e) { apiErr(e); }
 }
 
@@ -635,7 +610,10 @@ function fieldInput(mod, f, cur) {
         (hasVars && f.multiline ? `<div class="live-preview" data-preview-box>${messagePreview(val)}</div>` : '') + `</div>`;
     }
     case 'channel': {
-      const chs = (S.meta.channels || []).filter((c) => c.type === 0 || c.type === 'GUILD_TEXT' || c.type == null);
+      const wantVoice = f.voice === true;
+      const chs = (S.meta.channels || []).filter((c) => wantVoice
+        ? (c.type === 2 || c.type === 'GUILD_VOICE')
+        : (c.type === 0 || c.type === 'GUILD_TEXT' || c.type == null));
       const opts = `<option value="">— nessuno —</option>` + optList(chs, (c) => ({ value: c.id, label: '#' + (c.name || c.id), sel: String(val) === String(c.id) }));
       return `<div class="field"><label>${esc(f.label)}</label>${filterBox(chs.length)}<select id="${esc(name)}" data-fkey="${esc(f.key)}">${opts}</select>${help}</div>`;
     }
@@ -940,8 +918,7 @@ function wireLists() {
 }
 
 function vConfigKeep() {
-  if (S.route === 'moduli' && S.selectedMod) vModuleDetail(S.selectedMod);
-  else if (S.route === 'moduli') vModules();
+  if (S.route === 'moduli') vModules();
 }
 
 /* ---------------- PERMESSI ---------------- */
