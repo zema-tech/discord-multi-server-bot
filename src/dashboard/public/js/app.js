@@ -42,7 +42,7 @@ function isSet(v) {
 /** Voce controller dai dati live (per toggle/stato). */
 function ctlEntry(ctrl) {
   const ctl = Array.isArray(S.detail.controller) ? S.detail.controller : [];
-  return (ctrl.find((x) => x && x.id === ctrl)) || null;
+  return (ctl.find((x) => x && x.id === ctrl)) || null;
 }
 
 /** true se alla voce manca almeno un canale obbligatorio. */
