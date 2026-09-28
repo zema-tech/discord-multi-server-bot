@@ -22,33 +22,52 @@
   --amber-500: #fee75c;
   --ember-500: #ed4245;
   --sky-400: #5cc8ff;
+  /* ---- PRIMITIVE elfo (palette foresta + ghiaccio) ---- */
+  --bark-950: #2a341f;
+  --moss-900: #3f492d;
+  --boot-900: #2b3d2b;
+  --pants-800: #3e5a3a;
+  --moss-700: #4a6b3c;
+  --leaf-500: #6baf4e;
+  --stitch-700: #3d6b2f;
+  --olive-500: #797c43;
+  --olive-700: #556042;
+  --moss-100: #dbe4cd;
+  --tunic-50: #eaf6e8;
+  --sand-500: #a09e66;
+  --sand-300: #ccc38a;
+  --wing-500: #8fa99c;
+  --wing-300: #abcec0;
+  --ice-200: #c9eaf0;
+  --ice-300: #a8d8c9;
+  --frost-500: #5ab0d0;
   --font-display: "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif;
   --font-body: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", monospace;
 }
 
-/* ---- SEMANTIC ---- */
+/* ---- SEMANTIC (tema foresta elfica: verdi + azzurro ghiaccio) ---- */
 :root {
-  --bg-primary: var(--ink-950);
-  --bg-secondary: var(--ink-900);
-  --surface: var(--ink-850);
-  --surface-2: var(--ink-800);
-  --surface-3: var(--ink-700);
-  --border: var(--ink-600);
-  --text-primary: var(--mist-100);
-  --text-secondary: var(--mist-300);
-  --text-dim: #7d8699;
-  --accent: var(--blurple-500);
-  --accent-soft: var(--blurple-400);
-  --accent-deep: var(--blurple-700);
-  --ok: var(--mint-500);
-  --warn: var(--amber-500);
+  --bg-primary: var(--bark-950);
+  --bg-secondary: var(--boot-900);
+  --surface: var(--moss-900);
+  --surface-2: var(--pants-800);
+  --surface-3: var(--moss-700);
+  --border: var(--olive-700);
+  --text-primary: var(--tunic-50);
+  --text-secondary: var(--moss-100);
+  --text-dim: var(--wing-500);
+  --accent: var(--leaf-500);
+  --accent-soft: var(--moss-700);
+  --accent-deep: var(--stitch-700);
+  --ok: var(--leaf-500);
+  --warn: var(--sand-300);
   --bad: var(--ember-500);
-  --info: var(--sky-400);
+  --info: var(--frost-500);
   --radius-s: 8px;
   --radius-m: 14px;
   --radius-l: 22px;
-  --shadow-pop: 0 12px 40px rgba(88, 101, 242, 0.28);
+  --shadow-pop: 0 12px 40px rgba(107, 175, 78, 0.30);
   --shadow-card: 0 8px 28px rgba(0, 0, 0, 0.45);
   --font-size-hero: clamp(2.6rem, 6vw, 4.6rem);
   --font-size-h2: clamp(1.5rem, 3vw, 2.2rem);
@@ -58,12 +77,12 @@
 :root {
   --btn-bg: var(--accent);
   --btn-bg-hover: var(--accent-soft);
-  --btn-text: #fff;
+  --btn-text: #1c2614;
   --card-bg: var(--surface);
   --card-border: var(--border);
-  --input-bg: var(--ink-900);
-  --input-border: var(--ink-600);
-  --nav-bg: rgba(11, 14, 22, 0.82);
-  --toggle-on: var(--ok);
-  --toggle-off: var(--ink-600);
+  --input-bg: var(--boot-900);
+  --input-border: var(--olive-700);
+  --nav-bg: rgba(42, 52, 31, 0.85);
+  --toggle-on: var(--leaf-500);
+  --toggle-off: var(--olive-700);
 }
