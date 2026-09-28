@@ -58,6 +58,7 @@ const MODULE_FIELDS = {
   economy: { dailyAmount: 'number', workPct: 'number', slotsMax: 'number', lottoPrice: 'number', repCooldownH: 'number', robChancePct: 'number' },
   music: { defaultVolume: 'number' },
   birthdays: { channelId: 'channel' },
+  statchannels: { membersId: 'channel', onlineId: 'channel', botsId: 'channel' },
   logging: { logChannelId: 'channel' },
   // Moduli "lista": validati ad-hoc nel PUT (action-based), mai con checkType.
   autoresponder: {},
@@ -872,6 +873,7 @@ function createApiRouter(client) {
         economy: (() => { try { const e = safeRequire('../database/economy'); return e ? e.getTuning(gid) : {}; } catch { return {}; } })(),
         music: (() => { try { const m = safeRequire('../database/music'); return m ? m.getConfig(gid) : {}; } catch { return {}; } })(),
         birthdays: (() => { try { const b = safeRequire('../database/birthdays'); return { channelId: b ? b.getChannel(gid) : null }; } catch { return { channelId: null }; } })(),
+        statchannels: (() => { try { const s = safeRequire('../database/statChannels'); const g = s ? s.get(gid) : {}; return { membersId: g.membersId || null, onlineId: g.onlineId || null, botsId: g.botsId || null }; } catch { return {}; } })(),
       };
       const lists = {
         autoresponder: Array.isArray(arList) ? arList.slice(0, 50) : [],
@@ -1051,6 +1053,15 @@ function createApiRouter(client) {
         description: 'Canale annunci compleanni (le date si salvano con /compleanno).',
         fields: [
           { key: 'channelId', label: 'Canale annunci', type: 'channel', help: 'Senza canale, nessun annuncio automatico.' },
+        ],
+      },
+      {
+        module: 'statchannels', title: 'Canali statistiche', icon: '📊', section: 'Community',
+        description: 'Vocali con conteggi live (membri, online, bot). Si creano con /stats-canali.',
+        fields: [
+          { key: 'membersId', label: 'Canale membri', type: 'channel', voice: true, help: 'Vocable che mostra il totale membri.' },
+          { key: 'onlineId', label: 'Canale online', type: 'channel', voice: true, help: 'Vocable con gli online ora.' },
+          { key: 'botsId', label: 'Canale bot', type: 'channel', voice: true, help: 'Vocable con il conteggio bot.' },
         ],
       },
       {

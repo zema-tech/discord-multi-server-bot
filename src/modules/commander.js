@@ -361,6 +361,15 @@ function updateModuleConfig(guildId, mod, patch) {
       if (p.channelId === undefined) throw dispatchError(400, 'channelId mancante.');
       return { channelId: birthdays.setChannel(guildId, p.channelId) };
     }
+    case 'statchannels': {
+      const sc = needDb('../database/statChannels', 501, 'Modulo canali statistiche non disponibile.');
+      const cur = (sc.get && sc.get(guildId)) || {};
+      const q = { membersId: cur.membersId || null, onlineId: cur.onlineId || null, botsId: cur.botsId || null };
+      for (const k of ['membersId', 'onlineId', 'botsId']) {
+        if (p[k] !== undefined) q[k] = p[k];
+      }
+      return sc.set(guildId, q);
+    }
     default:
       throw dispatchError(400, `Modulo sconosciuto: ${mod}.`);
   }
