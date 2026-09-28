@@ -3,7 +3,7 @@
 
 const S = {
   me: null, guilds: [], gid: null, detail: null, schema: [], meta: { channels: [], roles: [] },
-  route: 'panoramica', charts: [], selectedMod: null, explicit: false,
+  route: 'panoramica', charts: [], selectedMod: null, explicit: false, pluginTab: 'all',
 };
 
 const NAV = [
@@ -90,35 +90,35 @@ function modIcon(m) {
  *  Senza ctrl: niente switch, solo form (es. Welcome) o messaggio onesto. */
 const SIDEBAR = [
   { id: 'essentials', title: 'Essentials', items: [
-    { id: 'welcome', icon: '👋', label: 'Welcome & Goodbye', schemas: ['welcome'] },
-    { id: 'reactionRoles', icon: '🎨', label: 'Reaction Roles', ctrl: 'reactionRoles', schemas: ['reactionRoles'] },
-    { id: 'moderation', icon: '🛡️', label: 'Moderator', ctrl: 'moderation', schemas: ['automod', 'lockdown', 'warns'] },
-    { id: 'levels', icon: '⭐', label: 'Levels', ctrl: 'levels', schemas: ['levels', 'rewards'] },
-    { id: 'starboard', icon: '🌟', label: 'Starboard', ctrl: 'starboard', schemas: ['starboard'] },
+    { id: 'welcome', icon: '👋', label: 'Welcome & Goodbye', desc: 'Accogli i nuovi membri e saluta chi esce, con messaggi personalizzati.', schemas: ['welcome'] },
+    { id: 'reactionRoles', icon: '🎨', label: 'Reaction Roles', desc: 'Pannello self-service: gli utenti si prendono i ruoli da soli.', ctrl: 'reactionRoles', schemas: ['reactionRoles'] },
+    { id: 'moderation', icon: '🛡️', label: 'Moderator', desc: 'Automod, lockdown e warn automatiche contro spam e raid.', ctrl: 'moderation', schemas: ['automod', 'lockdown', 'warns'] },
+    { id: 'levels', icon: '⭐', label: 'Levels', desc: 'XP da messaggi e vocali, classifiche e ricompense per livello.', ctrl: 'levels', schemas: ['levels', 'rewards'] },
+    { id: 'starboard', icon: '🌟', label: 'Starboard', desc: 'I messaggi più reagiti finiscono in bacheca.', ctrl: 'starboard', schemas: ['starboard'] },
   ] },
   { id: 'server', title: 'Server management', items: [
-    { id: 'customCommands', icon: '⌨️', label: 'Custom Commands', ctrl: 'customCommands', schemas: ['commands'] },
-    { id: 'autoresponder', icon: '💬', label: 'Autoresponder', ctrl: 'autoresponder', schemas: ['autoresponder'] },
-    { id: 'tickets', icon: '🎫', label: 'Ticketing', ctrl: 'tickets', schemas: ['tickets'] },
-    { id: 'tempvoice', icon: '🔊', label: 'Temporary Channels', ctrl: 'tempvoice', schemas: ['tempvoice'] },
-    { id: 'autorole', icon: '🎭', label: 'Autorole', ctrl: 'autorole', schemas: ['autorole'] },
+    { id: 'customCommands', icon: '⌨️', label: 'Custom Commands', desc: 'Comandi !nome con risposte personalizzate e variabili.', ctrl: 'customCommands', schemas: ['commands'] },
+    { id: 'autoresponder', icon: '💬', label: 'Autoresponder', desc: 'Risposte automatiche quando qualcuno scrive certe parole.', ctrl: 'autoresponder', schemas: ['autoresponder'] },
+    { id: 'tickets', icon: '🎫', label: 'Ticketing', desc: 'Supporto organizzato con pannello, staff e auto-chiusura.', ctrl: 'tickets', schemas: ['tickets'] },
+    { id: 'tempvoice', icon: '🔊', label: 'Temporary Channels', desc: 'Vocali private temporanee che si creano da sole.', ctrl: 'tempvoice', schemas: ['tempvoice'] },
+    { id: 'autorole', icon: '🎭', label: 'Autorole', desc: 'Ruoli assegnati in automatico ai nuovi membri.', ctrl: 'autorole', schemas: ['autorole'] },
   ] },
   { id: 'utilities', title: 'Utilities', items: [
-    { id: 'statchannels', icon: '📊', label: 'Statistics Channels', schemas: ['statchannels'] },
-    { id: 'birthdays', icon: '🎂', label: 'Compleanni', schemas: ['birthdays'] },
-    { id: 'youtube', icon: '📺', label: 'YouTube RSS', ctrl: 'youtube', schemas: ['youtube'] },
-    { id: 'utility', icon: '🧰', label: 'Utility', ctrl: 'utility', schemas: [] },
+    { id: 'statchannels', icon: '📊', label: 'Statistics Channels', desc: 'Vocali con conteggi live: membri, online e bot.', schemas: ['statchannels'] },
+    { id: 'birthdays', icon: '🎂', label: 'Compleanni', desc: 'Annuncia i compleanni nel canale dedicato.', schemas: ['birthdays'] },
+    { id: 'youtube', icon: '📺', label: 'YouTube RSS', desc: 'Avvisa in automatico i nuovi video dei canali seguiti.', ctrl: 'youtube', schemas: ['youtube'] },
+    { id: 'utility', icon: '🧰', label: 'Utility', desc: 'Setup guidato, sondaggi, promemoria e strumenti vari.', ctrl: 'utility', schemas: [] },
   ] },
   { id: 'fun', title: 'Fun', items: [
-    { id: 'economy', icon: '🪙', label: 'Economy', ctrl: 'economy', schemas: ['economy', 'shop'] },
-    { id: 'fun', icon: '🎉', label: 'Fun / Confessioni', ctrl: 'fun', schemas: ['confessioni'] },
-    { id: 'music', icon: '🎵', label: 'Musica', ctrl: 'music', schemas: ['music'] },
+    { id: 'economy', icon: '🪙', label: 'Economy', desc: 'Monete, daily, lavoretti, lotteria e negozio ruoli.', ctrl: 'economy', schemas: ['economy', 'shop'] },
+    { id: 'fun', icon: '🎉', label: 'Fun / Confessioni', desc: 'Confessioni anonime, quiz, sfide ed eventi del server.', ctrl: 'fun', schemas: ['confessioni'] },
+    { id: 'music', icon: '🎵', label: 'Musica', desc: 'Musica nei canali vocali con volume configurabile.', ctrl: 'music', schemas: ['music'] },
   ] },
   { id: 'ai', title: 'AI', items: [
-    { id: 'ai', icon: '🤖', label: 'AI', ctrl: 'ai', schemas: ['ai'] },
+    { id: 'ai', icon: '🤖', label: 'AI', desc: 'Risposte intelligenti, menzioni, ticket e moderazione AI.', ctrl: 'ai', schemas: ['ai'] },
   ] },
   { id: 'settings', title: 'Settings', items: [
-    { id: 'system', icon: '⚙️', label: 'General / System', ctrl: 'system', schemas: ['general'] },
+    { id: 'system', icon: '⚙️', label: 'General / System', desc: 'Lingua, log e impostazioni generali del bot.', ctrl: 'system', schemas: ['general'] },
   ] },
 ];
 
@@ -310,12 +310,14 @@ function onHash() {
   if (r === 'config') r = 'moduli'; // voce rimossa: Configurazione vive nel dettaglio modulo
   S.route = NAV.some((n) => n[0] === r) ? r : 'panoramica';
   if (S.route === 'moduli') {
-    // Nuovo: item=voce sidebar. Legacy: mod=id controller.
+    // Nuovo: item=voce + tab=categoria. Legacy: mod=id controller.
     const raw = ((h.match(/item=([A-Za-z0-9-]+)/) || [])[1] ||
       (h.match(/mod=([A-Za-z0-9-]+)/) || [])[1] || null);
     const found = raw ? sideItem(raw) : null;
     S.selectedMod = found ? found.id : null;
     S.explicit = Boolean(found);
+    const tabRaw = ((h.match(/tab=([A-Za-z0-9-]+)/) || [])[1] || null);
+    S.pluginTab = tabRaw && (tabRaw === 'all' || SIDEBAR.some((c) => c.id === tabRaw)) ? tabRaw : 'all';
   } else {
     S.selectedMod = null;
   }
@@ -433,27 +435,75 @@ function modBadge(m) {
 }
 
 function vModules() {
-  const sel = sideItem(S.selectedMod) || SIDEBAR[0].items[0];
-  const side = SIDEBAR.map((c) => {
-    const rows = c.items.map((it) => {
-      const active = sel && sel.id === it.id;
-      return `<button class="side-item${active ? ' active' : ''}" data-side="${esc(it.id)}">` +
-        `<span class="tile" aria-hidden="true">${esc(it.icon)}</span>` +
-        `<span class="lbl">${esc(it.label)}</span>${itemBadgeHTML(it)}</button>`;
-    }).join('');
-    const open = sel && c.items.some((it) => it.id === sel.id);
-    return `<details class="side-cat"${open ? ' open' : ''}><summary>${esc(c.title)}</summary>${rows}</details>`;
-  }).join('');
+  const tab = S.pluginTab && (S.pluginTab === 'all' || SIDEBAR.some((c) => c.id === S.pluginTab)) ? S.pluginTab : 'all';
+  S.pluginTab = tab;
+  const sel = sideItem(S.selectedMod);
+  if (sel) return renderItemDetail(sel);
   const g = (S.detail && S.detail.guild) || {};
-  $('#view').innerHTML = topbar(`🧩 Moduli · ${esc(g.name || 'Server')}`,
-    `${esc(String(g.memberCount ?? ''))}${g.memberCount != null ? ' membri · ' : ''}seleziona una voce: toggle + form reali, niente finto.`) +
-    `<div class="mod-layout${S.explicit ? ' sel' : ''}"><aside class="mod-side">${side}</aside>` +
-    `<div class="mod-main" id="modMain"></div></div>`;
-  document.querySelectorAll('[data-side]').forEach((b) => {
-    b.onclick = () => { location.hash = `gid=${S.gid}&view=moduli&item=${encodeURIComponent(b.dataset.side)}`; };
+  const tabs = [{ id: 'all', title: 'All Plugins' }].concat(SIDEBAR.map((c) => ({ id: c.id, title: c.title })));
+  const tabsHTML = `<div class="plug-tabs" role="tablist">` + tabs.map((t) =>
+    `<button role="tab" aria-selected="${tab === t.id}" class="plug-tab${tab === t.id ? ' active' : ''}" data-tab="${esc(t.id)}">${esc(t.title)}</button>`).join('') + `</div>`;
+  const sectionFor = (c) =>
+    `<section class="plug-sec"><h2>${esc(c.title)}</h2>` + c.items.map(plugCard).join('') + `</section>`;
+  const body = tab === 'all'
+    ? SIDEBAR.map(sectionFor).join('')
+    : sectionFor(SIDEBAR.find((c) => c.id === tab));
+  $('#view').innerHTML =
+    `<div class="plug-top"><div><h1>Plugins</h1><p class="sub">${esc(g.name || 'Server')}${g.memberCount != null ? ` · ${g.memberCount} membri` : ''}</p></div></div>` +
+    tabsHTML + body;
+  document.querySelectorAll('[data-tab]').forEach((b) => {
+    b.onclick = () => { location.hash = `gid=${S.gid}&view=moduli&tab=${encodeURIComponent(b.dataset.tab)}`; };
   });
-  if (sel) renderItemDetail(sel);
-  else document.getElementById('modMain').innerHTML = '<div class="empty">← Seleziona una voce dalla lista.</div>';
+  wirePlugCards();
+}
+
+/** Card plugin stile MEE6: tile, titolo, desc 2 righe, pulsante Abilita/Configura. */
+function plugCard(it) {
+  const m = it.ctrl ? ctlEntry(it.ctrl) : null;
+  const on = m ? (m.enabled && !m.isolated) : true;
+  const setup = m && on && !m.locked && itemNeedsSetup(it);
+  const badges = (m && m.locked ? '<span class="badge">🔒 sistema</span>' : '') +
+    (setup ? '<span class="badge setup">⚙️ da configurare</span>' : '');
+  const btn = on
+    ? `<button class="plug-btn primary" data-open="${esc(it.id)}">Configura →</button>`
+    : `<button class="plug-btn" data-enable="${esc(it.id)}">+ Abilita</button>`;
+  const desc = it.desc || (m && m.description) || '';
+  return `<div class="plug" data-open-card="${esc(it.id)}" role="button" tabindex="0" aria-label="Apri ${esc(it.label)}">` +
+    `<div class="plug-top-row"><span class="plug-tile" aria-hidden="true">${esc(it.icon)}</span><span class="plug-badges">${badges}</span></div>` +
+    `<h3>${esc(it.label)}</h3><p class="desc">${esc(desc)}</p>${btn}</div>`;
+}
+
+function wirePlugCards() {
+  const tabQ = S.pluginTab && S.pluginTab !== 'all' ? `&tab=${encodeURIComponent(S.pluginTab)}` : '';
+  document.querySelectorAll('[data-open-card]').forEach((card) => {
+    const open = () => { location.hash = `gid=${S.gid}&view=moduli&item=${encodeURIComponent(card.dataset.openCard)}${tabQ}`; };
+    card.onclick = (e) => {
+      if (e.target.closest('button')) return;
+      open();
+    };
+    card.onkeydown = (e) => {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target === card) { e.preventDefault(); open(); }
+    };
+  });
+  document.querySelectorAll('[data-open]').forEach((b) => {
+    b.onclick = (e) => {
+      e.stopPropagation();
+      location.hash = `gid=${S.gid}&view=moduli&item=${encodeURIComponent(b.dataset.open)}${tabQ}`;
+    };
+  });
+  document.querySelectorAll('[data-enable]').forEach((b) => {
+    b.onclick = async (e) => {
+      e.stopPropagation();
+      const it = sideItem(b.dataset.enable);
+      if (!it || !it.ctrl) return;
+      b.disabled = true;
+      try {
+        await Api.toggle(S.gid, it.ctrl, true);
+        toast(`${it.label} attivato ✅`, 'ok');
+        await refreshController();
+      } catch (err) { apiErr(err); } finally { b.disabled = false; }
+    };
+  });
 }
 
 /** Dettaglio voce sidebar: riusa toggle + form esistenti (fieldInput, wireConfig, Salva). */
@@ -470,7 +520,7 @@ function vModuleDetail(itemId) {
 
 /** Render dettaglio nel pannello destro (o a tutto schermo su mobile). */
 function renderItemDetail(it) {
-  const host = document.getElementById('modMain');
+  const host = document.getElementById('modMain') || document.querySelector('#view');
   if (!host) return;
   const m = it.ctrl ? ctlEntry(it.ctrl) : null;
   const mods = (S.detail && S.detail.modules) || {};
@@ -486,7 +536,7 @@ function renderItemDetail(it) {
     : `<p class="sub">Voce di configurazione (senza on/off).</p>`;
   host.innerHTML =
     `<div class="mod-detail-bar">
-       <button class="btn btn-sm only-mobile" data-back>← Lista</button>
+       <button class="btn btn-sm" data-back>← Plugins</button>
        <span class="ico" aria-hidden="true">${esc(it.icon)}</span>
        <h1>${esc(it.label)}</h1>
        ${m ? (m.locked ? '<span class="badge">🔒 sistema</span>' : modBadge(m)) : '<span class="badge">⚙️ config</span>'}
@@ -538,7 +588,11 @@ function renderItemDetail(it) {
 
 function wireBack() {
   document.querySelectorAll('[data-back]').forEach((b) => {
-    b.onclick = () => { S.selectedMod = null; S.explicit = false; location.hash = `gid=${S.gid}&view=moduli`; };
+    b.onclick = () => {
+      S.selectedMod = null; S.explicit = false;
+      const tabQ = S.pluginTab && S.pluginTab !== 'all' ? `&tab=${encodeURIComponent(S.pluginTab)}` : '';
+      location.hash = `gid=${S.gid}&view=moduli${tabQ}`;
+    };
   });
 }
 
