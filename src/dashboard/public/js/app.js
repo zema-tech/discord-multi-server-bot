@@ -438,13 +438,15 @@ function vModules() {
     const rows = c.items.map((it) => {
       const active = sel && sel.id === it.id;
       return `<button class="side-item${active ? ' active' : ''}" data-side="${esc(it.id)}">` +
-        `<span class="ico" aria-hidden="true">${esc(it.icon)}</span>` +
+        `<span class="tile" aria-hidden="true">${esc(it.icon)}</span>` +
         `<span class="lbl">${esc(it.label)}</span>${itemBadgeHTML(it)}</button>`;
     }).join('');
     const open = sel && c.items.some((it) => it.id === sel.id);
     return `<details class="side-cat"${open ? ' open' : ''}><summary>${esc(c.title)}</summary>${rows}</details>`;
   }).join('');
-  $('#view').innerHTML = topbar('🧩 Moduli', 'Seleziona una voce: toggle + form reali, niente finto.') +
+  const g = (S.detail && S.detail.guild) || {};
+  $('#view').innerHTML = topbar(`🧩 Moduli · ${esc(g.name || 'Server')}`,
+    `${esc(String(g.memberCount ?? ''))}${g.memberCount != null ? ' membri · ' : ''}seleziona una voce: toggle + form reali, niente finto.`) +
     `<div class="mod-layout${S.explicit ? ' sel' : ''}"><aside class="mod-side">${side}</aside>` +
     `<div class="mod-main" id="modMain"></div></div>`;
   document.querySelectorAll('[data-side]').forEach((b) => {
