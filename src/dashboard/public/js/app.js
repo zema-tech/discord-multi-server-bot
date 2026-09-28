@@ -450,11 +450,39 @@ function vModules() {
     : sectionFor(SIDEBAR.find((c) => c.id === tab));
   $('#view').innerHTML =
     `<div class="plug-top"><div><h1>Plugins</h1><p class="sub">${esc(g.name || 'Server')}${g.memberCount != null ? ` · ${g.memberCount} membri` : ''}</p></div></div>` +
-    tabsHTML + body;
+    promoHTML() + tabsHTML + body;
   document.querySelectorAll('[data-tab]').forEach((b) => {
     b.onclick = () => { location.hash = `gid=${S.gid}&view=moduli&tab=${encodeURIComponent(b.dataset.tab)}`; };
   });
   wirePlugCards();
+  wirePromo();
+}
+
+/** Banner promo sopra i Plugins (stile MEE6). Per cambiarlo: sostituisci
+ *  img/promo.jpg e aggiorna PROMO_LINK ('' = non cliccabile). */
+const PROMO_IMG = 'img/promo.jpg';
+const PROMO_ALT = 'Promozione';
+const PROMO_LINK = '';
+
+function promoHTML() {
+  try {
+    if (sessionStorage.getItem('promoHide') === '1') return '';
+  } catch {}
+  const img = `<img src="${PROMO_IMG}" alt="${esc(PROMO_ALT)}">`;
+  return `<div class="promo" id="promo">` +
+    (PROMO_LINK ? `<a href="${esc(PROMO_LINK)}" target="_blank" rel="noopener">${img}</a>` : img) +
+    `<button class="promo-x" id="promoX" aria-label="Chiudi">✕</button></div>`;
+}
+
+function wirePromo() {
+  const x = document.getElementById('promoX');
+  if (x) {
+    x.onclick = () => {
+      try { sessionStorage.setItem('promoHide', '1'); } catch {}
+      const p = document.getElementById('promo');
+      if (p) p.remove();
+    };
+  }
 }
 
 /** Card plugin stile MEE6: tile, titolo, desc 2 righe, pulsante Abilita/Configura. */

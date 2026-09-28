@@ -570,3 +570,13 @@ input.filter { margin-bottom: 0.4rem; font-size: 0.85rem; padding: 0.45rem 0.7re
   .plug { padding: 1.2rem; }
   .plug-tile { width: 52px; height: 52px; font-size: 28px; border-radius: 14px; }
 }
+
+/* ---- Banner promo sopra i Plugins (stile MEE6) ---- */
+.promo { position: relative; margin-bottom: 1.6rem; border-radius: 16px; overflow: hidden; }
+.promo img { display: block; width: 100%; height: auto; border-radius: 16px; }
+.promo-x {
+  position: absolute; top: 0.6rem; right: 0.6rem;
+  width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--card-border);
+  background: rgba(0, 0, 0, 0.55); color: #fff; cursor: pointer; font-size: 0.9rem;
+}
+.promo-x:hover { background: rgba(0, 0, 0, 0.8); }
