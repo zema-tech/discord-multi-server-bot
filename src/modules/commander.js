@@ -309,7 +309,20 @@ function updateModuleConfig(guildId, mod, patch) {
     case 'logging':
     case 'levels': {
       const guildConfig = needDb('../database/guildConfig', 500, 'Modulo guildConfig non disponibile.');
-      return guildConfig.updateGuild(guildId, p);
+      const q = { ...p };
+      // Stile messaggio: solo embed|text, mai altro (getGuild normalizza comunque).
+      for (const k of ['welcomeStyle', 'goodbyeStyle']) {
+        if (q[k] !== undefined && q[k] !== 'embed' && q[k] !== 'text') {
+          throw dispatchError(400, `${k} deve essere "embed" o "text".`);
+        }
+      }
+      // Colori: hex #rrggbb.
+      for (const k of ['welcomeColor', 'goodbyeColor']) {
+        if (q[k] !== undefined && (typeof q[k] !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(q[k]))) {
+          throw dispatchError(400, `${k} deve essere un colore hex (#rrggbb).`);
+        }
+      }
+      return guildConfig.updateGuild(guildId, q);
     }
     case 'automod': {
       const guildConfig = needDb('../database/guildConfig', 500, 'Modulo guildConfig non disponibile.');

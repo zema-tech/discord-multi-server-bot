@@ -22,12 +22,17 @@ module.exports = {
       } catch {}
       const ch = await member.guild.channels.fetch(cfg.welcomeChannelId).catch(() => null);
       if (!ch?.isTextBased?.()) return;
+      const text = fill(cfg.welcomeMessage, member);
+      const avatar = cfg.welcomeThumbnail === false ? null : member.user?.displayAvatarURL?.();
+      if (cfg.welcomeStyle === 'text') {
+        await ch.send({ content: `${member} ${text}`.slice(0, 2000) });
+        return;
+      }
       const embed = new EmbedBuilder()
-        .setColor(0x57f287)
+        .setColor(cfg.welcomeColor || 0x57f287)
         .setTitle(`👋 Benvenuto su ${member.guild.name}!`)
-        .setDescription(fill(cfg.welcomeMessage, member))
+        .setDescription(text)
         .setTimestamp();
-      const avatar = member.user?.displayAvatarURL?.();
       if (avatar) embed.setThumbnail(avatar);
       await ch.send({ content: `${member}`, embeds: [embed] });
     } catch (e) {

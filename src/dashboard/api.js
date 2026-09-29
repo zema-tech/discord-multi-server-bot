@@ -36,8 +36,14 @@ const MODULE_FIELDS = {
   welcome: {
     welcomeChannelId: 'channel',
     welcomeMessage: 'text',
+    welcomeStyle: 'select',
+    welcomeColor: 'text',
+    welcomeThumbnail: 'bool',
     goodbyeChannelId: 'channel',
     goodbyeMessage: 'text',
+    goodbyeStyle: 'select',
+    goodbyeColor: 'text',
+    goodbyeThumbnail: 'bool',
   },
   automod: {
     enabled: 'bool',
@@ -76,6 +82,7 @@ function checkType(tipo, v) {
   if (tipo === 'text') return typeof v === 'string';
   if (tipo === 'channel' || tipo === 'role') return v === null || typeof v === 'string';
   if (tipo === 'lang') return v === 'it' || v === 'en';
+  if (tipo === 'select') return typeof v === 'string' && v.length <= 100;
   if (tipo === 'emoji') return typeof v === 'string' && v.length >= 1 && v.length <= 50;
   if (tipo === 'roles') {
     return Array.isArray(v) && v.length <= 25 && v.every((r) => typeof r === 'string');
@@ -963,8 +970,14 @@ function createApiRouter(client) {
         fields: [
           { key: 'welcomeChannelId', label: 'Canale benvenuto', type: 'channel', help: 'Senza canale, nessun messaggio.' },
           { key: 'welcomeMessage', label: 'Messaggio benvenuto', type: 'text', multiline: true, placeholder: '👋 Benvenuto {user} su {server}! Ora siamo {count} membri.', help: 'Variabili: {user} {server} {count}.' },
+          { key: 'welcomeStyle', label: 'Formato', type: 'select', options: [{ value: 'embed', label: 'Embed con card' }, { value: 'text', label: 'Solo testo' }], help: 'Embed = card colorata con foto profilo; testo = messaggio semplice.' },
+          { key: 'welcomeColor', label: 'Colore card', type: 'text', placeholder: '#57f287', help: 'Hex #rrggbb della barra laterale (solo embed).' },
+          { key: 'welcomeThumbnail', label: 'Foto profilo nella card', type: 'bool' },
           { key: 'goodbyeChannelId', label: 'Canale addii', type: 'channel', help: 'Senza canale, nessun messaggio.' },
           { key: 'goodbyeMessage', label: 'Messaggio addio', type: 'text', multiline: true, placeholder: '👋 {user} ha lasciato {server}.', help: 'Variabili: {user} {server} {count}.' },
+          { key: 'goodbyeStyle', label: 'Formato', type: 'select', options: [{ value: 'embed', label: 'Embed con card' }, { value: 'text', label: 'Solo testo' }] },
+          { key: 'goodbyeColor', label: 'Colore card', type: 'text', placeholder: '#ed4245' },
+          { key: 'goodbyeThumbnail', label: 'Foto profilo nella card', type: 'bool' },
         ],
       },
       {

@@ -10,16 +10,19 @@ module.exports = {
       if (!cfg.goodbyeChannelId) return;
       const ch = await member.guild.channels.fetch(cfg.goodbyeChannelId).catch(() => null);
       if (!ch?.isTextBased?.()) return;
+      const text = (cfg.goodbyeMessage || '👋 {user} ha lasciato **{server}**.')
+        .replaceAll('{user}', member.user?.tag ?? 'un utente')
+        .replaceAll('{server}', member.guild?.name ?? 'il server');
+      const avatar = cfg.goodbyeThumbnail === false ? null : member.user?.displayAvatarURL?.();
+      if (cfg.goodbyeStyle === 'text') {
+        await ch.send({ content: text.slice(0, 2000) });
+        return;
+      }
       const embed = new EmbedBuilder()
-        .setColor(0xed4245)
+        .setColor(cfg.goodbyeColor || 0xed4245)
         .setTitle('👋 Addio!')
-        .setDescription(
-          (cfg.goodbyeMessage || '👋 {user} ha lasciato **{server}**.')
-            .replaceAll('{user}', member.user?.tag ?? 'un utente')
-            .replaceAll('{server}', member.guild?.name ?? 'il server')
-        )
+        .setDescription(text)
         .setTimestamp();
-      const avatar = member.user?.displayAvatarURL?.();
       if (avatar) embed.setThumbnail(avatar);
       await ch.send({ embeds: [embed] });
     } catch (e) {

@@ -724,6 +724,9 @@ function renderWelcome(it, mods) {
            ${fieldInput('welcome', { key: 'welcomeChannelId', label: 'Canale *', type: 'channel' }, w.welcomeChannelId)}
            ${fieldInput('welcome', { key: 'welcomeMessage', label: 'Messaggio', type: 'text', multiline: true, placeholder: '👋 Benvenuto {user} su {server}! Ora siamo {count} membri.' }, w.welcomeMessage)}
            ${chipsHTML}
+           ${fieldInput('welcome', { key: 'welcomeStyle', label: 'Formato', type: 'select', options: [{ value: 'embed', label: 'Embed con card' }, { value: 'text', label: 'Solo testo' }] }, w.welcomeStyle || 'embed')}
+           ${fieldInput('welcome', { key: 'welcomeColor', label: 'Colore card', type: 'text', placeholder: '#57f287' }, w.welcomeColor || '')}
+           ${fieldInput('welcome', { key: 'welcomeThumbnail', label: 'Foto profilo nella card', type: 'bool' }, w.welcomeThumbnail !== false)}
          </div>
        </div>
        <div class="form-card" data-module="welcome" data-wcard="leave">
@@ -735,6 +738,9 @@ function renderWelcome(it, mods) {
            ${fieldInput('welcome', { key: 'goodbyeChannelId', label: 'Canale *', type: 'channel' }, w.goodbyeChannelId)}
            ${fieldInput('welcome', { key: 'goodbyeMessage', label: 'Messaggio', type: 'text', multiline: true, placeholder: '👋 {user} ha lasciato {server}.' }, w.goodbyeMessage)}
            ${chipsHTML}
+           ${fieldInput('welcome', { key: 'goodbyeStyle', label: 'Formato', type: 'select', options: [{ value: 'embed', label: 'Embed con card' }, { value: 'text', label: 'Solo testo' }] }, w.goodbyeStyle || 'embed')}
+           ${fieldInput('welcome', { key: 'goodbyeColor', label: 'Colore card', type: 'text', placeholder: '#ed4245' }, w.goodbyeColor || '')}
+           ${fieldInput('welcome', { key: 'goodbyeThumbnail', label: 'Foto profilo nella card', type: 'bool' }, w.goodbyeThumbnail !== false)}
          </div>
        </div>
        <div class="form-card" data-module="autorole">
@@ -813,8 +819,14 @@ function renderWelcome(it, mods) {
       const patch = {
         welcomeChannelId: joinTgl && joinTgl.checked ? (gv('welcomeChannelId', 'join') || null) : null,
         welcomeMessage: gv('welcomeMessage', 'join'),
+        welcomeStyle: gv('welcomeStyle', 'join') || 'embed',
+        welcomeColor: gv('welcomeColor', 'join') || undefined,
+        welcomeThumbnail: host.querySelector('[data-wcard="join"] [data-fkey="welcomeThumbnail"]').checked,
         goodbyeChannelId: leaveTgl && leaveTgl.checked ? (gv('goodbyeChannelId', 'leave') || null) : null,
         goodbyeMessage: gv('goodbyeMessage', 'leave'),
+        goodbyeStyle: gv('goodbyeStyle', 'leave') || 'embed',
+        goodbyeColor: gv('goodbyeColor', 'leave') || undefined,
+        goodbyeThumbnail: host.querySelector('[data-wcard="leave"] [data-fkey="goodbyeThumbnail"]').checked,
       };
       save.disabled = true;
       try {
@@ -865,16 +877,37 @@ function configCardHTML(s, mods) {
   return `<div class="form-card" data-module="${esc(s.module)}"><h3>${esc(s.icon || '⚙️')} ${esc(s.title)}</h3><p class="fdesc">${esc(s.description || '')}</p>${inner}</div>`;
 }
 
-/** Anteprima live stile Discord per i messaggi con {user} {server} {count}. */
-function messagePreviewInner(text) {
+/** Anteprima live stile Discord per i messaggi con {user} {server} {count}.
+ *  opts: { style: 'embed'|'text', color: '#rrggbb', avatar: bool }. */
+function messagePreviewInner(text, opts) {
+  const o = opts || {};
   const rendered = esc(String(text || 'Anteprima messaggio…'))
     .replaceAll('{user}', '@utente').replaceAll('{username}', 'utente')
     .replaceAll('{server}', esc(guildName())).replaceAll('{count}', '128');
-  return `<span class="lp-bot">B</span><div><b>Multi-Server Bot</b> <span>oggi</span><p>${rendered}</p></div>`;
+  if (o.style === 'text') return `<p>${rendered}</p>`;
+  const border = /^#[0-9a-fA-F]{6}$/.test(o.color || '') ? o.color : 'var(--accent)';
+  const av = o.avatar === false ? '' : '<span class="lp-bot">U</span>';
+  return `${av}<div><b>Multi-Server Bot</b> <span>oggi</span><p>${rendered}</p></div>`;
 }
 
-function messagePreview(text) {
-  return `<div class="live-preview">${messagePreviewInner(text)}</div>`;
+function messagePreview(text, opts) {
+  const o = opts || {};
+  const border = o.style === 'text' ? '' : ` style="border-left-color:${/^#[0-9a-fA-F]{6}$/.test(o.color || '') ? o.color : 'var(--accent)'}"`;
+  return `<div class="live-preview"${border}>${messagePreviewInner(text, o)}</div>`;
+}
+
+/** Opzioni preview dalla card: stile/colore/avatar scelti. */
+function previewOpts(ta) {
+  const card = ta.closest ? ta.closest('.form-card') : null;
+  const q = (fk) => (card ? card.querySelector(`[data-fkey="${fk}"]`) : null);
+  const styleEl = q('welcomeStyle') || q('goodbyeStyle');
+  const colorEl = q('welcomeColor') || q('goodbyeColor');
+  const thumbEl = q('welcomeThumbnail') || q('goodbyeThumbnail');
+  return {
+    style: styleEl ? styleEl.value : 'embed',
+    color: colorEl ? colorEl.value : '',
+    avatar: thumbEl ? thumbEl.checked : true,
+  };
 }
 
 async function refreshController() {
@@ -937,6 +970,12 @@ function fieldInput(mod, f, cur) {
       return `<div class="field"><label>${esc(f.label)}</label><select data-fkey="${esc(f.key)}">
         <option value="it"${val === 'it' ? ' selected' : ''}>Italiano</option>
         <option value="en"${val === 'en' ? ' selected' : ''}>English</option></select>${help}</div>`;
+    case 'select': {
+      const opts = Array.isArray(f.options) ? f.options : [];
+      return `<div class="field"><label>${esc(f.label)}</label><select data-fkey="${esc(f.key)}">` +
+        opts.map((o) => `<option value="${esc(o.value)}"${String(val) === String(o.value) ? ' selected' : ''}>${esc(o.label)}</option>`).join('') +
+        `</select>${help}</div>`;
+    }
     case 'emoji':
       return `<div class="field"><label>${esc(f.label)}</label><input type="text" data-fkey="${esc(f.key)}" value="${esc(val)}" maxlength="50">${help}</div>`;
     default:
@@ -989,7 +1028,14 @@ function wireConfig() {
   document.querySelectorAll('textarea[data-preview="1"]').forEach((ta) => {
     const box = ta.closest('.field') ? ta.closest('.field').querySelector('[data-preview-box]') : null;
     if (!box) return;
-    ta.oninput = () => { box.innerHTML = messagePreviewInner(ta.value); };
+    const upd = () => { box.innerHTML = messagePreviewInner(ta.value, previewOpts(ta)); };
+    ta.oninput = upd;
+    const card = ta.closest('.form-card');
+    if (card) {
+      card.querySelectorAll('select[data-fkey], input[data-fkey]').forEach((el) => {
+        el.addEventListener('change', upd);
+      });
+    }
   });
   wireLists();
 }

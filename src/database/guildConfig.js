@@ -6,8 +6,14 @@ const DEFAULTS = {
   language: 'it', // 'it' | 'en' — gestita da src/utils/i18n.js + /lingua
   welcomeChannelId: null,
   welcomeMessage: '👋 Benvenuto {user} su **{server}**! Ora siamo {count} membri.',
+  welcomeStyle: 'embed', // 'embed' | 'text'
+  welcomeColor: '#57f287',
+  welcomeThumbnail: true, // avatar nel messaggio
   goodbyeChannelId: null,
   goodbyeMessage: '👋 {user} ha lasciato **{server}**.',
+  goodbyeStyle: 'embed', // 'embed' | 'text'
+  goodbyeColor: '#ed4245',
+  goodbyeThumbnail: true,
   logChannelId: null,
   suggestChannelId: null,
   automod: {
@@ -47,6 +53,15 @@ function getGuild(guildId) {
     automod: { ...DEFAULTS.automod, ...automod },
   };
   if (merged.language !== 'it' && merged.language !== 'en') merged.language = DEFAULTS.language;
+  for (const k of ['welcomeStyle', 'goodbyeStyle']) {
+    if (merged[k] !== 'embed' && merged[k] !== 'text') merged[k] = 'embed';
+  }
+  for (const k of ['welcomeColor', 'goodbyeColor']) {
+    if (typeof merged[k] !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(merged[k])) merged[k] = DEFAULTS[k];
+  }
+  for (const k of ['welcomeThumbnail', 'goodbyeThumbnail']) {
+    if (typeof merged[k] !== 'boolean') merged[k] = true;
+  }
   return merged;
 }
 
