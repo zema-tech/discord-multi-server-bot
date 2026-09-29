@@ -224,16 +224,26 @@ async function boot() {
     S.guilds = Array.isArray(g.guilds) ? g.guilds : (Array.isArray(g) ? g : []);
   } catch (e) { return apiErr(e); }
   const hashGid = (location.hash.match(/gid=([0-9]+)/) || [])[1];
-  const manageable = S.guilds.filter((x) => x && (x.canManage || x.botPresent));
-  const pick = S.guilds.find((x) => x && x.id === hashGid) || manageable[0] || S.guilds[0];
   renderGuildPick();
-  if (!pick) {
-    $('#view').innerHTML = topbar('👋 Benvenuto', 'Nessun server trovato') +
+  document.addEventListener('click', (e) => {
+    if (e.target && e.target.closest && e.target.closest('[data-goserver]')) {
+      location.hash = 'view=server';
+    }
+  });
+  const pick = S.guilds.find((x) => x && x.id === hashGid);
+  if (pick && (pick.canManage || pick.botPresent)) {
+    await selectGuild(pick.id);
+  } else if (!S.guilds.length) {
+    $('#view').innerHTML = topbar('👋 Benvenuto', 'Nessun server trovato', true) +
       emptyArt('Nessun server gestibile.',
         'Il bot deve stare nei tuoi server E tu devi poterli gestire. <a href="/login">Riaccedi</a> o invita il bot, poi <button class="icon-btn" onclick="location.reload()">🔄 ricarica</button>');
-    return;
+  } else {
+    // Senza server in hash (o non gestibile): griglia selezione stile MEE6.
+    S.gid = null;
+    S.route = 'server';
+    renderNav();
+    vServers();
   }
-  await selectGuild(pick.id);
   window.addEventListener('hashchange', onHash);
   document.addEventListener('keydown', cmdkKeys);
 }
@@ -308,7 +318,7 @@ function onHash() {
   const h = location.hash;
   let r = (h.match(/view=([a-z]+)/) || [])[1];
   if (r === 'config') r = 'moduli'; // voce rimossa: Configurazione vive nel dettaglio modulo
-  S.route = NAV.some((n) => n[0] === r) ? r : 'panoramica';
+  S.route = NAV.some((n) => n[0] === r) ? r : (r === 'server' ? 'server' : 'panoramica');
   if (S.route === 'moduli') {
     // Nuovo: item=voce + tab=categoria. Legacy: mod=id controller.
     const raw = ((h.match(/item=([A-Za-z0-9-]+)/) || [])[1] ||
@@ -322,8 +332,35 @@ function onHash() {
     S.selectedMod = null;
   }
   renderNav();
+  if (S.route === 'server') return vServers();
   if (S.route === 'moduli') return vModules();
   ({ panoramica: vOverview, moduli: vModules, permessi: vPerms, audit: vAudit, diag: vDiag })[S.route]();
+}
+
+/** Griglia selezione server stile MEE6 (post-login, prima della console). */
+function vServers() {
+  S.route = 'server';
+  const list = Array.isArray(S.guilds) ? S.guilds : [];
+  const roleOf = (g) => (g.owner ? '👑 Owner' : (g.canManage ? '🛡️ Admin' : '👤 Membro'));
+  const cards = list.map((g) => {
+    const canEnter = g.botPresent;
+    const action = canEnter
+      ? `<button class="plug-btn primary" data-enter="${esc(g.id)}">Entra →</button>`
+      : (g.inviteUrl
+        ? `<a class="plug-btn" href="${esc(g.inviteUrl)}" target="_blank" rel="noopener">＋ Invita</a>`
+        : `<span class="badge off">non gestibile</span>`);
+    return `<div class="plug srv-card">` +
+      `<div class="plug-top-row">${guildIcon(g, 64)}<span class="badge ${g.owner ? 'on' : (g.canManage ? '' : 'off')}">${roleOf(g)}</span></div>` +
+      `<h3>${esc(g.name || g.id)}</h3>` +
+      `<p class="desc">${g.botPresent ? (g.memberCount != null ? `👥 ${g.memberCount} membri · bot dentro ✅` : 'Bot dentro ✅') : 'Bot assente: invitalo per gestire questo server.'}</p>` +
+      `${action}</div>`;
+  }).join('');
+  $('#view').innerHTML = topbar('🖥️ I tuoi server', 'Scegli dove entrare', true) +
+    (cards ? `<div class="srv-grid">${cards}</div>` :
+      emptyArt('Nessun server.', 'Accedi con Discord e invita il bot nei tuoi server.'));
+  document.querySelectorAll('[data-enter]').forEach((b) => {
+    b.onclick = () => selectGuild(b.dataset.enter);
+  });
 }
 
 function renderNav() {
@@ -341,8 +378,12 @@ function guildName() {
   try { return (S.detail && S.detail.guild && S.detail.guild.name) || 'Server'; } catch (e) { return 'Server'; }
 }
 
-function topbar(title, sub) {
-  return `<div class="topbar"><div><h1>${title}</h1><div class="sub">${sub}</div></div>` +
+function topbar(title, sub, noChip) {
+  const cur = (!noChip && S.gid && S.route !== 'server') ? (S.guilds.find((g) => g.id === S.gid) || {}) : null;
+  const chip = cur && cur.id
+    ? `<button class="srv-chip" data-goserver title="Cambia server">${guildIcon(cur, 26)}<span>${esc(cur.name || 'Server')}</span><span>▾</span></button>`
+    : '';
+  return `<div class="topbar"><div><h1>${title}</h1><div class="sub">${sub}</div></div>${chip}` +
     `<span class="cmdk-hint"><span class="kbd">Ctrl</span> + <span class="kbd">K</span> palette</span></div>`;
 }
 
@@ -368,14 +409,27 @@ function vOverview() {
       <div class="stat ok"><b>${on}/${ctl.length || '—'}</b><span>moduli attivi</span></div>
       <div class="stat${iso ? ' warn' : ''}"><b>${iso}</b><span>in protezione 🛡️</span></div>
       <div class="stat"><b>${st.openTickets ?? tickets.open ?? '—'}</b><span>ticket aperti</span></div>
+      <div class="stat"><b id="stMsg">—</b><span>messaggi (periodo)</span></div>
+      <div class="stat"><b id="stVoice">—</b><span>vocali (periodo)</span></div>
     </div>
-    <div class="chart-box"><h3>📈 Attività (30 giorni)</h3><canvas class="chart" id="chTrend"></canvas></div>
+    <div class="chart-box"><h3>📈 Attività</h3>
+      <div class="row-flex" style="margin-bottom:.6rem" role="tablist" aria-label="Periodo">
+        ${[7, 14, 30].map((n) => `<button class="icon-btn trend-tab${n === 30 ? ' sel' : ''}" data-days="${n}">${n}g</button>`).join('')}
+      </div>
+      <div id="trendWrap"><canvas class="chart" id="chTrend"></canvas></div></div>
     <div class="grid-3" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));display:grid;gap:1rem;">
       <div class="card"><h3>⭐ Top livelli</h3><div id="topLv"></div></div>
       <div class="card"><h3>🪙 Top economia</h3><div id="topEco"></div></div>
       <div class="card"><h3>🎫 Ticket</h3><div id="tInfo"></div></div>
     </div>`;
-  drawTrend(st.trends || []);
+  S.trendFull = Array.isArray(st.trends) ? st.trends : [];
+  renderTrend(30);
+  document.querySelectorAll('.trend-tab').forEach((b) => {
+    b.onclick = () => {
+      document.querySelectorAll('.trend-tab').forEach((x) => x.classList.toggle('sel', x === b));
+      renderTrend(Number(b.dataset.days) || 30);
+    };
+  });
   $('#topLv').innerHTML = tableOrEmpty(st.levels, (r) => `<td class="mono">&lt;@${esc(r.id)}&gt;</td><td>Lv <b>${r.level ?? 0}</b></td><td class="mono">${r.total ?? ''}</td>`);
   $('#topEco').innerHTML = tableOrEmpty(st.economy, (r) => `<td class="mono">&lt;@${esc(r.id)}&gt;</td><td class="mono"><b>${r.balance ?? r.total ?? 0}</b> 🪙</td>`);
   $('#tInfo').innerHTML = `<p style="color:var(--text-secondary);font-size:.92rem;margin:.2rem 0;">
@@ -388,6 +442,30 @@ function tableOrEmpty(rows, fn) {
   return `<table class="tbl"><tbody>${rows.slice(0, 5).map((r) => `<tr>${fn(r)}</tr>`).join('')}</tbody></table>`;
 }
 
+/** Tab 7/14/30 sul grafico attività (i detail danno già 30 giorni). */
+function renderTrend(days) {
+  const full = Array.isArray(S.trendFull) ? S.trendFull : [];
+  const rows = full.slice(-Math.max(1, Math.min(30, days || 30)));
+  const sum = (k) => rows.reduce((s, r) => s + (Number(r[k]) || 0), 0);
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('stMsg', String(sum('messages')));
+  set('stVoice', fmtMinutes(sum('voice')));
+  const words = rows.reduce((s, r) => s + (Number(r.messages) || 0) + (Number(r.joins) || 0) + (Number(r.voice) || 0), 0);
+  const wrap = document.getElementById('trendWrap');
+  if (!rows.length || words === 0) {
+    if (wrap) wrap.innerHTML = '<div class="empty">📊 Dati in raccolta: i contatori partono dai prossimi messaggi, ingressi e sessioni vocali.</div>';
+    return;
+  }
+  if (wrap && !document.getElementById('chTrend')) wrap.innerHTML = '<canvas class="chart" id="chTrend"></canvas>';
+  drawTrend(rows);
+}
+
+function fmtMinutes(min) {
+  const m = Math.floor(Number(min) || 0);
+  if (m < 60) return `${m} min`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+
 function drawTrend(trends) {
   const cv = $('#chTrend');
   if (!cv) return;
@@ -397,15 +475,16 @@ function drawTrend(trends) {
   }
   const keys = Object.keys(trends[0]).filter((k) => k !== 'date');
   const labels = trends.map((t) => String(t.date || '').slice(5));
-  const colors = ['#7983ff', '#57f287', '#5cc8ff'];
+  const colors = ['#7983ff', '#57f287', '#5cc8ff', '#a8d8c9'];
+  const names = { messages: 'Messaggi', joins: 'Entrate', leaves: 'Uscite', voice: 'Vocali (min)' };
   destroyCharts();
   try {
     S.charts.push(new Chart(cv, {
       type: 'line',
       data: {
         labels,
-        datasets: keys.slice(0, 3).map((k, i) => ({
-          label: k,
+        datasets: keys.slice(0, 4).map((k, i) => ({
+          label: names[k] || k,
           data: trends.map((t) => Number(t[k]) || 0),
           borderColor: colors[i % colors.length],
           backgroundColor: colors[i % colors.length] + '22',
@@ -624,12 +703,14 @@ function renderWelcome(it, mods) {
   const ar = (mods && mods.autorole && typeof mods.autorole === 'object') ? mods.autorole : {};
   const joinOn = !!w.welcomeChannelId;
   const leaveOn = !!w.goodbyeChannelId;
+  const active = joinOn || leaveOn;
   const chipsHTML = `<div class="chips" data-chips>${['{user}', '{server}', '{count}'].map((c) => `<button class="chip" data-chip="${c}">${c}</button>`).join('')}</div>`;
   host.innerHTML =
     `<div class="mod-detail-bar">
        <button class="btn btn-sm" data-back>← Moduli</button>
        <span class="ico" aria-hidden="true">${esc(it.icon)}</span>
        <h1>${esc(it.label)}</h1>
+       ${active ? '<span class="badge on">Attivo</span>' : '<span class="badge off">Spento</span>'}
      </div>
      <div class="defaults-box compact"><h4>💡 Suggerimenti</h4>` +
        GENERIC_TIPS.slice(0, 2).map((t) => `<div>• ${esc(t)}</div>`).join('') + `</div>
@@ -640,7 +721,7 @@ function renderWelcome(it, mods) {
            <div><h3>👋 Messaggio all'ingresso</h3><p class="fdesc">Quando qualcuno entra nel server.</p></div>
          </div>
          <div class="wrow-body" data-wbody="join"${joinOn ? '' : ' hidden'}>
-           ${fieldInput('welcome', { key: 'welcomeChannelId', label: 'Canale', type: 'channel' }, w.welcomeChannelId)}
+           ${fieldInput('welcome', { key: 'welcomeChannelId', label: 'Canale *', type: 'channel' }, w.welcomeChannelId)}
            ${fieldInput('welcome', { key: 'welcomeMessage', label: 'Messaggio', type: 'text', multiline: true, placeholder: '👋 Benvenuto {user} su {server}! Ora siamo {count} membri.' }, w.welcomeMessage)}
            ${chipsHTML}
          </div>
@@ -651,7 +732,7 @@ function renderWelcome(it, mods) {
            <div><h3>👋 Messaggio all'uscita</h3><p class="fdesc">Quando qualcuno lascia il server.</p></div>
          </div>
          <div class="wrow-body" data-wbody="leave"${leaveOn ? '' : ' hidden'}>
-           ${fieldInput('welcome', { key: 'goodbyeChannelId', label: 'Canale', type: 'channel' }, w.goodbyeChannelId)}
+           ${fieldInput('welcome', { key: 'goodbyeChannelId', label: 'Canale *', type: 'channel' }, w.goodbyeChannelId)}
            ${fieldInput('welcome', { key: 'goodbyeMessage', label: 'Messaggio', type: 'text', multiline: true, placeholder: '👋 {user} ha lasciato {server}.' }, w.goodbyeMessage)}
            ${chipsHTML}
          </div>
@@ -718,6 +799,17 @@ function renderWelcome(it, mods) {
       const gv = (fk, card) => { const el = host.querySelector(`[data-wcard="${card}"] [data-fkey="${fk}"]`); return el ? el.value : ''; };
       const joinTgl = host.querySelector('[data-rowtoggle="join"]');
       const leaveTgl = host.querySelector('[data-rowtoggle="leave"]');
+      const joinCh = (gv('welcomeChannelId', 'join') || '').trim();
+      const leaveCh = (gv('goodbyeChannelId', 'leave') || '').trim();
+      // Canale obbligatorio se la riga è attiva (senza, il bot non invia nulla).
+      if (joinTgl && joinTgl.checked && !joinCh) {
+        toast('Scegli il canale di benvenuto (obbligatorio).', 'err');
+        return;
+      }
+      if (leaveTgl && leaveTgl.checked && !leaveCh) {
+        toast('Scegli il canale degli addii (obbligatorio).', 'err');
+        return;
+      }
       const patch = {
         welcomeChannelId: joinTgl && joinTgl.checked ? (gv('welcomeChannelId', 'join') || null) : null,
         welcomeMessage: gv('welcomeMessage', 'join'),

@@ -630,6 +630,7 @@ function createApiRouter(client) {
           icon,
           botPresent,
           canManage,
+          owner: g.owner === true,
           memberCount,
           inviteUrl: (!botPresent && canManage) ? inviteUrl(clientId, g.id) : null,
           stats,

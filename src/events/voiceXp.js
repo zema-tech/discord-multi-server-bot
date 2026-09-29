@@ -97,6 +97,10 @@ module.exports = {
 
         const minutes = Math.floor((Date.now() - joinedAt) / 60000);
         if (minutes < 1) return;
+        // Contatore giornaliero dashboard (best-effort, mai fatale).
+        try {
+          require('../database/analytics').addVoiceMinutes(guildId, minutes);
+        } catch {}
         const xp = Math.min(minutes * XP_PER_MINUTE, MAX_XP_PER_SESSION);
         let res;
         try {

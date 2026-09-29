@@ -2,7 +2,7 @@ const { load, save, dbFile } = require('./jsonDb');
 
 const FILE = dbFile('analytics');
 const MAX_DAYS = 60;
-const FIELDS = ['messages', 'joins', 'leaves'];
+const FIELDS = ['messages', 'joins', 'leaves', 'voice'];
 
 /** Chiave giorno locale YYYY-MM-DD (TZ del server, coerente per bump e letture). */
 function dayKey(date = new Date()) {
@@ -13,7 +13,7 @@ function dayKey(date = new Date()) {
 }
 
 function emptyDay() {
-  return { messages: 0, joins: 0, leaves: 0 };
+  return { messages: 0, joins: 0, leaves: 0, voice: 0 };
 }
 
 function sanitizeDay(entry = {}) {
@@ -36,7 +36,7 @@ function prune(guildEntry) {
 
 /**
  * Incrementa di 1 il contatore `field` per la guild nel giorno corrente.
- * field: 'messages' | 'joins' | 'leaves'. Field non validi: nessun effetto.
+ * field: 'messages' | 'joins' | 'leaves' | 'voice'. Field non validi: nessun effetto.
  * Solo conteggio, mai contenuto dei messaggi.
  */
 function bump(guildId, field) {
@@ -75,8 +75,31 @@ function totals(guildId, n = 7) {
     t.messages += r.messages;
     t.joins += r.joins;
     t.leaves += r.leaves;
+    t.voice += r.voice;
   }
   return t;
 }
 
-module.exports = { bump, getDays, totals, dayKey, MAX_DAYS };
+/**
+ * Aggiunge minuti vocali al giorno corrente (chiamato a fine sessione vocale).
+ * Ritorna il giorno aggiornato o null. Mai lancia.
+ */
+function addVoiceMinutes(guildId, minutes) {
+  try {
+    const n = Math.floor(Number(minutes));
+    if (!guildId || !Number.isFinite(n) || n < 1) return null;
+    const db = load(FILE);
+    if (!db[guildId] || typeof db[guildId] !== 'object') db[guildId] = { days: {} };
+    if (!db[guildId].days || typeof db[guildId].days !== 'object') db[guildId].days = {};
+    const key = dayKey();
+    db[guildId].days[key] = sanitizeDay(db[guildId].days[key]);
+    db[guildId].days[key].voice = Math.min(db[guildId].days[key].voice + n, Number.MAX_SAFE_INTEGER);
+    prune(db[guildId]);
+    save(FILE, db);
+    return { ...db[guildId].days[key] };
+  } catch {
+    return null;
+  }
+}
+
+module.exports = { bump, getDays, totals, dayKey, addVoiceMinutes, MAX_DAYS };
