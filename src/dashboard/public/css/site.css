@@ -585,3 +585,32 @@ input.filter { margin-bottom: 0.4rem; font-size: 0.85rem; padding: 0.45rem 0.7re
 /* ---- Link azzurri su fondo laguna ---- */
 #view a:not(.btn) { color: var(--info); }
 #view a:not(.btn):hover { filter: brightness(1.15); }
+
+/* ---- Pagina Welcome a righe (modello MEE6) ---- */
+.wrow-head { display: flex; align-items: center; gap: 0.9rem; margin-bottom: 0.8rem; }
+.wrow-head h3 { margin: 0; font-size: 1.05rem; font-family: var(--font-display); }
+.wrow-head .fdesc { margin: 0.1rem 0 0; }
+.wrow-body[hidden] { display: none; }
+.chips { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.5rem; }
+.chip {
+  font-family: var(--font-mono); font-size: 0.78rem;
+  background: var(--surface-2); border: 1px solid var(--card-border); color: var(--info);
+  border-radius: 8px; padding: 0.3rem 0.6rem; cursor: pointer;
+}
+.chip:hover { border-color: var(--info); }
+.defaults-box.compact { font-size: 0.85rem; }
+.dirtybar {
+  position: sticky; bottom: 0.8rem; z-index: 30;
+  display: flex; align-items: center; gap: 0.8rem;
+  background: var(--surface-2); border: 1px solid var(--accent);
+  border-radius: var(--radius-m); padding: 0.7rem 1rem; margin-top: 1.2rem;
+  box-shadow: var(--shadow-pop); font-weight: 600;
+}
+.dirtybar[hidden] { display: none; }
+.dirty-sp { flex: 1; }
+
+@media (max-width: 640px) {
+  .wrow-head { align-items: flex-start; }
+  .dirtybar { bottom: 0.4rem; flex-wrap: wrap; }
+  .dirtybar .btn { flex: 1; justify-content: center; }
+}

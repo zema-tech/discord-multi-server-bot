@@ -89,36 +89,36 @@ function modIcon(m) {
  *  Voce = { id, icon, label, ctrl? (id controller per toggle/stato), schemas: [...] }.
  *  Senza ctrl: niente switch, solo form (es. Welcome) o messaggio onesto. */
 const SIDEBAR = [
-  { id: 'essentials', title: 'Essentials', items: [
-    { id: 'welcome', icon: '👋', label: 'Welcome & Goodbye', desc: 'Accogli i nuovi membri e saluta chi esce, con messaggi personalizzati.', schemas: ['welcome'] },
-    { id: 'reactionRoles', icon: '🎨', label: 'Reaction Roles', desc: 'Pannello self-service: gli utenti si prendono i ruoli da soli.', ctrl: 'reactionRoles', schemas: ['reactionRoles'] },
-    { id: 'moderation', icon: '🛡️', label: 'Moderator', desc: 'Automod, lockdown e warn automatiche contro spam e raid.', ctrl: 'moderation', schemas: ['automod', 'lockdown', 'warns'] },
-    { id: 'levels', icon: '⭐', label: 'Levels', desc: 'XP da messaggi e vocali, classifiche e ricompense per livello.', ctrl: 'levels', schemas: ['levels', 'rewards'] },
+  { id: 'essentials', title: 'Essenziali', items: [
+    { id: 'welcome', icon: '👋', label: 'Benvenuto e addii', desc: 'Accogli i nuovi membri e saluta chi esce, con messaggi personalizzati.', schemas: ['welcome'] },
+    { id: 'reactionRoles', icon: '🎨', label: 'Reaction roles', desc: 'Pannello self-service: gli utenti si prendono i ruoli da soli.', ctrl: 'reactionRoles', schemas: ['reactionRoles'] },
+    { id: 'moderation', icon: '🛡️', label: 'Moderazione', desc: 'Automod, lockdown e warn automatiche contro spam e raid.', ctrl: 'moderation', schemas: ['automod', 'lockdown', 'warns'] },
+    { id: 'levels', icon: '⭐', label: 'Livelli', desc: 'XP da messaggi e vocali, classifiche e ricompense per livello.', ctrl: 'levels', schemas: ['levels', 'rewards'] },
     { id: 'starboard', icon: '🌟', label: 'Starboard', desc: 'I messaggi più reagiti finiscono in bacheca.', ctrl: 'starboard', schemas: ['starboard'] },
   ] },
-  { id: 'server', title: 'Server management', items: [
-    { id: 'customCommands', icon: '⌨️', label: 'Custom Commands', desc: 'Comandi !nome con risposte personalizzate e variabili.', ctrl: 'customCommands', schemas: ['commands'] },
+  { id: 'server', title: 'Server', items: [
+    { id: 'customCommands', icon: '⌨️', label: 'Comandi personalizzati', desc: 'Comandi !nome con risposte personalizzate e variabili.', ctrl: 'customCommands', schemas: ['commands'] },
     { id: 'autoresponder', icon: '💬', label: 'Autoresponder', desc: 'Risposte automatiche quando qualcuno scrive certe parole.', ctrl: 'autoresponder', schemas: ['autoresponder'] },
-    { id: 'tickets', icon: '🎫', label: 'Ticketing', desc: 'Supporto organizzato con pannello, staff e auto-chiusura.', ctrl: 'tickets', schemas: ['tickets'] },
-    { id: 'tempvoice', icon: '🔊', label: 'Temporary Channels', desc: 'Vocali private temporanee che si creano da sole.', ctrl: 'tempvoice', schemas: ['tempvoice'] },
-    { id: 'autorole', icon: '🎭', label: 'Autorole', desc: 'Ruoli assegnati in automatico ai nuovi membri.', ctrl: 'autorole', schemas: ['autorole'] },
+    { id: 'tickets', icon: '🎫', label: 'Ticket', desc: 'Supporto organizzato con pannello, staff e auto-chiusura.', ctrl: 'tickets', schemas: ['tickets'] },
+    { id: 'tempvoice', icon: '🔊', label: 'Canali temporanei', desc: 'Vocali private temporanee che si creano da sole.', ctrl: 'tempvoice', schemas: ['tempvoice'] },
+    { id: 'autorole', icon: '🎭', label: 'Ruoli automatici', desc: 'Ruoli assegnati in automatico ai nuovi membri.', ctrl: 'autorole', schemas: ['autorole'] },
   ] },
-  { id: 'utilities', title: 'Utilities', items: [
-    { id: 'statchannels', icon: '📊', label: 'Statistics Channels', desc: 'Vocali con conteggi live: membri, online e bot.', schemas: ['statchannels'] },
+  { id: 'utilities', title: 'Utility', items: [
+    { id: 'statchannels', icon: '📊', label: 'Canali statistiche', desc: 'Vocali con conteggi live: membri, online e bot.', schemas: ['statchannels'] },
     { id: 'birthdays', icon: '🎂', label: 'Compleanni', desc: 'Annuncia i compleanni nel canale dedicato.', schemas: ['birthdays'] },
     { id: 'youtube', icon: '📺', label: 'YouTube RSS', desc: 'Avvisa in automatico i nuovi video dei canali seguiti.', ctrl: 'youtube', schemas: ['youtube'] },
     { id: 'utility', icon: '🧰', label: 'Utility', desc: 'Setup guidato, sondaggi, promemoria e strumenti vari.', ctrl: 'utility', schemas: [] },
   ] },
   { id: 'fun', title: 'Fun', items: [
-    { id: 'economy', icon: '🪙', label: 'Economy', desc: 'Monete, daily, lavoretti, lotteria e negozio ruoli.', ctrl: 'economy', schemas: ['economy', 'shop'] },
-    { id: 'fun', icon: '🎉', label: 'Fun / Confessioni', desc: 'Confessioni anonime, quiz, sfide ed eventi del server.', ctrl: 'fun', schemas: ['confessioni'] },
+    { id: 'economy', icon: '🪙', label: 'Economia', desc: 'Monete, daily, lavoretti, lotteria e negozio ruoli.', ctrl: 'economy', schemas: ['economy', 'shop'] },
+    { id: 'fun', icon: '🎉', label: 'Fun e confessioni', desc: 'Confessioni anonime, quiz, sfide ed eventi del server.', ctrl: 'fun', schemas: ['confessioni'] },
     { id: 'music', icon: '🎵', label: 'Musica', desc: 'Musica nei canali vocali con volume configurabile.', ctrl: 'music', schemas: ['music'] },
   ] },
   { id: 'ai', title: 'AI', items: [
     { id: 'ai', icon: '🤖', label: 'AI', desc: 'Risposte intelligenti, menzioni, ticket e moderazione AI.', ctrl: 'ai', schemas: ['ai'] },
   ] },
-  { id: 'settings', title: 'Settings', items: [
-    { id: 'system', icon: '⚙️', label: 'General / System', desc: 'Lingua, log e impostazioni generali del bot.', ctrl: 'system', schemas: ['general'] },
+  { id: 'settings', title: 'Impostazioni', items: [
+    { id: 'system', icon: '⚙️', label: 'Generale / Sistema', desc: 'Lingua, log e impostazioni generali del bot.', ctrl: 'system', schemas: ['general'] },
   ] },
 ];
 
@@ -440,7 +440,7 @@ function vModules() {
   const sel = sideItem(S.selectedMod);
   if (sel) return renderItemDetail(sel);
   const g = (S.detail && S.detail.guild) || {};
-  const tabs = [{ id: 'all', title: 'All Plugins' }].concat(SIDEBAR.map((c) => ({ id: c.id, title: c.title })));
+  const tabs = [{ id: 'all', title: 'Tutti' }].concat(SIDEBAR.map((c) => ({ id: c.id, title: c.title })));
   const tabsHTML = `<div class="plug-tabs" role="tablist">` + tabs.map((t) =>
     `<button role="tab" aria-selected="${tab === t.id}" class="plug-tab${tab === t.id ? ' active' : ''}" data-tab="${esc(t.id)}">${esc(t.title)}</button>`).join('') + `</div>`;
   const sectionFor = (c) =>
@@ -449,7 +449,7 @@ function vModules() {
     ? SIDEBAR.map(sectionFor).join('')
     : sectionFor(SIDEBAR.find((c) => c.id === tab));
   $('#view').innerHTML =
-    `<div class="plug-top"><div><h1>Plugins</h1><p class="sub">${esc(g.name || 'Server')}${g.memberCount != null ? ` · ${g.memberCount} membri` : ''}</p></div></div>` +
+    `<div class="plug-top"><div><h1>Moduli</h1><p class="sub">${esc(g.name || 'Server')}${g.memberCount != null ? ` · ${g.memberCount} membri` : ''}</p></div></div>` +
     promoHTML() + tabsHTML + body;
   document.querySelectorAll('[data-tab]').forEach((b) => {
     b.onclick = () => { location.hash = `gid=${S.gid}&view=moduli&tab=${encodeURIComponent(b.dataset.tab)}`; };
@@ -555,16 +555,17 @@ function renderItemDetail(it) {
   const entries = S.schema.filter((s) => it.schemas.includes(s.module));
   const cards = entries.map((s) => configCardHTML(s, mods)).join('');
   const tips = [...(MOD_TIPS[it.ctrl || it.id] || []), ...GENERIC_TIPS];
+  if (it.id === 'welcome') return renderWelcome(it, mods);
   const defaults = entries.flatMap((s) => (Array.isArray(s.fields) ? s.fields : [])
     .filter((f) => f.placeholder)
     .map((f) => `<div><b>${esc(f.label)}</b><span>${esc(f.placeholder)}</span></div>`));
   const errs = m && Array.isArray(m.errors) ? m.errors.length : 0;
   const status = m
     ? `<p class="sub">Stato: <b>${m.enabled ? 'attivo' : 'spento'}</b> · protezione: <b>${m.isolated ? 'isolato 🛡️' : 'ok'}</b> · errori: <b>${errs}</b> · v${esc(m.version || '?')} · ${esc(m.commands ?? 0)} comandi</p>`
-    : `<p class="sub">Voce di configurazione (senza on/off).</p>`;
+    : '';
   host.innerHTML =
     `<div class="mod-detail-bar">
-       <button class="btn btn-sm" data-back>← Plugins</button>
+       <button class="btn btn-sm" data-back>← Moduli</button>
        <span class="ico" aria-hidden="true">${esc(it.icon)}</span>
        <h1>${esc(it.label)}</h1>
        ${m ? (m.locked ? '<span class="badge">🔒 sistema</span>' : modBadge(m)) : '<span class="badge">⚙️ config</span>'}
@@ -612,6 +613,133 @@ function renderItemDetail(it) {
     };
   }
   wireConfig();
+}
+
+/** Pagina Welcome a righe (modello per Ticket/Moderator): toggle per riga,
+ *  chip variabili, preview Discord, un solo Salva in barra sticky. */
+function renderWelcome(it, mods) {
+  const host = document.querySelector('#view');
+  if (!host) return;
+  const w = (mods && mods.welcome && typeof mods.welcome === 'object') ? mods.welcome : {};
+  const ar = (mods && mods.autorole && typeof mods.autorole === 'object') ? mods.autorole : {};
+  const joinOn = !!w.welcomeChannelId;
+  const leaveOn = !!w.goodbyeChannelId;
+  const chipsHTML = `<div class="chips" data-chips>${['{user}', '{server}', '{count}'].map((c) => `<button class="chip" data-chip="${c}">${c}</button>`).join('')}</div>`;
+  host.innerHTML =
+    `<div class="mod-detail-bar">
+       <button class="btn btn-sm" data-back>← Moduli</button>
+       <span class="ico" aria-hidden="true">${esc(it.icon)}</span>
+       <h1>${esc(it.label)}</h1>
+     </div>
+     <div class="defaults-box compact"><h4>💡 Suggerimenti</h4>` +
+       GENERIC_TIPS.slice(0, 2).map((t) => `<div>• ${esc(t)}</div>`).join('') + `</div>
+     <div class="mod-detail-grid welcome-page">
+       <div class="form-card" data-module="welcome" data-wcard="join">
+         <div class="wrow-head">
+           <label class="switch" title="Messaggio all'ingresso"><input type="checkbox" data-rowtoggle="join"${joinOn ? ' checked' : ''}><span class="tr"></span></label>
+           <div><h3>👋 Messaggio all'ingresso</h3><p class="fdesc">Quando qualcuno entra nel server.</p></div>
+         </div>
+         <div class="wrow-body" data-wbody="join"${joinOn ? '' : ' hidden'}>
+           ${fieldInput('welcome', { key: 'welcomeChannelId', label: 'Canale', type: 'channel' }, w.welcomeChannelId)}
+           ${fieldInput('welcome', { key: 'welcomeMessage', label: 'Messaggio', type: 'text', multiline: true, placeholder: '👋 Benvenuto {user} su {server}! Ora siamo {count} membri.' }, w.welcomeMessage)}
+           ${chipsHTML}
+         </div>
+       </div>
+       <div class="form-card" data-module="welcome" data-wcard="leave">
+         <div class="wrow-head">
+           <label class="switch" title="Messaggio all'uscita"><input type="checkbox" data-rowtoggle="leave"${leaveOn ? ' checked' : ''}><span class="tr"></span></label>
+           <div><h3>👋 Messaggio all'uscita</h3><p class="fdesc">Quando qualcuno lascia il server.</p></div>
+         </div>
+         <div class="wrow-body" data-wbody="leave"${leaveOn ? '' : ' hidden'}>
+           ${fieldInput('welcome', { key: 'goodbyeChannelId', label: 'Canale', type: 'channel' }, w.goodbyeChannelId)}
+           ${fieldInput('welcome', { key: 'goodbyeMessage', label: 'Messaggio', type: 'text', multiline: true, placeholder: '👋 {user} ha lasciato {server}.' }, w.goodbyeMessage)}
+           ${chipsHTML}
+         </div>
+       </div>
+       <div class="form-card" data-module="autorole">
+         <div class="wrow-head">
+           <label class="switch" title="Ruolo ai nuovi membri"><input type="checkbox" data-autorole-toggle${ar.enabled !== false ? ' checked' : ''}><span class="tr"></span></label>
+           <div><h3>🎭 Ruolo ai nuovi membri</h3><p class="fdesc">Assegnato in automatico all'ingresso.</p></div>
+         </div>
+         <div class="wrow-body">
+           ${fieldInput('autorole', { key: 'roleIds', label: 'Ruoli', type: 'roles' }, ar.roleIds)}
+           ${fieldInput('autorole', { key: 'delaySeconds', label: 'Ritardo (secondi)', type: 'number' }, ar.delaySeconds)}
+         </div>
+       </div>
+     </div>
+     <div class="dirtybar" id="dirtyBar" hidden><span>Modifiche non salvate</span><span class="dirty-sp"></span><button class="btn btn-sm" id="dirtyUndo">Annulla</button><button class="btn btn-primary btn-sm" id="dirtySave">💾 Salva</button></div>`;
+  wireBack();
+  wireConfig();
+  const bar = document.getElementById('dirtyBar');
+  const dirty = () => { if (bar) bar.hidden = false; };
+  host.querySelectorAll('input, select, textarea').forEach((el) => {
+    el.addEventListener('input', dirty);
+    el.addEventListener('change', dirty);
+  });
+  host.querySelectorAll('[data-rowtoggle]').forEach((t) => {
+    t.onchange = () => {
+      const body = host.querySelector(`[data-wbody="${t.dataset.rowtoggle}"]`);
+      if (body) body.hidden = !t.checked;
+      dirty();
+    };
+  });
+  const arTgl = host.querySelector('[data-autorole-toggle]');
+  if (arTgl) {
+    arTgl.onchange = async () => {
+      arTgl.disabled = true;
+      try {
+        await Api.toggle(S.gid, 'autorole', arTgl.checked);
+        toast(`autorole ${arTgl.checked ? 'attivato ✅' : 'disattivato ⏸️'}`, 'ok');
+        const d = await Api.detail(S.gid);
+        S.detail = d;
+      } catch (e) { arTgl.checked = !arTgl.checked; apiErr(e); }
+      finally { arTgl.disabled = false; }
+      dirty();
+    };
+  }
+  host.querySelectorAll('[data-chip]').forEach((b) => {
+    b.onclick = () => {
+      const card = b.closest('.form-card');
+      const ta = card ? card.querySelector('textarea[data-fkey]') : null;
+      if (!ta) return;
+      const ins = b.dataset.chip;
+      const s = ta.selectionStart ?? ta.value.length;
+      const e = ta.selectionEnd ?? ta.value.length;
+      ta.value = ta.value.slice(0, s) + ins + ta.value.slice(e);
+      ta.focus();
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+  });
+  const undo = document.getElementById('dirtyUndo');
+  if (undo) undo.onclick = () => renderWelcome(it, (S.detail && S.detail.modules) || {});
+  const save = document.getElementById('dirtySave');
+  if (save) {
+    save.onclick = async () => {
+      const gv = (fk, card) => { const el = host.querySelector(`[data-wcard="${card}"] [data-fkey="${fk}"]`); return el ? el.value : ''; };
+      const joinTgl = host.querySelector('[data-rowtoggle="join"]');
+      const leaveTgl = host.querySelector('[data-rowtoggle="leave"]');
+      const patch = {
+        welcomeChannelId: joinTgl && joinTgl.checked ? (gv('welcomeChannelId', 'join') || null) : null,
+        welcomeMessage: gv('welcomeMessage', 'join'),
+        goodbyeChannelId: leaveTgl && leaveTgl.checked ? (gv('goodbyeChannelId', 'leave') || null) : null,
+        goodbyeMessage: gv('goodbyeMessage', 'leave'),
+      };
+      save.disabled = true;
+      try {
+        await Api.saveModule(S.gid, 'welcome', patch);
+        const arCard = host.querySelector('.form-card[data-module="autorole"]');
+        if (arCard) await Api.saveModule(S.gid, 'autorole', collectFields(arCard));
+        toast('Welcome salvato ✅', 'ok');
+        const d = await Api.detail(S.gid);
+        S.detail = d;
+        renderWelcome(it, d.modules || {});
+      } catch (e) { apiErr(e); } finally { save.disabled = false; }
+    };
+  }
+  // Nascondi i Salva per-card: qui c'è un solo Salva nella barra.
+  host.querySelectorAll('.form-card [data-save], .mod-detail-bar [data-save-all]').forEach((b) => {
+    b.style.display = 'none';
+  });
 }
 
 function wireBack() {
