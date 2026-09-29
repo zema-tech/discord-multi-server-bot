@@ -74,6 +74,8 @@ registro: nuovo tool = nuovo file + una riga), `server.js` (mount Express).
 | `brain_search` | cerca in skill/memorie/file del server |
 | `ticket_stats` | per tipo, chiusura media, rating, top staff |
 | `tickets_open` | ticket aperti con priorità e claim |
+| `brain_note_save` / `brain_note_forget` | scrive/cancella memorie del server |
+| `settings_get` / `settings_set` | provider IA, limiti, log (mai chiavi API) |
 | `economy_top`, `levels_top` | classifiche |
 | `user_cases` / `mod_history` | storico moderazione utente |
 | `bot_health` | uptime, modalità, backend (null onesti senza client) |

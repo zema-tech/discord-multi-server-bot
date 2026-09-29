@@ -2735,9 +2735,22 @@ hostPromise = hostPromise.then(() => (async () => {
       if (health.status !== 200 || JSON.parse(health.json.result.content[0].text).mode !== 'standalone') {
         fail('mcp: bot_health onesto (standalone senza client)');
       }
+      // IA che configura: nota cervello + impostazione non segreta, poi cleanup.
+      const note = await call({ jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name: 'brain_note_save', arguments: { guildId: MQ, title: 'Regole serate', text: 'Il venerdì si gioca', tags: 'eventi' } } }, rec2.token, init.session);
+      if (note.status !== 200) fail('mcp: brain_note_save');
+      const set = await call({ jsonrpc: '2.0', id: 10, method: 'tools/call', params: { name: 'settings_set', arguments: { guildId: MQ, key: 'AI_DAILY_LIMIT', value: '777' } } }, rec2.token, init.session);
+      if (set.status !== 200) fail('mcp: settings_set');
+      const got = await call({ jsonrpc: '2.0', id: 11, method: 'tools/call', params: { name: 'settings_get', arguments: { guildId: MQ } } }, rec2.token, init.session);
+      if (got.status !== 200 || JSON.parse(got.json.result.content[0].text).AI_DAILY_LIMIT !== '777') {
+        fail('mcp: settings_get non riflette il set');
+      }
+      const noKey = await call({ jsonrpc: '2.0', id: 12, method: 'tools/call', params: { name: 'settings_set', arguments: { guildId: MQ, key: 'GROQ_API_KEY', value: 'x' } } }, rec2.token, init.session);
+      if (noKey.status !== 400) fail('mcp: chiavi API vietate via MCP');
+      const forget = await call({ jsonrpc: '2.0', id: 13, method: 'tools/call', params: { name: 'brain_note_forget', arguments: { guildId: MQ, title: 'Regole serate' } } }, rec2.token, init.session);
+      if (forget.status !== 200) fail('mcp: brain_note_forget');
       const list = await call({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, rec2.token);
       const names = (list.json.result?.tools || []).map((t) => t.name);
-      for (const t of ['modules_list', 'module_status', 'module_toggle', 'guild_snapshot', 'brain_search', 'ticket_stats', 'tickets_open', 'bot_health']) {
+      for (const t of ['modules_list', 'module_status', 'module_toggle', 'guild_snapshot', 'brain_search', 'ticket_stats', 'tickets_open', 'bot_health', 'brain_note_save', 'brain_note_forget', 'settings_get', 'settings_set']) {
         if (!names.includes(t)) fail(`mcp: tool ${t} mancante`);
       }
       const mods = await call({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'modules_list', arguments: {} } }, rec2.token);
@@ -2754,6 +2767,9 @@ hostPromise = hostPromise.then(() => (async () => {
       await new Promise((r) => server.close(r));
     }
     tokens.revokeToken(rec2.id);
+    try {
+      require(path.join(DB_DIR, 'settings.js')).deleteOverride('AI_DAILY_LIMIT');
+    } catch {}
     const { load, save, dbFile } = require(path.join(DB_DIR, 'jsonDb.js'));
     const f = dbFile('apiTokens');
     const db = load(f);

@@ -27,4 +27,54 @@ const brainSearch = {
   },
 };
 
-module.exports = { brainSearch };
+const brainNoteSave = {
+  def: {
+    name: 'brain_note_save',
+    description: 'Salva una nota nel cervello del server (usa [[Link]] e #tag). Il token è owner: equivale allo staff.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        guildId: { type: 'string' },
+        title: { type: 'string', description: 'Titolo (2-60 char)' },
+        text: { type: 'string', description: 'Contenuto (max 2000)' },
+        tags: { type: 'string', description: 'Tag separati da virgola (opzionale)' },
+      },
+      required: ['guildId', 'title', 'text'], additionalProperties: false,
+    },
+  },
+  async run(args, token) {
+    const gid = assertGuild(token, args.guildId);
+    const memory = require('../../ai/brain/memory');
+    const title = memory.saveNote(
+      gid,
+      String(args.title || ''),
+      String(args.text || ''),
+      String(args.tags || '')
+    );
+    return textResult(JSON.stringify({ ok: true, title }));
+  },
+};
+
+const brainNoteForget = {
+  def: {
+    name: 'brain_note_forget',
+    description: 'Elimina una nota dal cervello del server.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        guildId: { type: 'string' },
+        title: { type: 'string', description: 'Titolo esatto' },
+      },
+      required: ['guildId', 'title'], additionalProperties: false,
+    },
+  },
+  async run(args, token) {
+    const gid = assertGuild(token, args.guildId);
+    const memory = require('../../ai/brain/memory');
+    const ok = memory.deleteNote(gid, String(args.title || ''));
+    if (!ok) throw toolError(ERR.INVALID_PARAMS, 'Nota non trovata.');
+    return textResult(JSON.stringify({ ok: true }));
+  },
+};
+
+module.exports = { brainSearch, brainNoteSave, brainNoteForget };

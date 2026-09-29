@@ -12,7 +12,8 @@
  */
 const { modulesList, moduleStatus, moduleToggle } = require('./modules');
 const { guildSnapshot, ticketStats, ticketsOpen } = require('./guild');
-const { brainSearch } = require('./brain');
+const { brainSearch, brainNoteSave, brainNoteForget } = require('./brain');
+const { settingsGet, settingsSet } = require('./settings');
 const { botHealth } = require('./health');
 const {
   guildInfo, economyTop, levelsTop, modHistory, analyticsSummary,
@@ -33,6 +34,10 @@ for (
     guildSnapshot,
     guildInfo,
     brainSearch,
+    brainNoteSave,
+    brainNoteForget,
+    settingsGet,
+    settingsSet,
     ticketStats,
     ticketsOpen,
     botHealth,
