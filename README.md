@@ -26,6 +26,11 @@ node deploy-commands.js
 npm start
 ```
 
+> **Bot + dashboard Express** (`src/dashboard`): usa **npm** come sopra.
+> La dashboard **Next.js** in `apps/dashboard` usa dipendenze `workspace:*`
+> (Bun/pnpm): **non** fare solo `npm install` in root se stai sviluppando
+> quel path — vedi [docs/HOSTING.md](docs/HOSTING.md).
+
 ```bash
 npm test   # smoke senza token: comandi, eventi, commander, DB
 ```
@@ -95,6 +100,7 @@ Dettaglio comandi → [docs/COMMANDS.md](docs/COMMANDS.md).
 | `GUILD_ID` | Opzionale: un solo server di test |
 | `DB_BACKEND` | `json` (default) o `sqlite` |
 | `CLIENT_SECRET` · `SESSION_SECRET` · `BASE_URL` | Dashboard OAuth2 |
+| `DASHBOARD_AUDIT_LOG` | Opzionale: path audit log dashboard |
 | `GROQ_API_KEY` / `GEMINI_API_KEY` / … | AI (opzionale) |
 
 Completo → [docs/CONFIG.md](docs/CONFIG.md) · [`.env.example`](.env.example).
@@ -109,7 +115,7 @@ Completo → [docs/CONFIG.md](docs/CONFIG.md) · [`.env.example`](.env.example).
 
 ```bash
 npm start            # bot
-npm run dashboard    # pannello (stesso .env / DB)
+npm run dashboard    # pannello Express (stesso .env / DB)
 ```
 
 Serve **Gestisci Server** + bot presente nella guild.
@@ -133,7 +139,8 @@ src/commands/   slash per categoria
 src/events/     listener Discord
 src/modules/    descrittori feature + commander bridge
 src/database/   json / sqlite
-src/dashboard/  Express + UI
+src/dashboard/  Express + UI (produzione tipica)
+apps/dashboard/ Next.js opzionale (Bun/pnpm, workspace:*)
 packages/commander/   core TS (gate, timeout, breaker)
 docs/           CONFIG, COMMANDS, HOSTING
 ```
