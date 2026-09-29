@@ -9,13 +9,23 @@
  * 3. `module_config`: patch oggetto, max 20 chiavi, valori piccoli, niente
  *    chiavi prototipo. I moduli validi sono quelli del Commander.
  * 4. `announce_send`: canale testuale DEL server (verificato in lista live),
- *    max 2000 char, @everyone/@here neutralizzati.
+ *    max 2000 char; @everyone/@here e mention utente/ruolo neutralizzati
+ *    (default strict: niente ping via MCP).
  */
 
 const { assertGuild, textResult, toolError, ERR } = require('./scope');
 
 function commander() {
   return require('../../modules/commander');
+}
+
+/** Neutralizza ping di massa e mention Discord (utente/ruolo). */
+function sanitizeAnnounceText(text) {
+  let t = String(text || '');
+  t = t.replace(/@everyone/gi, 'everyone').replace(/@here/gi, 'here');
+  // <@id> <@!id> utenti — <@&id> ruoli
+  t = t.replace(/<@!?\d+>/g, '[user]').replace(/<@&\d+>/g, '[role]');
+  return t;
 }
 
 /** Modulo Commander dal tool: id valido + voce salute aggiornata. */
@@ -134,7 +144,7 @@ const moduleConfig = {
 const announceSend = {
   def: {
     name: 'announce_send',
-    description: 'Invia un messaggio in un canale testuale del server (max 2000 char, senza @everyone/@here).',
+    description: 'Invia un messaggio in un canale testuale del server (max 2000 char; niente @everyone/@here né mention utente/ruolo).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -152,7 +162,7 @@ const announceSend = {
     let text = String(args.text || '').trim();
     if (!text) throw toolError(ERR.INVALID_PARAMS, 'Testo vuoto.');
     if (text.length > 2000) throw toolError(ERR.INVALID_PARAMS, 'Testo troppo lungo (max 2000).');
-    text = text.replace(/@everyone/g, 'everyone').replace(/@here/g, 'here');
+    text = sanitizeAnnounceText(text);
     const rest = require('../../dashboard/discordRest');
     let channels;
     try {
@@ -174,4 +184,4 @@ const announceSend = {
   },
 };
 
-module.exports = { moduleReload, moduleReset, moduleConfig, announceSend, CONFIG_MODS };
+module.exports = { moduleReload, moduleReset, moduleConfig, announceSend, CONFIG_MODS, sanitizeAnnounceText };
