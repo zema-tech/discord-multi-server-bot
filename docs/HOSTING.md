@@ -11,10 +11,11 @@ npm start       # bot (+ dashboard con npm run dashboard)
 Requisiti comuni:
 
 - **Node.js ≥ 22.12** (consigliato **Node 24**; @discordjs/voice lo richiede)
-- **Toolchain**: il bot puro va con `npm`. Per la dashboard Next.js
-  (`apps/dashboard`, workspace `workspace:*`) serve **Bun** (primario,
-  vedi `apps/dashboard/README.md`) oppure **pnpm** (`pnpm-workspace.yaml`
-  incluso): `npm` NON supporta il protocollo `workspace:*` e fallisce l'install.
+- **Toolchain**: il bot puro e la dashboard Express (`src/dashboard`) vanno con `npm`.
+  Per la dashboard Next.js (`apps/dashboard`, protocollo `workspace:*`) serve
+  **Bun** (primario, vedi `apps/dashboard/README.md`) oppure **pnpm**
+  (`pnpm-workspace.yaml` incluso): `npm` NON supporta `workspace:*` e fallisce
+  l'install se risolvi quei package.
 - File `.env` creato da `.env.example` con almeno `DISCORD_TOKEN` e `CLIENT_ID`
 - Deploy degli slash command: `npm run deploy` (dopo ogni aggiunta/modifica di comandi)
 - Start: `npm start` (= `node src/index.js`) · Test: `npm test`
@@ -181,6 +182,7 @@ Nessun egg ufficiale: usa un egg generico **NodeJS** (versione 20):
 
 | Sintomo | Causa probabile e fix |
 |---|---|
+| `Unsupported URL Type "workspace:"` su `npm install` | Stai risolvendo `apps/dashboard` o `packages/*` con **npm**. Per il **bot + dashboard Express** usa solo le dipendenze root (`npm ci` sul lock del bot). Per **Next** in `apps/dashboard` usa **Bun** o **pnpm**. |
 | `DisallowedIntents` / bot online ma non risponde | Abilita nel [Developer Portal](https://discord.com/developers/applications) → Bot → **Privileged Gateway Intents**: **Server Members Intent** e **Message Content Intent** (il bot usa `GuildMembers` + `MessageContent`, vedi `src/index.js`). `GuildPresences` **non** serve. |
 | Slash command mancanti o vecchi | Lancia `npm run deploy` (serve `CLIENT_ID`; con `GUILD_ID` i comandi arrivano subito sul server di test, senza devi attendere fino a ~1h per la propagazione globale). |
 | `TokenInvalid` / `TOKEN_INVALID` | `DISCORD_TOKEN` errato o rigenerato: aggiorna `.env` (mai committarlo) e riavvia. |
