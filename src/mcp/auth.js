@@ -22,7 +22,7 @@ function authenticate(req) {
   return verifyToken(t);
 }
 
-/** Sessioni MCP: id -> { tokenRec, createdAt }. TTL 24h, prune pigra. */
+/** Sessioni MCP: id -> { tokenId, tokenRec, createdAt }. TTL 24h, prune pigra. */
 const sessions = new Map();
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 

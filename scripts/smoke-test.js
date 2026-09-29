@@ -2724,9 +2724,20 @@ hostPromise = hostPromise.then(() => (async () => {
       if (badSession.status !== 404) fail('mcp: sessione ignota dovrebbe dare 404');
       const ping = await call({ jsonrpc: '2.0', id: 1, method: 'ping' }, rec2.token, init.session);
       if (ping.status !== 200) fail('mcp: ping in sessione');
+      // Sessione legata al token: altro token + stessa sessione -> 404.
+      const rec3 = tokens.createToken(MQ, 'owner1', 'qa-altro');
+      const cross = await call({ jsonrpc: '2.0', id: 1, method: 'ping' }, rec3.token, init.session);
+      if (cross.status !== 404) fail('mcp: riuso sessione tra token dovrebbe dare 404');
+      tokens.revokeToken(rec3.id);
+      const open = await call({ jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'tickets_open', arguments: { guildId: MQ } } }, rec2.token, init.session);
+      if (open.status !== 200) fail('mcp: tickets_open');
+      const health = await call({ jsonrpc: '2.0', id: 8, method: 'tools/call', params: { name: 'bot_health', arguments: {} } }, rec2.token, init.session);
+      if (health.status !== 200 || JSON.parse(health.json.result.content[0].text).mode !== 'standalone') {
+        fail('mcp: bot_health onesto (standalone senza client)');
+      }
       const list = await call({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, rec2.token);
       const names = (list.json.result?.tools || []).map((t) => t.name);
-      for (const t of ['modules_list', 'module_status', 'module_toggle', 'guild_snapshot', 'brain_search', 'ticket_stats']) {
+      for (const t of ['modules_list', 'module_status', 'module_toggle', 'guild_snapshot', 'brain_search', 'ticket_stats', 'tickets_open', 'bot_health']) {
         if (!names.includes(t)) fail(`mcp: tool ${t} mancante`);
       }
       const mods = await call({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'modules_list', arguments: {} } }, rec2.token);

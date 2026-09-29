@@ -176,7 +176,7 @@ function startDashboard(client) {
     const { mountMcp } = require('../mcp/server');
     const mcpLimiter = createApiRateLimiter();
     app.use('/mcp', mcpLimiter);
-    if (typeof mountMcp === 'function') mountMcp(app);
+    if (typeof mountMcp === 'function') mountMcp(app, client);
   } catch (e) {
     console.error('[Dashboard] mcp non montato:', e && e.message ? e.message : e);
   }

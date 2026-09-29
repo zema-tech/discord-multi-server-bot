@@ -54,7 +54,7 @@ const moduleStatus = {
 const moduleToggle = {
   def: {
     name: 'module_toggle',
-    description: 'Accende/spegne un modulo in un server (via Commander).',
+    description: 'Accende/spegne un modulo in un server.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -69,12 +69,8 @@ const moduleToggle = {
     const gid = assertGuild(token, args.guildId);
     if (typeof args.enabled !== 'boolean') throw toolError(ERR.INVALID_PARAMS, 'enabled deve essere boolean.');
     const c = commander();
-    try {
-      const entry = c.setModuleEnabled(gid, args.moduleId, args.enabled);
-      return textResult(JSON.stringify({ id: entry?.id || args.moduleId, enabled: entry?.enabled ?? args.enabled }));
-    } catch (e) {
-      throw toolError(ERR.INVALID_PARAMS, String((e && e.message) || 'Toggle fallito.').slice(0, 300));
-    }
+    const entry = c.setModuleEnabled(gid, args.moduleId, args.enabled);
+    return textResult(JSON.stringify({ id: entry?.id || args.moduleId, enabled: entry?.enabled ?? args.enabled }));
   },
 };
 

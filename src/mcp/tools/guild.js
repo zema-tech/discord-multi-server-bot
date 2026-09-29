@@ -57,4 +57,30 @@ const ticketStats = {
   },
 };
 
-module.exports = { guildSnapshot, ticketStats };
+const ticketsOpen = {
+  def: {
+    name: 'tickets_open',
+    description: 'Ticket aperti: numero, tipo, proprietario, priorità, data.',
+    inputSchema: {
+      type: 'object',
+      properties: { guildId: { type: 'string' } },
+      required: ['guildId'], additionalProperties: false,
+    },
+  },
+  async run(args, token) {
+    const gid = assertGuild(token, args.guildId);
+    const tickets = require('../../database/tickets');
+    const list = tickets.openTickets(gid)
+      .filter((t) => t && t.status === 'open')
+      .map((t) => ({
+        number: t.number, type: t.type, ownerId: t.ownerId,
+        priority: t.priority || 'normale', pinned: t.pinned === true,
+        claimedBy: t.claimedBy || null, createdAt: t.createdAt || null,
+      }))
+      .sort((a, b) => (a.number || 0) - (b.number || 0))
+      .slice(0, 50);
+    return textResult(JSON.stringify(list));
+  },
+};
+
+module.exports = { guildSnapshot, ticketStats, ticketsOpen };

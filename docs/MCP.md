@@ -66,12 +66,19 @@ registro: nuovo tool = nuovo file + una riga), `server.js` (mount Express).
 
 | Tool | Cosa fa |
 |------|---------|
-| `modules_list` | moduli, versioni, comandi (senza guildId) |
-| `module_status` | on/off, protezione 🛡️, errori + voce roster |
-| `guild_info` | scheda server: roster, moduli on, ticket aperti, note, skill |
-| `guild_snapshot` | moduli + ticket + top livelli (compatta) |
-| `brain_search` | cerca in skill/memorie/file (`query`) |
+| `modules_list` | moduli, versioni, comandi |
+| `module_status` | on/off, protezione 🛡️, errori (per server) |
+| `module_toggle` | accende/spegne un modulo |
+| `module_reset` | azzera errori e protezione (recupero) |
+| `guild_snapshot` | moduli + ticket + top livelli |
+| `brain_search` | cerca in skill/memorie/file del server |
 | `ticket_stats` | per tipo, chiusura media, rating, top staff |
+| `tickets_open` | ticket aperti con priorità e claim |
+| `economy_top`, `levels_top` | classifiche |
+| `user_cases` / `mod_history` | storico moderazione utente |
+| `bot_health` | uptime, modalità, backend (null onesti senza client) |
+| `config_get`, `shop_list`, `invites_top`, `channels_list`, `roles_list`, `analytics_summary`, `guild_info` | letture extra |
+| `module_reload`, `module_config`, `announce_send` | scritture via Commander |
 | `economy_top` | top portafogli (`limit`) |
 | `levels_top` | top livelli/XP (`limit`) |
 | `mod_history` | storico moderazione di un utente (`userId`, `limit`) |

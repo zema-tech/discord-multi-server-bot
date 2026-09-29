@@ -31,13 +31,20 @@ function pushEvent(sid, event, data) {
   } catch {}
 }
 
-function requireSession(req) {
+function requireSession(req, tokenRec) {
   pruneSessions();
   const sid = sessionId(req);
   if (!sid) return null; // stateless: ok senza sessione
   const s = sessions.get(sid);
   if (!s) {
     const e = new Error('Sessione sconosciuta o scaduta: riesegui initialize.');
+    e.code = ERR.INVALID_PARAMS;
+    e.status = 404;
+    throw e;
+  }
+  // La sessione appartiene al token che l'ha creata: niente riuso tra token.
+  if (!tokenRec || s.tokenId !== tokenRec.id) {
+    const e = new Error('Sessione di un altro token: riesegui initialize.');
     e.code = ERR.INVALID_PARAMS;
     e.status = 404;
     throw e;
@@ -50,7 +57,7 @@ async function dispatch(body, tokenRec) {
   if (method.startsWith('notifications/')) return { status: 202, payload: null, id };
   if (method === 'initialize') {
     const sid = newSessionId();
-    sessions.set(sid, { tokenRec, createdAt: Date.now() });
+    sessions.set(sid, { tokenId: tokenRec.id, tokenRec, createdAt: Date.now() });
     return { status: 200, payload: ok(id, { protocolVersion: PROTOCOL_VERSION, capabilities: { tools: {} }, serverInfo: SERVER_INFO }), session: sid, id };
   }
   if (method === 'ping') return { status: 200, payload: ok(id, {}), id };
@@ -64,16 +71,27 @@ async function dispatch(body, tokenRec) {
       e.code = ERR.INVALID_PARAMS;
       throw e;
     }
-    const result = await tool.run(params.arguments, tokenRec);
-    return { status: 200, payload: ok(id, result), id };
+    try {
+      const result = await tool.run(params.arguments, tokenRec);
+      return { status: 200, payload: ok(id, result), id };
+    } catch (e) {
+      // Errori di validazione/input dei moduli -> 400 client, non 500.
+      if (!Number.isFinite(e.code) && /sconosciut|non valid|mancante|non trovat|massimo|max /i.test(e.message || '')) {
+        e.code = ERR.INVALID_PARAMS;
+      }
+      throw e;
+    }
   }
   const e = new Error(`Metodo sconosciuto: ${method}`);
   e.code = ERR.METHOD_NOT_FOUND;
   throw e;
 }
 
-/** Monta POST/GET/DELETE /mcp su app Express. Ritorna true. */
-function mountMcp(app) {
+/** Monta POST/GET/DELETE /mcp su app Express. client opzionale (bot_health live). */
+function mountMcp(app, client = null) {
+  try {
+    require('./tools/health').setClient(client);
+  } catch {}
   // POST: unico ingresso JSON-RPC (auth Bearer obbligatoria).
   app.post('/mcp', async (req, res) => {
     let id = null;
@@ -82,7 +100,7 @@ function mountMcp(app) {
       const tokenRec = authenticate(req);
       if (!tokenRec) return res.status(401).json(fail(id, ERR.UNAUTHORIZED, 'Token mancante o non valido. Creane uno con /token crea.'));
       try {
-        requireSession(req); // valida sessione se il client ne invia una
+        requireSession(req, tokenRec); // valida sessione se il client ne invia una
       } catch (e) {
         return res.status(e.status || 400).json(fail(id, e.code || ERR.INVALID_PARAMS, e.message));
       }
@@ -97,7 +115,7 @@ function mountMcp(app) {
     }
   });
 
-  // GET: stream SSE (auth obbligatoria, sessione obbligatoria).
+  // GET: stream SSE (auth + sessione del token obbligatorie).
   app.get('/mcp', async (req, res) => {
     try {
       const tokenRec = authenticate(req);
@@ -106,6 +124,9 @@ function mountMcp(app) {
       const s = (sid && sessions.get(sid)) || null;
       if (!sid || !s) {
         return res.status(400).json(fail(null, ERR.INVALID_PARAMS, 'Serve Mcp-Session-Id da initialize.'));
+      }
+      if (s.tokenId !== tokenRec.id) {
+        return res.status(404).json(fail(null, ERR.INVALID_PARAMS, 'Sessione di un altro token.'));
       }
       res.writeHead(200, {
         'Content-Type': 'text/event-stream',

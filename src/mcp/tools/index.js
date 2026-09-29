@@ -11,8 +11,9 @@
  * module_reload, module_reset, module_config, announce_send (REST Bot token).
  */
 const { modulesList, moduleStatus, moduleToggle } = require('./modules');
-const { guildSnapshot, ticketStats } = require('./guild');
+const { guildSnapshot, ticketStats, ticketsOpen } = require('./guild');
 const { brainSearch } = require('./brain');
+const { botHealth } = require('./health');
 const {
   guildInfo, economyTop, levelsTop, modHistory, analyticsSummary,
   configGet, shopList, invitesTop, channelsList, rolesList,
@@ -33,6 +34,8 @@ for (
     guildInfo,
     brainSearch,
     ticketStats,
+    ticketsOpen,
+    botHealth,
     economyTop,
     levelsTop,
     modHistory,

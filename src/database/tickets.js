@@ -538,6 +538,7 @@ module.exports = {
   saveTicket,
   getTicket,
   removeTicket,
+  openTickets,
   getUserOpenTickets,
   getStats,
   setPriority,
