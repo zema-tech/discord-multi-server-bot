@@ -4,16 +4,39 @@
 ![discord.js](https://img.shields.io/badge/discord.js-v14-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Commands](https://img.shields.io/badge/slash%20commands-85%2B-orange)
+[![Donate](https://img.shields.io/badge/donate-Stripe-635BFF?logo=stripe&logoColor=white)](https://donate.stripe.com/test_aFa9AMegr8Me61bgAXcbC01)
 
-Bot Discord **multi-server** con ~85 slash command, moduli attivabili per guild, **dashboard web** e un **Commander** centrale (gate, timeout, circuit-breaker).
+Bot Discord **multi-server** con ~85 slash command, moduli attivabili per guild, **dashboard web** e un **Commander** centrale (cervello: gate, timeout, circuit-breaker, **Guardian**).
+
+> Self-hostabile · MIT · Dashboard stile MEE6 · Commander + sistema immunitario
 
 ## Perché è diverso
 
-- **Commander** — unico ingresso: toggle per server, esecuzione isolata, un modulo rotto non spegne gli altri
+- **Commander (cervello)** — unico ingresso: toggle per server, esecuzione isolata, un modulo rotto non spegne gli altri
+- **Guardian (immunità)** — score salute per modulo/guild, quarantena consigliata, recovery; niente LLM nel hot path
 - **AI plug-and-play** — una chiave (Groq, Gemini, OpenAI, …) oppure endpoint free; brain/skill per guild
 - **Ticket professionali** — claim, transcript, priorità, SLA, rating
 - **Moderazione seria** — warn con escalation, lockdown con snapshot permessi, registro casi
-- **Dashboard web** — OAuth2 Discord, config moduli senza rifare tutto in chat
+- **Dashboard web** — OAuth2 Discord, griglia server, moduli configurabili, overview attività
+
+## Supporta il progetto
+
+Se il bot ti è utile, una donazione aiuta **hosting, tempo di sviluppo e nuove feature**.
+
+| | |
+|--|--|
+| **Donazione libera (Stripe)** | [Apri Payment Link →](https://donate.stripe.com/test_aFa9AMegr8Me61bgAXcbC01) |
+| **Importo a scelta (EUR)** | minimo 1 € · preset 5 € |
+
+> **Nota:** il link attuale è sul **Stripe Sandbox** (`livemode: false`) collegato a questo account. Per donazioni **reali** crea lo stesso prodotto/Payment Link in **Live mode** dalla [Dashboard Stripe](https://dashboard.stripe.com/payment-links) e sostituisci l’URL qui e in [`.github/FUNDING.yml`](.github/FUNDING.yml).
+
+Altri modi di aiutare: **★ star** al repo · issue e PR · feedback sulla dashboard.
+
+### Sponsor
+
+Aziende o community che vogliono sponsorizzare hosting / feature prioritarie: aprite una [issue](https://github.com/zema-tech/discord-multi-server-bot/issues) con titolo `Sponsor` oppure usate il link Stripe sopra.
+
+Grazie a chi supporta già il progetto 💚
 
 ## Avvio rapido
 
@@ -39,7 +62,8 @@ npm test   # smoke senza token: comandi, eventi, commander, DB
 
 | Sezione | Contenuto |
 |---------|-----------|
-| [Architettura](#architettura) | Dashboard → Commander → moduli |
+| [Supporta](#supporta-il-progetto) | Donazioni Stripe · sponsor |
+| [Architettura](#architettura) | Cervello → muscoli → Guardian |
 | [Funzionalità](#funzionalità-sintesi) | Panoramica per area |
 | [Requisiti](#requisiti) | Node, intents |
 | [Variabili](#variabili-essenziali) | Env minime |
@@ -52,17 +76,24 @@ npm test   # smoke senza token: comandi, eventi, commander, DB
 ## Architettura
 
 ```text
-Dashboard (web)
-      │
-      ▼
-  Commander     ← toggle, config, esecuzione isolata
-   /  |  \
-moduli moduli moduli …
+        Dashboard / Discord / MCP   (nervi)
+                    │
+                    ▼
+            ┌───────────────┐
+            │   COMMANDER   │  cervello: gate, dispatch, config
+            │  + Guardian   │  immunità: score, quarantine hint
+            └───────┬───────┘
+                    │
+     ┌──────────────┼──────────────┐
+     ▼              ▼              ▼
+  moduli        dashboard        eventi
+  (muscoli)     (muscoli)        (muscoli)
 ```
 
-- I moduli non si chiamano tra loro: solo tramite Commander
+- I moduli non si chiamano tra loro: solo tramite **Commander**
 - Toggle **on/off per server** (default ON)
 - Config dashboard: la UI valida, il **Commander esegue**
+- **Guardian** osserva ok/fail/timeout e espone `guardianSummary(guildId)`
 - Core tipizzato: `packages/commander` (TypeScript) + bridge in `src/modules/commander.js`
 
 ---
@@ -120,7 +151,7 @@ npm run dashboard    # pannello Express (stesso .env / DB)
 
 Serve **Gestisci Server** + bot presente nella guild.
 
-> Screenshot dashboard: in arrivo (apri una issue se vuoi contribuire GIF/PNG).
+Griglia server (Entra / Invita) · moduli a categorie · Welcome a sezioni · overview 7/14/30.
 
 ---
 
@@ -135,14 +166,15 @@ Health: `GET /healthz` → `ok`, `guilds`, `commands`, `backend`.
 ## Struttura
 
 ```text
-src/commands/   slash per categoria
-src/events/     listener Discord
-src/modules/    descrittori feature + commander bridge
-src/database/   json / sqlite
-src/dashboard/  Express + UI (produzione tipica)
-apps/dashboard/ Next.js opzionale (Bun/pnpm, workspace:*)
-packages/commander/   core TS (gate, timeout, breaker)
-docs/           CONFIG, COMMANDS, HOSTING
+src/commands/          slash per categoria
+src/events/            listener Discord
+src/modules/           descrittori + commander bridge
+src/database/          json / sqlite
+src/dashboard/         Express + UI (produzione tipica)
+apps/dashboard/        Next.js opzionale (Bun/pnpm, workspace:*)
+packages/commander/    core TS (gate, breaker, guardian)
+docs/                  CONFIG, COMMANDS, HOSTING
+.github/FUNDING.yml    link donazioni (Sponsor button)
 ```
 
 ```bash
@@ -156,3 +188,5 @@ npm test
 ## Licenza
 
 [MIT](LICENSE) — contributi e issue benvenuti.
+
+[![Donate with Stripe](https://img.shields.io/badge/Supporta-dona%20con%20Stripe-635BFF?style=for-the-badge&logo=stripe&logoColor=white)](https://donate.stripe.com/test_aFa9AMegr8Me61bgAXcbC01)
