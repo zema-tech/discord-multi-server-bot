@@ -123,6 +123,18 @@ function buildHealthPayload(client) {
     const commander = require('../modules/commander');
     if (commander && typeof commander.listModules === 'function') features = commander.listModules().length;
   } catch { features = 0; }
+  // Cuore: memoria processo + segnali dolore in attesa (per il Guardian).
+  // Via Commander, mai registry diretto.
+  let memoryMB = null;
+  let alerts = 0;
+  try {
+    const mu = process.memoryUsage();
+    if (mu && Number.isFinite(mu.heapUsed)) memoryMB = Math.round(mu.heapUsed / 1048576);
+  } catch {}
+  try {
+    const commander = require('../modules/commander');
+    if (commander && typeof commander.alertsPending === 'function') alerts = commander.alertsPending();
+  } catch { alerts = 0; }
   return {
     ok: true,
     mode,
@@ -130,6 +142,8 @@ function buildHealthPayload(client) {
     guilds,
     commands,
     features,
+    memoryMB,
+    alerts,
     backend: resolveDbBackend(),
     db: resolveDbBackend(),
     time: new Date().toISOString(),

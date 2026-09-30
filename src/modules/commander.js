@@ -91,6 +91,15 @@ function canRun(guildId, featureId) {
   return { ok: true, featureId };
 }
 
+/** Segnali dolore in attesa (per healthz/guardian). Mai lanciare. */
+function alertsPending() {
+  try {
+    const registry = getRegistry();
+    if (registry && typeof registry.alertsPending === 'function') return registry.alertsPending();
+  } catch {}
+  return 0;
+}
+
 function checkGate(commandName, guildId) {
   const registry = getRegistry();
   if (!registry) return { ok: true, featureId: null };
@@ -391,5 +400,6 @@ module.exports = {
   resetModule,
   updateModuleConfig,
   guardianSummary,
+  alertsPending,
   DEFAULT_TIMEOUT_MS,
 };

@@ -63,6 +63,13 @@ module.exports = {
       console.error('youtubeJob:', e.message);
     }
 
+    // GUARDIAN: sistema immunitario — alert isolamento + febbre (unref dentro).
+    try {
+      require('../jobs/guardianJob').startGuardianJob(client);
+    } catch (e) {
+      console.error('guardianJob:', e.message);
+    }
+
     // BACKUP: copia notturna del database ore 03:00 (interval con unref dentro il job).
     try {
       require('../jobs/backup').startBackup(client);

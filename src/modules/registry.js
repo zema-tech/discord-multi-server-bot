@@ -209,8 +209,39 @@ function recordError(featureId, guildId, err) {
       if (!first.done) errors.delete(first.value);
     }
     const tripped = noteBreaker(guildId, featureId);
+    // DOLORE: al trip (falso->vero) accoda un segnale per il Guardian job,
+    // che avvisa lo staff. Mai lanciare, mai duplicare allarmi.
+    if (tripped) queueAlert(guildId, featureId, message);
     return { tripped };
   } catch { return { tripped: false }; }
+}
+
+// --- Segnali dolore (coda in memoria, drenata dal guardianJob) ---
+const alerts = []; // [{ guildId, featureId, message, at }]
+const ALERTS_MAX = 50;
+
+function queueAlert(guildId, featureId, message) {
+  try {
+    if (!guildId || guildId === 'dm') return;
+    const fresh = alerts.some((a) => a.guildId === guildId && a.featureId === featureId && Date.now() - a.at < 15 * 60 * 1000);
+    if (fresh) return; // un segnale per modulo ogni 15 min
+    alerts.push({ guildId, featureId, message: String(message || '').slice(0, 200), at: Date.now() });
+    while (alerts.length > ALERTS_MAX) alerts.shift();
+  } catch {}
+}
+
+/** Preleva e svuota i segnali (per il job). */
+function drainAlerts() {
+  try {
+    return alerts.splice(0, alerts.length);
+  } catch { return []; }
+}
+
+/** Quanti segnali in attesa (per healthz). Mai lanciare. */
+function alertsPending() {
+  try {
+    return alerts.length;
+  } catch { return 0; }
 }
 
 function getErrors(guildId) {
@@ -237,6 +268,11 @@ function clearErrors(guildId, featureId) {
       }
     }
     resetBreaker(guildId, featureId);
+    // Guarito: i segnali pendenti non servono più.
+    for (let i = alerts.length - 1; i >= 0; i -= 1) {
+      const a = alerts[i];
+      if (a.guildId === (guildId || 'dm') && (!featureId || a.featureId === featureId)) alerts.splice(i, 1);
+    }
   } catch { /* mai bloccante */ }
 }
 
@@ -317,6 +353,6 @@ function health(guildId) {
 module.exports = {
   ids, get, list, isLocked, featureOfCommand, featureOfEvent, featureOfComponent,
   isEnabled, setEnabled, recordError, getErrors, clearErrors, health,
-  canRun, isIsolated, resetBreaker, reload,
+  canRun, isIsolated, resetBreaker, reload, drainAlerts, alertsPending,
   BREAKER_THRESHOLD, BREAKER_WINDOW_MS,
 };

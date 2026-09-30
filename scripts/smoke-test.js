@@ -2783,6 +2783,52 @@ hostPromise = hostPromise.then(() => (async () => {
   }
 })());
 
+// ------------------------------------------------- (c19) GUARDIAN IMMUNITARIO
+console.log('== [19/5] Guardian (dolore, febbre, pelle) ==');
+try {
+  const registry = require(path.join(ROOT, 'src', 'modules', 'registry.js'));
+  const GQ = 'qatest_guard';
+  for (const fn of ['drainAlerts', 'alertsPending']) {
+    if (typeof registry[fn] !== 'function') fail(`guardian: registry.${fn} mancante`);
+  }
+  registry.drainAlerts();
+  let tripped = false;
+  for (let i = 0; i < 5; i += 1) {
+    const r = registry.recordError('economy', GQ, new Error(`boom ${i}`));
+    if (i === 4) tripped = r.tripped;
+  }
+  if (!tripped) fail('guardian: 5 errori dovrebbero trippare');
+  const alerts = registry.drainAlerts();
+  if (alerts.length !== 1 || alerts[0].featureId !== 'economy') fail('guardian: un segnale dolore atteso');
+  if (registry.alertsPending() !== 0) fail('guardian: drain dovrebbe svuotare');
+  // Trip ripetuto <15min: niente duplicati.
+  for (let i = 0; i < 5; i += 1) registry.recordError('economy', GQ, new Error('ancora'));
+  registry.drainAlerts();
+  // Guarigione: clearErrors purga anche i segnali.
+  registry.recordError('levels', GQ, new Error('x'));
+  registry.clearErrors(GQ, 'levels');
+  if (registry.alertsPending() !== 0) fail('guardian: clearErrors dovrebbe purgare i segnali');
+  registry.clearErrors(GQ, 'economy');
+
+  // Pelle: secret scanner ad alta confidenza, niente falsi positivi banali.
+  const guard = require(path.join(ROOT, 'src', 'events', 'secretGuard.js'));
+  if (typeof guard.findSecret !== 'function') fail('guardian: findSecret mancante');
+  const fakeToken = 'MTIzNDU2Nzg5MDEyMzQ1Njc4OIhb2Fm.Abcdef.GhI1234567890abcdefghijklm';
+  if (!guard.findSecret(fakeToken)) fail('guardian: token discord non rilevato');
+  if (!guard.findSecret('ecco la chiave sk-ant-abcdefghijklmnopqrstuv')) fail('guardian: chiave anthropic non rilevata');
+  if (guard.findSecret('ciao come va? parliamone domani!')) fail('guardian: falso positivo su testo normale');
+  if (guard.findSecret('')) fail('guardian: stringa vuota');
+
+  const job = require(path.join(ROOT, 'src', 'jobs', 'guardianJob.js'));
+  if (typeof job.startGuardianJob !== 'function' || typeof job.checkOnce !== 'function') {
+    fail('guardian: job mancante');
+  }
+  if (job.FEVER_THRESHOLD !== 3) fail('guardian: soglia febbre');
+  console.log('guardian: dolore, pelle, febbre ok');
+} catch (e) {
+  fail(`guardian (qatest): ${e.message.split('\n')[0]}`);
+}
+
 // ------------------------------------------------------------------ REPORT
 function report() {
 console.log('\n================ SMOKE TEST ================');
