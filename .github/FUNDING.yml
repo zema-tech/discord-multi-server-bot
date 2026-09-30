@@ -1,0 +1,4 @@
+# Sponsor / donazioni — mostrato nel pannello "Sponsor" di GitHub
+# Stripe Payment Link (ricrea in livemode per soldi reali)
+custom:
+  - "https://donate.stripe.com/test_aFa9AMegr8Me61bgAXcbC01"
