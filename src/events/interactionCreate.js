@@ -16,10 +16,9 @@ module.exports = {
       );
       if (isComponent && interaction.guild) {
         const commander = require('../modules/commander');
-        const modules = require('../modules/registry');
         const featureId = commander.featureOfComponent(interaction.customId);
-        if (featureId && typeof modules.canRun === 'function') {
-          const run = modules.canRun(interaction.guild.id, featureId);
+        if (featureId && typeof commander.canRun === 'function') {
+          const run = commander.canRun(interaction.guild.id, featureId);
           if (run && run.ok === false) {
             const msg = run.reason === 'isolated'
               ? `🛡️ Il modulo \`${featureId}\` è in protezione automatica: componente disabilitato finché non si stabilizza.`

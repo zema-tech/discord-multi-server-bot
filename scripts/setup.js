@@ -117,6 +117,7 @@ async function main() {
   if (aiKey) {
     if (/^gsk_/.test(aiKey)) out.GROQ_API_KEY = aiKey;
     else if (/^sk-ant-/.test(aiKey)) out.ANTHROPIC_API_KEY = aiKey;
+    else if (/^sk-or-/i.test(aiKey)) out.OPENROUTER_API_KEY = aiKey;
     else if (/^sk-/.test(aiKey)) out.OPENAI_API_KEY = aiKey;
     else out.GROQ_API_KEY = aiKey;
   }

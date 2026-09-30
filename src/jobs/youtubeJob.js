@@ -75,12 +75,13 @@ async function checkOnce(client, fetchFn = globalThis.fetch) {
           fresh.push(v);
         }
         if (!fresh.length) continue;
-        touchVideo(gid, feed.channelId, videos[0].id);
         let channel = null;
         try {
           channel = await guild.channels.fetch(feed.announceId).catch(() => null);
           if (!channel?.isTextBased()) continue;
         } catch { continue; }
+        // Marca DOPO aver verificato il canale: se manca, riprova al giro dopo.
+        touchVideo(gid, feed.channelId, videos[0].id);
         for (const v of fresh.reverse().slice(0, 3)) {
           const embed = new EmbedBuilder()
             .setColor(0xff0000)

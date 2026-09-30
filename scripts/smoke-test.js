@@ -2107,9 +2107,9 @@ try {
   if (/require\(['"]\.\.\/modules\/registry['"]\)/.test(ticketH)) {
     fail('orchestratore: ticketHandler richiede modules/registry diretto (gate nel Commander)');
   }
-  // Eventi (tranne interactionCreate, che E' il cablaggio Commander): solo commander.canRun.
+  // Eventi: solo commander.canRun, mai registry diretto (incluso interactionCreate).
   const evDir = path.join(ROOT, 'src', 'events');
-  for (const f of fs.readdirSync(evDir).filter((x) => x.endsWith('.js') && x !== 'interactionCreate.js')) {
+  for (const f of fs.readdirSync(evDir).filter((x) => x.endsWith('.js'))) {
     const src = fs.readFileSync(path.join(evDir, f), 'utf8');
     if (/require\(['"]\.\.\/modules\/registry['"]\)/.test(src)) {
       fail(`orchestratore: src/events/${f} richiede modules/registry diretto (usare commander.canRun)`);
