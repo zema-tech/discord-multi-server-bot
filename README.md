@@ -1,4 +1,4 @@
-# Discord Multi-Server Bot
+# ZealBot
 
 ![Node](https://img.shields.io/badge/node-22%2B-brightgreen)
 ![discord.js](https://img.shields.io/badge/discord.js-v14-blue)
@@ -34,15 +34,15 @@ Altri modi di aiutare: **★ star** al repo · issue e PR · feedback sulla dash
 
 ### Sponsor
 
-Aziende o community che vogliono sponsorizzare hosting / feature prioritarie: aprite una [issue](https://github.com/zema-tech/discord-multi-server-bot/issues) con titolo `Sponsor` oppure usate il link Stripe sopra.
+Aziende o community che vogliono sponsorizzare hosting / feature prioritarie: aprite una [issue](https://github.com/zema-tech/zealbot-discord/issues) con titolo `Sponsor` oppure usate il link Stripe sopra.
 
 Grazie a chi supporta già il progetto 💚
 
 ## Avvio rapido
 
 ```bash
-git clone https://github.com/zema-tech/discord-multi-server-bot.git
-cd discord-multi-server-bot
+git clone https://github.com/zema-tech/zealbot-discord.git
+cd zealbot-discord
 npm install
 cp .env.example .env   # DISCORD_TOKEN + CLIENT_ID
 node deploy-commands.js
@@ -116,7 +116,7 @@ Dettaglio comandi → [docs/COMMANDS.md](docs/COMMANDS.md).
 
 ## Requisiti
 
-- **Node.js 18+** (22+ con `DB_BACKEND=sqlite`)
+- **Node.js 22.12+** (richiesto da `engines` in `package.json`)
 - Intents: Guilds, GuildMessages, **Message Content**, **Server Members**, GuildModeration
 - App Discord: token + Client ID
 
