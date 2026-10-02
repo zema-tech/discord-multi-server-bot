@@ -1,4 +1,4 @@
-# discord-multi-server-bot — deploy one-click su Render.
+# zealbot-discord — deploy one-click su Render.
 #
 # IMPORTANTE (dischi effimeri): il piano free di Render CANCELLA il filesystem
 # a ogni deploy/restart. Il `disk` sotto richiede un piano a pagamento: senza
@@ -6,7 +6,7 @@
 # è accettare i reset oppure un Postgres esterno (futura migrazione, vedi ADR-002).
 services:
   - type: web
-    name: discord-multi-server-bot
+    name: zealbot-discord
     runtime: docker
     dockerfilePath: ./Dockerfile
     healthCheckPath: /healthz
