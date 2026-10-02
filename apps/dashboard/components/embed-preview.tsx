@@ -13,7 +13,7 @@ export function EmbedPreview({ title, text }: { title: string; text: string }) {
         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent)] font-bold text-[#0c0e05]">
           B
         </span>
-        <span className="font-semibold text-white">Multi-Server Bot</span>
+        <span className="font-semibold text-white">ZealBot</span>
         <span className="text-xs text-[#949BA4]">oggi alle {new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</span>
       </div>
       {title && <p className="font-bold text-white">{title}</p>}

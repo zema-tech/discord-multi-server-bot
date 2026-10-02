@@ -8,12 +8,12 @@
  *   npm i -g pm2
  *   pm2 start ecosystem.config.js
  *   pm2 save && pm2 startup   # riavvio automatico al boot
- *   pm2 logs discord-bot
+ *   pm2 logs zealbot
  */
 module.exports = {
   apps: [
     {
-      name: 'discord-bot',
+      name: 'zealbot',
       script: 'src/index.js', // coerente con package.json "start"
       instances: 1,
       exec_mode: 'fork',
@@ -30,7 +30,7 @@ module.exports = {
       },
     },
     {
-      name: 'discord-dashboard',
+      name: 'zealbot-dashboard',
       script: 'src/dashboard/index.js', // coerente con package.json "dashboard"
       instances: 1,
       exec_mode: 'fork',

@@ -210,8 +210,8 @@ function startDashboard(client) {
     if (fs.existsSync(indexFile)) return res.sendFile(indexFile);
     return res.type('html').send(`<!doctype html><html lang="it"><head><meta charset="utf-8">` +
       `<meta name="viewport" content="width=device-width,initial-scale=1">` +
-      `<title>Bot Dashboard</title></head><body style="font-family:sans-serif;max-width:640px;margin:4rem auto;padding:0 1rem">` +
-      `<h1>🤖 Bot Dashboard</h1>` +
+      `<title>ZealBot Dashboard</title></head><body style="font-family:sans-serif;max-width:640px;margin:4rem auto;padding:0 1rem">` +
+      `<h1>⚡ ZealBot Dashboard</h1>` +
       `<p>Gestisci il bot dal web: accedi con Discord e configura ogni server.</p>` +
       `<p><a href="/login" style="display:inline-block;background:#5865F2;color:#fff;padding:.7rem 1.4rem;border-radius:8px;text-decoration:none">Accedi con Discord</a></p>` +
       `<p><a href="/api/guilds">Le mie guild (API)</a> · <a href="/logout">Logout</a></p>` +

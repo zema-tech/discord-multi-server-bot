@@ -250,7 +250,7 @@ function loginRateLimiter({ windowMs = LOGIN_RATE_WINDOW_MS, max = LOGIN_RATE_MA
       return res.status(429).send(
         '<!doctype html><html lang="it"><head><meta charset="utf-8">' +
         '<meta name="viewport" content="width=device-width,initial-scale=1">' +
-        '<title>Troppi tentativi — Multi-Server Bot</title></head>' +
+        '<title>Troppi tentativi — ZealBot</title></head>' +
         '<body style="font-family:sans-serif;background:#1e1f22;color:#fff;max-width:560px;margin:4rem auto;padding:0 1rem;text-align:center">' +
         '<h1>Troppi tentativi</h1><p>Hai effettuato troppi tentativi di login: riprova tra qualche minuto.</p>' +
         '<p><a href="/login" style="color:#5865F2">Torna al login</a></p>' +
@@ -280,7 +280,7 @@ async function revokeToken(accessToken) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          'User-Agent': 'discord-multi-server-bot-dashboard/1.0',
+          'User-Agent': 'zealbot-dashboard/1.0',
         },
         body: new URLSearchParams({
           token: accessToken,
@@ -327,7 +327,7 @@ async function exchangeCode(code) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': 'discord-multi-server-bot-dashboard/1.0',
+      'User-Agent': 'zealbot-dashboard/1.0',
     },
     body,
   });
@@ -345,7 +345,7 @@ async function discordApi(token, apiPath) {
   const r = await fetchConTimeout(`${DISCORD_API}${apiPath}`, {
     headers: {
       Authorization: `Bearer ${token}`,
-      'User-Agent': 'discord-multi-server-bot-dashboard/1.0',
+      'User-Agent': 'zealbot-dashboard/1.0',
     },
   });
   if (!r.ok) {

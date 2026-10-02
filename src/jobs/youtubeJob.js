@@ -28,7 +28,7 @@ async function fetchFeed(channelId, fetchFn = globalThis.fetch) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => { try { ctrl.abort(); } catch {} }, 20000);
   try {
-    const res = await fetchFn(rssUrl(channelId), { signal: ctrl.signal, headers: { 'User-Agent': 'discord-multi-server-bot' } });
+    const res = await fetchFn(rssUrl(channelId), { signal: ctrl.signal, headers: { 'User-Agent': 'zealbot' } });
     if (!res.ok) return null;
     return await res.text().catch(() => null);
   } catch {

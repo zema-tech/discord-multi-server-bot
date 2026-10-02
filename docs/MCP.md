@@ -34,7 +34,7 @@ https://TUO-HOST/mcp
 **Claude Code** (consigliato):
 
 ```bash
-claude mcp add --transport http discord-bot https://TUO-HOST/mcp \
+claude mcp add --transport http zealbot https://TUO-HOST/mcp \
   --header "Authorization: Bearer dbt_..."
 ```
 

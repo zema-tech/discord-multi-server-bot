@@ -1,7 +1,7 @@
 {
   "$comment": "DIREZIONE A: collega Claude Code / Claude Desktop AL bot (il bot espone POST /mcp). Sostituisci TUO-HOST e dbt_... (creato con /token crea). Vedi docs/MCP.md.",
   "mcpServers": {
-    "discord-bot": {
+    "zealbot": {
       "type": "http",
       "url": "https://TUO-HOST/mcp",
       "headers": { "Authorization": "Bearer dbt_METTI_IL_TOKEN_QUI" }

@@ -1,28 +1,28 @@
-# discord-bot.service — unit systemd per VPS (alternativa a PM2/Docker).
+# zealbot.service — unit systemd per VPS (alternativa a PM2/Docker).
 #
 # Installazione (adatta utente e percorso alla tua macchina):
-#   sudo cp discord-bot.service /etc/systemd/system/discord-bot.service
+#   sudo cp zealbot.service /etc/systemd/system/zealbot.service
 #   # .env con DISCORD_TOKEN e CLIENT_ID nella WorkingDirectory
 #   sudo systemctl daemon-reload
-#   sudo systemctl enable --now discord-bot
-#   systemctl status discord-bot
-#   journalctl -u discord-bot -f
+#   sudo systemctl enable --now zealbot
+#   systemctl status zealbot
+#   journalctl -u zealbot -f
 #
 # NOTA: se Node è via nvm, punta ExecStart al binario reale,
 # es. /home/bot/.nvm/versions/node/v20.x.x/bin/node (which node).
 
 [Unit]
-Description=Discord Multi-Server Bot
+Description=ZealBot
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
 User=bot
-WorkingDirectory=/opt/discord-bot
-EnvironmentFile=/opt/discord-bot/.env
+WorkingDirectory=/opt/zealbot
+EnvironmentFile=/opt/zealbot/.env
 Environment=NODE_ENV=production
-ExecStart=/usr/bin/node /opt/discord-bot/src/index.js
+ExecStart=/usr/bin/node /opt/zealbot/src/index.js
 Restart=always
 RestartSec=5
 NoNewPrivileges=true

@@ -12,7 +12,7 @@ const { spawn } = require('child_process');
 const { stdioEnv } = require('./config');
 
 const PROTOCOL_VERSION = '2025-06-18';
-const CLIENT_INFO = { name: 'discord-multi-server-bot', version: '1.0.0' };
+const CLIENT_INFO = { name: 'zealbot', version: '1.0.0' };
 
 /** Rimuove i TAG invisibili U+E0000–U+E007F (canale di prompt-injection). */
 function sanitizeText(s) {

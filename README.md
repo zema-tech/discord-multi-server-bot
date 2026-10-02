@@ -1,4 +1,4 @@
-# ZealBot
+# ⚡ ZealBot
 
 ![Node](https://img.shields.io/badge/node-22%2B-brightgreen)
 ![discord.js](https://img.shields.io/badge/discord.js-v14-blue)
@@ -6,7 +6,7 @@
 ![Commands](https://img.shields.io/badge/slash%20commands-85%2B-orange)
 [![Donate](https://img.shields.io/badge/donate-Stripe-635BFF?logo=stripe&logoColor=white)](https://donate.stripe.com/test_aFa9AMegr8Me61bgAXcbC01)
 
-Bot Discord **multi-server** con ~85 slash command, moduli attivabili per guild, **dashboard web** e un **Commander** centrale (cervello: gate, timeout, circuit-breaker, **Guardian**).
+Bot Discord **multi-server** (ZealBot) con ~85 slash command, moduli attivabili per guild, **dashboard web** e un **Commander** centrale (cervello: gate, timeout, circuit-breaker, **Guardian**).
 
 > Self-hostabile · MIT · Dashboard stile MEE6 · Commander + sistema immunitario
 
@@ -116,7 +116,7 @@ Dettaglio comandi → [docs/COMMANDS.md](docs/COMMANDS.md).
 
 ## Requisiti
 
-- **Node.js 22.12+** (richiesto da `engines` in `package.json`)
+- **Node.js 22+** (richiesto da `package.json`; consigliato Node 24 per `@discordjs/voice` e `DB_BACKEND=sqlite`)
 - Intents: Guilds, GuildMessages, **Message Content**, **Server Members**, GuildModeration
 - App Discord: token + Client ID
 

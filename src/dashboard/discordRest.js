@@ -32,7 +32,7 @@ async function fetchJson(apiPath) {
     const r = await fetch(`${DISCORD_API}${apiPath}`, {
       headers: {
         Authorization: `Bot ${t}`,
-        'User-Agent': 'discord-multi-server-bot-dashboard/1.0',
+        'User-Agent': 'zealbot-dashboard/1.0',
       },
       signal: controller.signal,
     });
@@ -117,7 +117,7 @@ async function sendMessage(channelId, text) {
       headers: {
         Authorization: `Bot ${t}`,
         'Content-Type': 'application/json',
-        'User-Agent': 'discord-multi-server-bot-dashboard/1.0',
+        'User-Agent': 'zealbot-dashboard/1.0',
       },
       body: JSON.stringify({ content: text }),
       signal: controller.signal,

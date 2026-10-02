@@ -102,7 +102,7 @@ async function fetchLyrics(artist, title) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => { try { ctrl.abort(); } catch {} }, 15000);
     try {
-      const res = await fetch(url, { signal: ctrl.signal, headers: { 'User-Agent': 'discord-multi-server-bot' } });
+      const res = await fetch(url, { signal: ctrl.signal, headers: { 'User-Agent': 'zealbot' } });
       if (!res.ok) return null;
       const j = await res.json().catch(() => null);
       const txt = j && typeof j.plainLyrics === 'string' ? j.plainLyrics.trim() : '';

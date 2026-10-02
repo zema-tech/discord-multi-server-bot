@@ -1,4 +1,4 @@
-# Dashboard — Multi-Server Bot (Next.js)
+# Dashboard — ZealBot (Next.js)
 
 Nuova dashboard (Next.js 16 App Router + Auth.js v5 + Tailwind v4 + shadcn).
 Sostituisce `src/dashboard` (Express) al completamento della Fase 3 — vedi `/PLAN.md`.

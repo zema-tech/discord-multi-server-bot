@@ -5,7 +5,7 @@
  */
 
 const PROTOCOL_VERSION = '2025-06-18';
-const SERVER_INFO = { name: 'discord-multi-server-bot', version: '1.0.0' };
+const SERVER_INFO = { name: 'zealbot', version: '1.0.0' };
 
 // Errori standard JSON-RPC + MCP applicativi.
 const ERR = {

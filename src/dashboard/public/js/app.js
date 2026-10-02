@@ -1,4 +1,4 @@
-/* app.js — Mission Control. Viste: panoramica, moduli (+dettaglio con config), permessi, audit. */
+/* app.js — ZealBot Control. Viste: panoramica, moduli (+dettaglio con config), permessi, audit. */
 'use strict';
 
 const S = {
@@ -887,7 +887,7 @@ function messagePreviewInner(text, opts) {
   if (o.style === 'text') return `<p>${rendered}</p>`;
   const border = /^#[0-9a-fA-F]{6}$/.test(o.color || '') ? o.color : 'var(--accent)';
   const av = o.avatar === false ? '' : '<span class="lp-bot">U</span>';
-  return `${av}<div><b>Multi-Server Bot</b> <span>oggi</span><p>${rendered}</p></div>`;
+  return `${av}<div><b>ZealBot</b> <span>oggi</span><p>${rendered}</p></div>`;
 }
 
 function messagePreview(text, opts) {

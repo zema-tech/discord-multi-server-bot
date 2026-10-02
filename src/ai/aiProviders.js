@@ -366,8 +366,8 @@ async function completeOpenAI(provider, system, messages, maxTokens) {
   const headers = { 'Content-Type': 'application/json' };
   if (provider.key) headers.Authorization = `Bearer ${provider.key}`;
   if (provider.name === 'openrouter') {
-    headers['HTTP-Referer'] = 'https://github.com/zema-tech/discord-multi-server-bot';
-    headers['X-Title'] = 'discord-multi-server-bot';
+    headers['HTTP-Referer'] = 'https://github.com/zema-tech/zealbot-discord';
+    headers['X-Title'] = 'zealbot';
   }
   const res = await fetchWithTimeout(provider.url, { method: 'POST', headers, body: JSON.stringify(body) });
   if (!res.ok) throw mapHttpError(res, provider.label);

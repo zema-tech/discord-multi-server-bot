@@ -1,4 +1,4 @@
-# zealbot-discord — compose production.
+# ZealBot — compose production.
 # Uso base:      docker compose up -d --build
 # Con dashboard: docker compose --profile dashboard up -d --build
 #
@@ -12,8 +12,8 @@
 services:
   bot:
     build: .
-    image: zealbot-discord:latest
-    container_name: discord-bot
+    image: zealbot:latest
+    container_name: zealbot
     restart: unless-stopped
     env_file:
       - .env
@@ -33,8 +33,8 @@ services:
   # DB_BACKEND e i volumi ./data (store + roster presence) e ./logs.
   bot-dashboard:
     build: .
-    image: zealbot-discord:latest
-    container_name: discord-bot-dashboard
+    image: zealbot:latest
+    container_name: zealbot-dashboard
     command: ["node", "src/dashboard/index.js"]
     restart: unless-stopped
     profiles:

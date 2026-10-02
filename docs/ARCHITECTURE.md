@@ -6,7 +6,7 @@ quanto implementato, non a intenzioni future.
 
 ## Panoramica
 
-Bot Discord multi-server basato su **discord.js v14**, **CommonJS**,
+ZealBot — bot Discord multi-server basato su **discord.js v14**, **CommonJS**,
 **singolo processo Node** (`node src/index.js`). Comandi slash organizzati
 per categoria-cartella, stato persistente in JSON (con backend SQLite
 opzionale), dashboard web in processo separato, job periodici

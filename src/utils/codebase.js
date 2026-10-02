@@ -107,7 +107,7 @@ function codeSummary() {
     byDir[dir] = (byDir[dir] || 0) + 1;
   }
   const lines = Object.entries(byDir).sort().map(([d, n]) => `- ${d}/ (${n} file)`);
-  return `Bot Discord discord-multi-server-bot (Node.js, discord.js v14, CommonJS).\n${tree.total} file JS: ${tree.commands} comandi, ${tree.events} eventi.\nStruttura:\n${lines.join('\n')}`;
+  return `ZealBot (bot Discord multi-server: Node.js, discord.js v14, CommonJS).\n${tree.total} file JS: ${tree.commands} comandi, ${tree.events} eventi.\nStruttura:\n${lines.join('\n')}`;
 }
 
 module.exports = { buildTree, readFile, searchCode, codeSummary, isAllowed, ROOT, MAX_READ_CHARS };

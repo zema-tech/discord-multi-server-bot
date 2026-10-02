@@ -1,7 +1,7 @@
 {
-  "name": "discord-multi-server-bot",
+  "name": "zealbot",
   "version": "1.0.0",
-  "description": "Bot Discord multi-server con tante funzioni",
+  "description": "ZealBot — bot Discord multi-server con tante funzioni",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
@@ -17,11 +17,17 @@
     "discord",
     "bot",
     "discord.js",
-    "multi-server"
+    "multi-server",
+    "zealbot"
   ],
   "author": "zema-tech",
   "license": "MIT",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zema-tech/zealbot-discord.git"
+  },
+  "homepage": "https://github.com/zema-tech/zealbot-discord#readme",
   "workspaces": ["apps/*", "packages/*"],
   "dependencies": {
     "@discord-player/extractor": "7.2.0",

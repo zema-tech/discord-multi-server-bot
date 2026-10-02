@@ -1,4 +1,4 @@
-# Hosting — discord-multi-server-bot
+# Hosting — ZealBot
 
 Guida in italiano per avviare il bot ovunque. Via rapida per tutti:
 
@@ -45,7 +45,7 @@ Requisiti comuni:
 
 ```bash
 pkg update && pkg install -y nodejs git
-git clone <repo> discord-bot && cd discord-bot
+git clone <repo> zealbot && cd zealbot
 npm ci
 cp .env.example .env   # poi compila con il tuo editor
 npm run deploy
@@ -66,7 +66,7 @@ Note Termux:
 # Node 24 LTS (nodesource) + clone
 curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
 sudo apt install -y nodejs git
-git clone <repo> /opt/discord-bot && cd /opt/discord-bot
+git clone <repo> /opt/zealbot && cd /opt/zealbot
 npm ci --omit=dev
 cp .env.example .env   # compila DISCORD_TOKEN, CLIENT_ID, ...
 npm run deploy
@@ -75,16 +75,16 @@ npm run deploy
 ### Opzione A: systemd (consigliato)
 
 ```bash
-sudo cp discord-bot.service /etc/systemd/system/discord-bot.service
-# adatta User/percorsi nel file se non usi utente "bot" o /opt/discord-bot
+sudo cp zealbot.service /etc/systemd/system/zealbot.service
+# adatta User/percorsi nel file se non usi utente "bot" o /opt/zealbot
 sudo systemctl daemon-reload
-sudo systemctl enable --now discord-bot
-systemctl status discord-bot
-journalctl -u discord-bot -f   # log live
+sudo systemctl enable --now zealbot
+systemctl status zealbot
+journalctl -u zealbot -f   # log live
 ```
 
-Il file `discord-bot.service` usa `WorkingDirectory=/opt/discord-bot`,
-`EnvironmentFile=/opt/discord-bot/.env` e `Restart=always`.
+Il file `zealbot.service` usa `WorkingDirectory=/opt/zealbot`,
+`EnvironmentFile=/opt/zealbot/.env` e `Restart=always`.
 
 ### Opzione B: PM2
 
@@ -92,7 +92,7 @@ Il file `discord-bot.service` usa `WorkingDirectory=/opt/discord-bot`,
 sudo npm i -g pm2
 pm2 start ecosystem.config.js   # fork, 1 istanza, log in logs/pm2-*.log
 pm2 save && pm2 startup         # riavvio automatico al boot
-pm2 logs discord-bot
+pm2 logs zealbot
 ```
 
 > Una sola istanza mi raccomando (`fork`, mai `cluster`): il bot usa DB su file,
@@ -153,12 +153,12 @@ Procedura manuale (valida per entrambi, filesystem effimero: serve disco persist
    sempre online) — serve istanza sempre attiva o un piano a pagamento.
 
 **Dashboard Next.js (TypeScript):** `render.yaml` include anche il servizio
-`discord-bot-dashboard` (`apps/dashboard/Dockerfile`, healthcheck `/`):
+`zealbot-dashboard` (`apps/dashboard/Dockerfile`, healthcheck `/`):
 compila le env di `apps/dashboard/.env.example` (`DISCORD_CLIENT_ID/SECRET`,
 `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `BOT_TOKEN`). Su Railway crea un servizio
 separato con Dockerfile `apps/dashboard/Dockerfile`; su Fly copia `fly.toml`
 cambiando Dockerfile e porta. Build locale: `docker build -f
-apps/dashboard/Dockerfile -t bot-dashboard .` (richiede Bun o pnpm per i
+apps/dashboard/Dockerfile -t zealbot-dashboard .` (richiede Bun o pnpm per i
 workspace, vedi Requisiti).
 
 ## 5. Pterodactyl — nota egg

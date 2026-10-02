@@ -27,7 +27,7 @@ export default async function GuildLayout({
     <div className="flex min-h-screen">
       <aside className="sticky top-0 flex h-screen w-64 flex-none flex-col gap-1 border-r border-white/10 bg-black/30 p-4 backdrop-blur-xl">
         <Link href="/servers" className="font-display mb-4 text-lg font-bold">
-          Multi-Server Bot
+          ZealBot
         </Link>
         <p className="truncate px-2 text-sm text-[var(--muted)]">{guild.name}</p>
         {BASE_NAV.slice(0, 1).map((n) => (

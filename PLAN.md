@@ -5,7 +5,7 @@
 > La vecchia dashboard (`src/dashboard/`, Express + vanilla JS) resta attiva
 > finché la Fase 3 non la dichiara deprecata.
 
-## 0. Analisi del repo attuale (zema-tech/discord-multi-server-bot)
+## 0. Analisi del repo attuale (zema-tech/zealbot-discord, ex discord-multi-server-bot)
 
 ### Cosa fa la dashboard vecchia (`src/dashboard/`, ~3500 righe)
 
@@ -64,7 +64,7 @@ il filesystem è effimero → la dashboard prod **richiede Postgres**. Strategia
 ## 2. Architettura target
 
 ```
-discord-multi-server-bot/
+zealbot/
 ├── apps/
 │   ├── bot/                  # FASE 2: symlink/puntatore a src/ esistente (logica invariata)
 │   └── dashboard/            # NUOVO: Next.js 16 App Router + Auth.js v5 + Tailwind v4 + shadcn

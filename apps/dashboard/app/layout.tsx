@@ -7,7 +7,7 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-body" });
 const sora = Sora({ subsets: ["latin"], variable: "--font-display" });
 
 export const metadata: Metadata = {
-  title: "Multi-Server Bot — Dashboard",
+  title: "ZealBot — Dashboard",
   description: "Comanda moderazione, ticket, livelli ed economia su tutti i tuoi server Discord.",
 };
 
