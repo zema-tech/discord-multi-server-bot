@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Control Room — ZealBot Agenti</title>
+<link rel="stylesheet" href="/css/tokens.css">
+<link rel="stylesheet" href="/css/site.css">
+<style>
+.wrap{max-width:1080px;margin:0 auto;padding:1rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.75rem;margin:.75rem 0}
+.card{border:1px solid var(--border,#2a2d31);border-radius:12px;padding:.8rem;background:#1e1f22}
+.sess{border:1px solid var(--border,#2a2d31);border-radius:12px;padding:.7rem;margin:.5rem 0;background:#1e1f22;cursor:pointer}
+.sess.active{border-color:#5865F2}
+.trace{background:#111214;border-radius:12px;padding:.8rem;height:320px;overflow-y:auto;font-family:monospace;font-size:.82rem;white-space:pre-wrap}
+.row{display:flex;gap:.5rem;flex-wrap:wrap;margin:.5rem 0}
+.badge{display:inline-block;padding:.1rem .5rem;border-radius:999px;font-size:.75rem;background:#2b2d31}
+.st-running{background:#0a3d2e;color:#57f287}.st-done{background:#2b2d31;color:#dbdee1}.st-error,.st-timeout{background:#4d1a1a;color:#ffa4a4}
+input,button{font:inherit}
+input[type=text]{flex:1;min-width:200px;padding:.5rem .7rem;border-radius:8px;border:1px solid #2a2d31;background:#111214;color:#dbdee1}
+.btn{padding:.5rem .9rem;border-radius:8px;border:0;cursor:pointer}
+.btn-ok{background:#248046;color:#fff}.btn-no{background:#da373c;color:#fff}.btn-go{background:#5865F2;color:#fff}
+.appr{border:1px solid #6d5216;background:#2b2410;border-radius:12px;padding:.7rem;margin:.5rem 0}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <a class="brand" href="/"><span class="brand-mark">⚡</span>ZealBot&nbsp;Control</a>
+  <div class="nav-links"><a href="/app.html" class="btn btn-sm">Console</a></div>
+</nav>
+<div class="wrap">
+  <h1>🎧 Control Room — i goggles degli agenti</h1>
+  <p class="sub">Vedi in diretta cosa pensano e fanno JARVIS e gli specialisti, approva gli usi sensibili e prendi il controllo quando serve.</p>
+
+  <h2>Agenti</h2>
+  <div class="grid" id="agents"></div>
+
+  <h2>⏳ Approvazioni in attesa</h2>
+  <div id="approvals"><p class="sub">Nessuna.</p></div>
+
+  <h2>📼 Sessioni recenti</h2>
+  <div id="sessions"></div>
+
+  <h2>🔴 Live <span id="liveTitle"></span></h2>
+  <div class="trace" id="trace">Seleziona una sessione per entrare nel suo schermo.</div>
+  <div class="row">
+    <input type="text" id="takeover" placeholder="Detta un'istruzione all'agente (take-over)…" maxlength="1000">
+    <button class="btn btn-go" id="sendTakeover">Invia</button>
+  </div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+let es = null, liveId = null;
+
+async function api(path, opts) {
+  const r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  if (r.status === 401) { location.href = '/login'; throw new Error('login'); }
+  return r.json();
+}
+function esc(s) { return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+async function loadAgents() {
+  try {
+    const d = await api('/api/agents');
+    $('agents').innerHTML = d.agents.map((a) => `<div class="card"><b>${a.icon} ${esc(a.name)}</b><br><span class="sub">${esc(a.tagline)}</span></div>`).join('');
+  } catch {}
+}
+
+async function loadApprovals() {
+  try {
+    const d = await api('/api/agents/approvals/pending');
+    $('approvals').innerHTML = d.pending.length ? d.pending.map((a) =>
+      `<div class="appr"><b>${esc(a.title)}</b> <span class="badge">${esc(a.kind)}</span><br><span class="sub">${esc(a.detail)}</span><br><span class="sub">agente ${esc(a.agentId)} · ${esc(a.createdAt)}</span>` +
+      `<div class="row"><button class="btn btn-ok" onclick="resolveAppr('${a.id}',true)">Approva</button><button class="btn btn-no" onclick="resolveAppr('${a.id}',false)">Nega</button></div></div>`
+    ).join('') : '<p class="sub">Nessuna.</p>';
+  } catch {}
+}
+
+async function resolveAppr(id, ok) {
+  await api(`/api/agents/approvals/${id}/resolve`, { method: 'POST', body: JSON.stringify({ approved: ok }) });
+  loadApprovals();
+}
+
+async function loadSessions() {
+  try {
+    const d = await api('/api/agents/sessions');
+    $('sessions').innerHTML = d.sessions.length ? d.sessions.map((s) =>
+      `<div class="sess${s.id === liveId ? ' active' : ''}" onclick="watch('${s.id}')"><b>${esc(s.agentId)}</b> <span class="badge st-${esc(s.status)}">${esc(s.status)}</span><br>${esc(s.task)}<br><span class="sub">${s.steps} passi · ${esc(s.updatedAt)}</span></div>`
+    ).join('') : '<p class="sub">Nessuna sessione. Lancia <b>/jarvis</b> su Discord.</p>';
+  } catch {}
+}
+
+function watch(id) {
+  liveId = id;
+  if (es) { try { es.close(); } catch {} }
+  $('trace').textContent = 'Connessione…';
+  $('liveTitle').textContent = '· ' + id;
+  es = new EventSource(`/api/agents/sessions/${id}/stream`);
+  es.onmessage = (e) => {
+    try {
+      const d = JSON.parse(e.data);
+      $('trace').textContent = d.steps.map((s) => `[${s.t.slice(11, 19)}] ${s.type.toUpperCase()}: ${s.text}`).join('\n');
+      $('trace').scrollTop = $('trace').scrollHeight;
+      if (d.status !== 'running') { try { es.close(); } catch {} loadSessions(); }
+    } catch {}
+  };
+  loadSessions();
+}
+
+$('sendTakeover').onclick = async () => {
+  const t = $('takeover').value.trim();
+  if (!t || !liveId) return;
+  await api(`/api/agents/sessions/${liveId}/inbox`, { method: 'POST', body: JSON.stringify({ text: t }) });
+  $('takeover').value = '';
+};
+
+loadAgents(); loadSessions(); loadApprovals();
+setInterval(() => { loadSessions(); loadApprovals(); }, 8000);
+</script>
+</body>
+</html>

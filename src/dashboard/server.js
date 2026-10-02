@@ -203,6 +203,17 @@ function startDashboard(client) {
     console.error('[Dashboard] auditRoutes non montato:', e && e.message ? e.message : e);
   }
 
+  // Control-room agenti (goggles): best-effort, mai bloccare l'avvio.
+  try {
+    const { mountAgents } = require('./agentsRoutes');
+    if (typeof mountAgents === 'function') {
+      const m = mountAgents(app, auth);
+      if (m && m.router) app.use(m.mountPath || '/api/agents', auth.requireAuth, m.router);
+    }
+  } catch (e) {
+    console.error('[Dashboard] agentsRoutes non montato:', e && e.message ? e.message : e);
+  }
+
   // Landing: se un altro agente fornisce public/index.html, lo serve lo static;
   // altrimenti fallback inline (mai crashare).
   app.get('/', (req, res) => {

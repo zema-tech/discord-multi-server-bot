@@ -2416,7 +2416,8 @@ try {
   }
   const registry = require(path.join(ROOT, 'src', 'modules', 'registry.js'));
   registry.reload();
-  if (registry.list().length !== 16) fail(`lumi: registry dovrebbe avere 16 moduli, ha ${registry.list().length}`);
+  if (registry.list().length !== 17) fail(`lumi: registry dovrebbe avere 17 moduli, ha ${registry.list().length}`);
+  if (!registry.list().some((m) => m.id === 'agents')) fail('lumi: modulo agents (JARVIS) mancante dal registry');
   if (!registry.list().every((m) => /^\d+\.\d+\.\d+$/.test(m.version || ''))) {
     fail('lumi: ogni modulo deve dichiarare version semver via defineModule');
   }

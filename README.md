@@ -107,6 +107,7 @@ npm test   # smoke senza token: comandi, eventi, commander, DB
 | **Livelli** | XP chat/vocale, rank, top, ruoli premio |
 | **Ticket** | pannello, claim, transcript, priorità, SLA, rating |
 | **AI** | /chiedi, riassumi, brain/skill, provider auto |
+| **Agenti** | /jarvis + specialisti in sandbox, control-room live ([docs/AGENTS.md](docs/AGENTS.md)) |
 | **Utility** | welcome, automod, starboard, reaction roles, giveaway… |
 | **Musica** | /musica (play, coda, skip, loop…) |
 
